@@ -10,8 +10,8 @@ Antes de realizar cambios en la arquitectura, datos o modelos, consulta la docum
    - [shared-docs/agent-guides/common.md](shared-docs/agent-guides/common.md)
 
 2. **Guía específica de Android:**
-   - `shared-docs/agent-guides/android.md`
-   *(Nota: Actualmente este archivo no existe todavía en el repositorio de documentación compartida; no inventes su contenido y consulta con el equipo cuando sea necesario).*
+   - [shared-docs/agent-guides/android.md](shared-docs/agent-guides/android.md)
+   *(Contiene las reglas de Kotlin, Compose, estructura de paquetes, pruebas con MockK y ciclo de vida de autenticación y datos).*
 
 3. **Contrato de datos de Firebase:**
    - [shared-docs/architecture/firebase-data-contract.md](shared-docs/architecture/firebase-data-contract.md)
