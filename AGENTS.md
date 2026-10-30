@@ -11,11 +11,11 @@ Antes de realizar cambios en la arquitectura, datos o modelos, consulta la docum
 
 2. **Guía específica de Android:**
    - [shared-docs/agent-guides/android.md](shared-docs/agent-guides/android.md)
-   *(Contiene las reglas de Kotlin, Compose, estructura de paquetes, pruebas con MockK y ciclo de vida de autenticación y datos).*
+   *(Contiene las reglas de Kotlin, Compose, patrones de diseño, estructura de paquetes, pruebas con MockK y ciclo de vida de autenticación y datos).*
 
 3. **Contrato de datos de Firebase:**
    - [shared-docs/architecture/firebase-data-contract.md](shared-docs/architecture/firebase-data-contract.md)
-   *(Cualquier modificación en las colecciones `users`, `usernames`, `friendships` o `caprices` debe respetar estrictamente este contrato para mantener la sincronización con iOS).*
+   *(Cualquier modificación en las colecciones `users`, `usernames`, `friendships`, `userBlocks` o `caprices` debe respetar estrictamente este contrato para mantener la sincronización con iOS).*
 
 4. **Flujo Git y Ramas:**
    - [shared-docs/development/git-workflow.md](shared-docs/development/git-workflow.md)
@@ -23,14 +23,16 @@ Antes de realizar cambios en la arquitectura, datos o modelos, consulta la docum
 
 ---
 
-## Reglas de desarrollo en Android
+## Reglas de desarrollo y commits en Android
 
 1. **Arquitectura Hexagonal (Ports & Adapters) estricta:**
-   - `domain`: Modelos inmutables y puertos (interfaces de repositorio). Prohibido importar librerías de Android o Firebase en esta capa.
+   - `domain`: Modelos inmutables, validadores y puertos (interfaces de repositorio). Prohibido importar librerías de Android o Firebase en esta capa.
    - `application`: Casos de uso con responsabilidad única (`execute`).
-   - `infrastructure`: Adaptadores de Firebase (`data`, `auth`) y vistas en Jetpack Compose con ViewModels (`ui`).
+   - `infrastructure`: Adaptadores de Firebase (`data`, `auth`), fábricas (`factory`) y vistas en Jetpack Compose con ViewModels (`ui`).
 2. **Interfaz de usuario:**
    - Jetpack Compose con paleta Dark Theme (`DarkBackground = #121212`, `DarkSurface = #1E1E1E`, `LimeGreen = #D4FF00`).
    - Flujo unidireccional de datos (UDF) mediante `StateFlow<UiState>` inmutable.
 3. **Credenciales y Configuración Local:**
    - `app/google-services.json` y `local.properties` están estrictamente excluidos de Git por `.gitignore` y deben mantenerse seguros localmente.
+4. **Regla estricta de prefijos de Commit:**
+   - Todo commit dentro del submódulo `shared-docs/` (`caprichometro_docs`) o que modifique únicamente documentación debe llevar siempre el prefijo **`docs:`** (nunca `feat:`, `fix:` ni `refactor:`).
