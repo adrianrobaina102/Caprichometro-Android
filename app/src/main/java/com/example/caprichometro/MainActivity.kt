@@ -29,8 +29,10 @@ import com.example.caprichometro.application.usecase.auth.RegisterUseCase
 import com.example.caprichometro.application.usecase.auth.SignInUseCase
 import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCase
 import com.example.caprichometro.application.usecase.auth.SignOutUseCase
+import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
+import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
 import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
@@ -81,12 +83,16 @@ class MainActivity : ComponentActivity() {
         val getIncomingRequestsUseCase = GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository)
         val respondToRequestUseCase = RespondToFriendRequestUseCase(friendshipRepository)
         val getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+        val removeFriendUseCase = RemoveFriendUseCase(friendshipRepository)
+        val blockUserUseCase = BlockUserUseCase(friendshipRepository)
         val friendshipViewModel = FriendshipViewModel(
             searchUserUseCase,
             sendRequestUseCase,
             getIncomingRequestsUseCase,
             respondToRequestUseCase,
-            getAcceptedFriendsUseCase
+            getAcceptedFriendsUseCase,
+            removeFriendUseCase,
+            blockUserUseCase
         )
 
         setContent {

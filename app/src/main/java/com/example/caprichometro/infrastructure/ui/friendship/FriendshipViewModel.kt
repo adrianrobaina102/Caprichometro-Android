@@ -1,20 +1,22 @@
 package com.example.caprichometro.infrastructure.ui.friendship
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
+import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
+import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
+import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
-import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
-import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
-import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.IncomingFriendRequest
+import com.example.caprichometro.domain.model.UserProfile
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class FriendshipSearchState(
@@ -32,7 +34,9 @@ class FriendshipViewModel(
     private val sendFriendRequestUseCase: SendFriendRequestUseCase,
     private val getIncomingFriendRequestsUseCase: GetIncomingFriendRequestsUseCase,
     private val respondToFriendRequestUseCase: RespondToFriendRequestUseCase,
-    private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase
+    private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase,
+    private val removeFriendUseCase: RemoveFriendUseCase,
+    private val blockUserUseCase: BlockUserUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FriendshipSearchState())
@@ -43,10 +47,8 @@ class FriendshipViewModel(
     fun listenToIncomingRequests(currentUserId: String) {
         if (currentUserId.isBlank()) return
 
-        // Cancelamos cualquier escucha previa para evitar fugas o dobles suscriptores
         listenRequestsJob?.cancel()
         listenRequestsJob = viewModelScope.launch {
-            // Escuchamos solicitudes pendientes
             launch {
                 getIncomingFriendRequestsUseCase.execute(currentUserId)
                     .catch { e ->
@@ -54,19 +56,16 @@ class FriendshipViewModel(
                         _state.update { it.copy(errorMessage = "Error al recibir solicitudes: ${e.message}") }
                     }
                     .collect { requests ->
-                        android.util.Log.d("FriendshipViewModel", "Solicitudes recibidas: ${requests.size}")
                         _state.update { it.copy(incomingRequests = requests) }
                     }
             }
 
-            // Escuchamos amistades aceptadas en tiempo real
             launch {
                 getAcceptedFriendsUseCase.execute(currentUserId)
                     .catch { e ->
                         android.util.Log.e("FriendshipViewModel", "Error al escuchar amigos: ${e.message}", e)
                     }
                     .collect { friendsList ->
-                        android.util.Log.d("FriendshipViewModel", "Amigos aceptados: ${friendsList.size}")
                         _state.update { it.copy(friends = friendsList) }
                     }
             }
@@ -141,12 +140,50 @@ class FriendshipViewModel(
         respondToRequest(friendshipId, accept = false)
     }
 
+    fun removeFriend(currentUserId: String, friendId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(errorMessage = null) }
+            val result = removeFriendUseCase.execute(currentUserId, friendId)
+            result.fold(
+                onSuccess = {
+                    _state.update { state ->
+                        state.copy(friends = state.friends.filterNot { it.uid == friendId })
+                    }
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(errorMessage = error.message ?: "No se pudo eliminar la amistad.") }
+                }
+            )
+        }
+    }
+
+    fun blockUser(currentUserId: String, blockedUserId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(errorMessage = null) }
+            val result = blockUserUseCase.execute(currentUserId, blockedUserId)
+            result.fold(
+                onSuccess = {
+                    _state.update { state ->
+                        state.copy(
+                            friends = state.friends.filterNot { it.uid == blockedUserId },
+                            incomingRequests = state.incomingRequests.filterNot { it.sender.uid == blockedUserId },
+                            userFound = if (state.userFound?.uid == blockedUserId) null else state.userFound
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(errorMessage = error.message ?: "No se pudo bloquear al usuario.") }
+                }
+            )
+        }
+    }
+
     private fun respondToRequest(friendshipId: String, accept: Boolean) {
         viewModelScope.launch {
             val result = respondToFriendRequestUseCase.execute(friendshipId, accept)
             result.fold(
                 onSuccess = {
-                    // La actualización en Firestore dispara automáticamente el snapshotListener
+                    // SnapshotListener actualiza la lista automáticamente
                 },
                 onFailure = { error ->
                     _state.update { it.copy(errorMessage = error.message ?: "Error al responder a la solicitud") }

@@ -8,8 +8,10 @@ import com.example.caprichometro.application.usecase.auth.RegisterUseCase
 import com.example.caprichometro.application.usecase.auth.SignInUseCase
 import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCase
 import com.example.caprichometro.application.usecase.auth.SignOutUseCase
+import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
+import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
 import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
@@ -50,7 +52,9 @@ class ViewModelFactory {
             SendFriendRequestUseCase(friendshipRepository),
             GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository),
             RespondToFriendRequestUseCase(friendshipRepository),
-            GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+            GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository),
+            RemoveFriendUseCase(friendshipRepository),
+            BlockUserUseCase(friendshipRepository)
         )
     }
 }

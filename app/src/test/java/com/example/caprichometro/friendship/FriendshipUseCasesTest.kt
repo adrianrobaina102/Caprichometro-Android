@@ -1,7 +1,9 @@
 package com.example.caprichometro.friendship
 
+import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
+import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
 import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
@@ -102,6 +104,7 @@ class FriendshipUseCasesTest {
 
             val senderProfile = UserProfile(uid = senderId, username = "amigo_sender")
             coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
+            coEvery { friendshipRepository.isBlocked(myId, senderId) } returns Result.success(false)
             coEvery { userProfileRepository.getUserById(senderId) } returns Result.success(senderProfile)
 
             val result = useCase.execute(myId).first()
@@ -136,6 +139,7 @@ class FriendshipUseCasesTest {
             val validProfile = UserProfile(uid = senderWithProfile, username = "amigo_valido")
 
             coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship1, friendship2))
+            coEvery { friendshipRepository.isBlocked(myId, any()) } returns Result.success(false)
             coEvery { userProfileRepository.getUserById(senderWithoutProfile) } returns Result.success(null)
             coEvery { userProfileRepository.getUserById(senderWithProfile) } returns Result.success(validProfile)
 
@@ -143,6 +147,28 @@ class FriendshipUseCasesTest {
 
             assertEquals(1, result.size)
             assertEquals("amigo_valido", result[0].sender.username)
+        }
+
+        @Test
+        fun `omite solicitudes entrantes si existe un bloqueo entre los usuarios`() = runTest {
+            val myId = "user_me"
+            val blockedSenderId = "user_blocked"
+            val friendship = Friendship(
+                id = "${blockedSenderId}_${myId}",
+                memberIDs = listOf(blockedSenderId, myId),
+                requestedBy = blockedSenderId,
+                status = FriendshipStatus.PENDING,
+                createdAt = Date(),
+                updatedAt = Date()
+            )
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
+            coEvery { friendshipRepository.isBlocked(myId, blockedSenderId) } returns Result.success(true)
+
+            val result = useCase.execute(myId).first()
+
+            assertTrue(result.isEmpty())
+            coVerify(exactly = 0) { userProfileRepository.getUserById(blockedSenderId) }
         }
     }
 
@@ -188,6 +214,7 @@ class FriendshipUseCasesTest {
             val friendProfile = UserProfile(uid = friendId, username = "buen_amigo")
 
             coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
+            coEvery { friendshipRepository.isBlocked(myId, friendId) } returns Result.success(false)
             coEvery { userProfileRepository.getUserById(friendId) } returns Result.success(friendProfile)
 
             val friends = useCase.execute(myId).first()
@@ -222,6 +249,7 @@ class FriendshipUseCasesTest {
             val activeProfile = UserProfile(uid = activeFriendId, username = "amigo_activo")
 
             coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendshipDeleted, friendshipActive))
+            coEvery { friendshipRepository.isBlocked(myId, any()) } returns Result.success(false)
             coEvery { userProfileRepository.getUserById(deletedFriendId) } returns Result.success(null)
             coEvery { userProfileRepository.getUserById(activeFriendId) } returns Result.success(activeProfile)
 
@@ -229,6 +257,75 @@ class FriendshipUseCasesTest {
 
             assertEquals(1, friends.size)
             assertEquals("amigo_activo", friends[0].username)
+        }
+
+        @Test
+        fun `omite amigos aceptados si existe un bloqueo entre los usuarios`() = runTest {
+            val myId = "user_me"
+            val blockedFriendId = "user_blocked"
+            val friendship = Friendship(
+                id = "${myId}_${blockedFriendId}",
+                memberIDs = listOf(myId, blockedFriendId),
+                requestedBy = myId,
+                status = FriendshipStatus.ACCEPTED,
+                createdAt = Date(),
+                updatedAt = Date()
+            )
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
+            coEvery { friendshipRepository.isBlocked(myId, blockedFriendId) } returns Result.success(true)
+
+            val friends = useCase.execute(myId).first()
+
+            assertTrue(friends.isEmpty())
+            coVerify(exactly = 0) { userProfileRepository.getUserById(blockedFriendId) }
+        }
+    }
+
+    @Nested
+    inner class RemoveFriendTests {
+        private val useCase = RemoveFriendUseCase(friendshipRepository)
+
+        @Test
+        fun `elimina la amistad aceptada llamando al repositorio`() = runTest {
+            coEvery { friendshipRepository.removeFriendship("user_1", "user_2") } returns Result.success(Unit)
+
+            val result = useCase.execute("user_1", "user_2")
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { friendshipRepository.removeFriendship("user_1", "user_2") }
+        }
+
+        @Test
+        fun `falla si el usuario intenta eliminarse a si mismo`() = runTest {
+            val result = useCase.execute("user_1", "user_1")
+
+            assertTrue(result.isFailure)
+            coVerify(exactly = 0) { friendshipRepository.removeFriendship(any(), any()) }
+        }
+    }
+
+    @Nested
+    inner class BlockUserTests {
+        private val useCase = BlockUserUseCase(friendshipRepository)
+
+        @Test
+        fun `bloquea al usuario llamando al repositorio`() = runTest {
+            coEvery { friendshipRepository.blockUser("user_1", "user_2") } returns Result.success(Unit)
+
+            val result = useCase.execute("user_1", "user_2")
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { friendshipRepository.blockUser("user_1", "user_2") }
+        }
+
+        @Test
+        fun `impide bloquearse a uno mismo`() = runTest {
+            val result = useCase.execute("user_1", "user_1")
+
+            assertTrue(result.isFailure)
+            assertEquals("No puedes bloquearte a ti mismo", result.exceptionOrNull()?.message)
+            coVerify(exactly = 0) { friendshipRepository.blockUser(any(), any()) }
         }
     }
 }

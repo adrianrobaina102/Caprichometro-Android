@@ -14,17 +14,19 @@ class GetIncomingFriendRequestsUseCase(
     fun execute(currentUserId: String): Flow<List<IncomingFriendRequest>> {
         return friendshipRepository.getFriendships(currentUserId).map { friendships ->
 
-            // Filtramos: Solo las pendientes y que hayan sido solicitadas por la otra persona
             val pendingRequests = friendships.filter { friendship ->
                 friendship.status == FriendshipStatus.PENDING && friendship.requestedBy != currentUserId
             }
 
-            // Según la regla acordada en common.md:
-            // Si el remitente no tiene perfil en users, se omite esa solicitud específica
-            // sin inventar perfiles de reemplazo ("Usuario") y se muestran las demás.
             pendingRequests.mapNotNull { friendship ->
-                val profileResult = userProfileRepository.getUserById(friendship.requestedBy)
-                val profile = profileResult.getOrNull() ?: return@mapNotNull null
+                // Si existe bloqueo en cualquiera de los dos sentidos, se oculta la solicitud
+                val isBlocked = friendshipRepository.isBlocked(currentUserId, friendship.requestedBy)
+                    .getOrDefault(false)
+                if (isBlocked) return@mapNotNull null
+
+                // Si el remitente no tiene perfil en users, se omite esa solicitud específica
+                val profile = userProfileRepository.getUserById(friendship.requestedBy).getOrNull()
+                    ?: return@mapNotNull null
 
                 IncomingFriendRequest(
                     friendshipId = friendship.id,

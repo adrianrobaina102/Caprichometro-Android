@@ -4,7 +4,10 @@ import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.UserProfile
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Transaction
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -13,7 +16,25 @@ import java.util.Date
 
 class FirestoreFriendshipRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
-): FriendshipRepository {
+) : FriendshipRepository {
+
+    private fun blockReference(blockerId: String, blockedUserId: String): DocumentReference {
+        return db.collection("userBlocks")
+            .document(blockerId)
+            .collection("blockedUsers")
+            .document(blockedUserId)
+    }
+
+    private fun isBlockedInTransaction(
+        transaction: Transaction,
+        userA: String,
+        userB: String
+    ): Boolean {
+        val outgoing = transaction.get(blockReference(userA, userB))
+        val incoming = transaction.get(blockReference(userB, userA))
+        return outgoing.exists() || incoming.exists()
+    }
+
     override suspend fun searchUserByUsername(username: String): Result<UserProfile?> {
         return try {
             val usernameDoc = db.collection("usernames").document(username).get().await()
@@ -38,27 +59,50 @@ class FirestoreFriendshipRepository(
                 createdAt = createdAt
             )
             Result.success(profile)
-        }catch (e: Exception) {
+        } catch (e: Exception) {
             Result.failure(e)
         }
-
     }
 
     override suspend fun sendFriendRequest(friendship: Friendship): Result<Unit> {
-       return try {
-           val data = hashMapOf(
-               "id" to friendship.id,
-               "memberIDs" to friendship.memberIDs,
-               "requestedBy" to friendship.requestedBy,
-               "status" to friendship.status.value,
-               "createdAt" to friendship.createdAt,
-               "updatedAt" to friendship.updatedAt
-           )
-           db.collection("friendships").document(friendship.id).set(data).await()
-           Result.success(Unit)
-       }catch (e: Exception) {
-           Result.failure(e)
-       }
+        return try {
+            val sortedMembers = friendship.memberIDs.sorted()
+            val friendshipId = sortedMembers.joinToString("_")
+            val requesterId = friendship.requestedBy
+            val recipientId = sortedMembers.firstOrNull { it != requesterId }
+                ?: return Result.failure(IllegalArgumentException("Destinatario inválido"))
+
+            val friendshipRef = db.collection("friendships").document(friendshipId)
+
+            db.runTransaction { transaction ->
+                val snapshot = transaction.get(friendshipRef)
+                if (isBlockedInTransaction(transaction, requesterId, recipientId)) {
+                    throw IllegalStateException("No se puede enviar una solicitud a un usuario bloqueado.")
+                }
+
+                if (snapshot.exists()) {
+                    val existingStatus = snapshot.getString("status")?.lowercase()
+                    val canResend = existingStatus == "declined" || existingStatus == "rejected"
+                    if (!canResend) {
+                        throw IllegalStateException("Ya existe una relación entre estos usuarios.")
+                    }
+                }
+
+                val data = hashMapOf(
+                    "id" to friendshipId,
+                    "memberIDs" to sortedMembers,
+                    "requestedBy" to requesterId,
+                    "status" to FriendshipStatus.PENDING.value,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+                transaction.set(friendshipRef, data)
+            }.await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     override suspend fun updateFriendshipStatus(
@@ -66,13 +110,108 @@ class FirestoreFriendshipRepository(
         status: FriendshipStatus
     ): Result<Unit> {
         return try {
-            db.collection("friendships").document(friendshipId)
-                .update(
-                    "status", status.value,
-                    "updatedAt", Date()
-                ).await()
+            val friendshipRef = db.collection("friendships").document(friendshipId)
+
+            db.runTransaction { transaction ->
+                val snapshot = transaction.get(friendshipRef)
+                if (!snapshot.exists()) {
+                    throw IllegalStateException("La solicitud ya no existe.")
+                }
+
+                val rawMembers = snapshot.get("memberIDs") as? List<*>
+                val members = rawMembers?.mapNotNull { it?.toString() } ?: emptyList()
+                if (members.size == 2 && isBlockedInTransaction(transaction, members[0], members[1])) {
+                    throw IllegalStateException("No se puede responder a una solicitud entre usuarios bloqueados.")
+                }
+
+                transaction.update(
+                    friendshipRef,
+                    mapOf(
+                        "status" to status.value,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }.await()
+
             Result.success(Unit)
-        }catch (e: Exception) {
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeFriendship(userId: String, friendId: String): Result<Unit> {
+        return try {
+            val friendshipId = listOf(userId, friendId).sorted().joinToString("_")
+            val friendshipRef = db.collection("friendships").document(friendshipId)
+
+            db.runTransaction { transaction ->
+                val snapshot = transaction.get(friendshipRef)
+                if (!snapshot.exists()) {
+                    return@runTransaction null
+                }
+
+                val status = snapshot.getString("status")?.lowercase()
+                val rawMembers = snapshot.get("memberIDs") as? List<*>
+                val members = rawMembers?.mapNotNull { it?.toString() }?.toSet() ?: emptySet()
+
+                if (status != "accepted" || members != setOf(userId, friendId)) {
+                    throw IllegalStateException("La relación ha cambiado. Actualiza la lista de amigos.")
+                }
+
+                transaction.delete(friendshipRef)
+                null
+            }.await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun blockUser(blockerId: String, blockedUserId: String): Result<Unit> {
+        return try {
+            val friendshipId = listOf(blockerId, blockedUserId).sorted().joinToString("_")
+            val friendshipRef = db.collection("friendships").document(friendshipId)
+            val blockRef = blockReference(blockerId, blockedUserId)
+
+            db.runTransaction { transaction ->
+                val friendshipSnap = transaction.get(friendshipRef)
+                val existingBlockSnap = transaction.get(blockRef)
+
+                if (friendshipSnap.exists()) {
+                    val rawMembers = friendshipSnap.get("memberIDs") as? List<*>
+                    val members = rawMembers?.mapNotNull { it?.toString() }?.toSet() ?: emptySet()
+                    if (members.size != 2 || members != setOf(blockerId, blockedUserId)) {
+                        throw IllegalStateException("Datos de amistad inválidos.")
+                    }
+                }
+
+                if (!existingBlockSnap.exists()) {
+                    transaction.set(
+                        blockRef,
+                        mapOf("createdAt" to FieldValue.serverTimestamp())
+                    )
+                }
+
+                if (friendshipSnap.exists()) {
+                    transaction.delete(friendshipRef)
+                }
+                null
+            }.await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun isBlocked(userId: String, otherUserId: String): Result<Boolean> {
+        return try {
+            val outgoing = blockReference(userId, otherUserId).get().await()
+            if (outgoing.exists()) return Result.success(true)
+            val incoming = blockReference(otherUserId, userId).get().await()
+            Result.success(incoming.exists())
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }

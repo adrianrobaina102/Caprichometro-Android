@@ -7,8 +7,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,8 +22,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import com.google.firebase.auth.FirebaseAuth
 
 // Colores de la app
@@ -320,6 +321,8 @@ fun AddFriendScreen(
             }
         } else {
             state.friends.forEach { friend ->
+                var menuExpanded by remember(friend.uid) { mutableStateOf(false) }
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -332,35 +335,71 @@ fun AddFriendScreen(
                             .padding(16.dp)
                             .fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Surface(
-                            modifier = Modifier.size(40.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            color = LimeGreen.copy(alpha = 0.2f)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = LimeGreen,
-                                    modifier = Modifier.size(24.dp)
+                            Surface(
+                                modifier = Modifier.size(40.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = LimeGreen.copy(alpha = 0.2f)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = LimeGreen,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = "@${friend.username}",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Amigo",
+                                    color = Color.Gray,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
 
-                        Column {
-                            Text(
-                                text = "@${friend.username}",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Amigo",
-                                color = Color.Gray,
-                                fontSize = 12.sp
-                            )
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Opciones de amistad",
+                                    tint = Color.Gray
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                                modifier = Modifier.background(Color(0xFF2A2A2A))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Eliminar amigo", color = Color.White) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.removeFriend(actualUserId, friend.uid)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Bloquear", color = Color(0xFFFF5252)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.blockUser(actualUserId, friend.uid)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

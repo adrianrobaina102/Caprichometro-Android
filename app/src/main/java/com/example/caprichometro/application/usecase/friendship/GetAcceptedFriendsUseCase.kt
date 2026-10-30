@@ -15,10 +15,15 @@ class GetAcceptedFriendsUseCase(
         return friendshipRepository.getFriendships(currentUserId).map { friendships ->
             val acceptedFriendships = friendships.filter { it.status == FriendshipStatus.ACCEPTED }
 
-            // Si el amigo ya no existe en Firestore (cuenta borrada),
-            // se omite de la lista sin inventar perfiles ficticios.
             acceptedFriendships.mapNotNull { friendship ->
                 val friendId = friendship.memberIDs.firstOrNull { it != currentUserId } ?: return@mapNotNull null
+
+                // Si existe bloqueo en cualquiera de los dos sentidos, se oculta la relación
+                val isBlocked = friendshipRepository.isBlocked(currentUserId, friendId)
+                    .getOrDefault(false)
+                if (isBlocked) return@mapNotNull null
+
+                // Si el amigo ya no existe en Firestore (cuenta borrada), se omite
                 userProfileRepository.getUserById(friendId).getOrNull()
             }.sortedBy { it.username.lowercase() }
         }
