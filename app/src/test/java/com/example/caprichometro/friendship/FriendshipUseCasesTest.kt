@@ -3,6 +3,8 @@ package com.example.caprichometro.friendship
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
 import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
+import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
+import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
@@ -24,6 +26,62 @@ class FriendshipUseCasesTest {
 
     private val friendshipRepository: FriendshipRepository = mockk()
     private val userProfileRepository: UserProfileRepository = mockk()
+
+    @Nested
+    inner class SearchUserTests {
+        private val useCase = SearchUserByUsernameUseCase(friendshipRepository)
+
+        @Test
+        fun `normaliza el username quitando arroba y pasando a minusculas antes de buscar`() = runTest {
+            val expectedProfile = UserProfile(uid = "uid_1", username = "adrian_dev")
+            coEvery { friendshipRepository.searchUserByUsername("adrian_dev") } returns Result.success(expectedProfile)
+
+            val result = useCase.execute("  @Adrian_Dev  ")
+
+            assertTrue(result.isSuccess)
+            assertEquals("adrian_dev", result.getOrNull()?.username)
+            coVerify(exactly = 1) { friendshipRepository.searchUserByUsername("adrian_dev") }
+        }
+
+        @Test
+        fun `falla si el username queda vacio tras normalizar`() = runTest {
+            val result = useCase.execute("   @   ")
+
+            assertTrue(result.isFailure)
+            coVerify(exactly = 0) { friendshipRepository.searchUserByUsername(any()) }
+        }
+    }
+
+    @Nested
+    inner class SendFriendRequestTests {
+        private val useCase = SendFriendRequestUseCase(friendshipRepository)
+
+        @Test
+        fun `impide enviarse una solicitud de amistad a uno mismo`() = runTest {
+            val result = useCase.execute(currentUserId = "user_1", targetUserId = "user_1")
+
+            assertTrue(result.isFailure)
+            assertEquals("No puedes enviarte una solicitud a ti mismo", result.exceptionOrNull()?.message)
+            coVerify(exactly = 0) { friendshipRepository.sendFriendRequest(any()) }
+        }
+
+        @Test
+        fun `crea la amistad con ID ordenado alfabeticamente minUid_maxUid y estado PENDING`() = runTest {
+            coEvery { friendshipRepository.sendFriendRequest(any()) } returns Result.success(Unit)
+
+            val result = useCase.execute(currentUserId = "user_z", targetUserId = "user_a")
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) {
+                friendshipRepository.sendFriendRequest(match {
+                    it.id == "user_a_user_z" &&
+                        it.requestedBy == "user_z" &&
+                        it.status == FriendshipStatus.PENDING &&
+                        it.memberIDs.containsAll(listOf("user_z", "user_a"))
+                })
+            }
+        }
+    }
 
     @Nested
     inner class IncomingRequestsTests {
@@ -164,14 +222,11 @@ class FriendshipUseCasesTest {
             val activeProfile = UserProfile(uid = activeFriendId, username = "amigo_activo")
 
             coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendshipDeleted, friendshipActive))
-            // El usuario borrado no devuelve perfil
             coEvery { userProfileRepository.getUserById(deletedFriendId) } returns Result.success(null)
-            // El usuario activo sí
             coEvery { userProfileRepository.getUserById(activeFriendId) } returns Result.success(activeProfile)
 
             val friends = useCase.execute(myId).first()
 
-            // Debe mostrar solo el activo y omitir el borrado
             assertEquals(1, friends.size)
             assertEquals("amigo_activo", friends[0].username)
         }
