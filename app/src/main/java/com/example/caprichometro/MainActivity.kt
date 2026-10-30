@@ -54,14 +54,17 @@ class MainActivity : ComponentActivity() {
         val getCapricesUseCase = GetCapricesUseCase(capriceRepository)
         val capriceViewModel = CapriceViewModel(saveCapriceUseCase, getCapricesUseCase)
 
-        // Dependencias de Auth
+        // Repositorios compartidos
         val userProfileRepository = FirestoreUserProfileRepository()
+        val friendshipRepository = FirestoreFriendshipRepository()
         val authRepository = FirebaseAuthRepository()
+
+        // Dependencias de Auth
         val signInUseCase = SignInUseCase(authRepository)
         val registerUseCase = RegisterUseCase(authRepository, userProfileRepository)
         val signInWithGoogleUseCase = SignInWithGoogleUseCase(authRepository, userProfileRepository)
         val signOutUseCase = SignOutUseCase(authRepository)
-        val deleteAccountUseCase = DeleteAccountUseCase(authRepository, userProfileRepository)
+        val deleteAccountUseCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
         val getCurrentUserUseCase = GetCurrentUserUseCase(authRepository)
         val authViewModel = AuthViewModel(
             signInUseCase,
@@ -73,7 +76,6 @@ class MainActivity : ComponentActivity() {
         )
 
         // Dependencias de Amistad
-        val friendshipRepository = FirestoreFriendshipRepository()
         val searchUserUseCase = SearchUserByUsernameUseCase(friendshipRepository)
         val sendRequestUseCase = SendFriendRequestUseCase(friendshipRepository)
         val getIncomingRequestsUseCase = GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository)
@@ -234,6 +236,7 @@ fun CapriceApp(
                             textContentColor = Color.LightGray
                         )
                     }
+
                     Box(modifier = Modifier.weight(1f)) {
                         when (currentScreen) {
                             "create" -> {
