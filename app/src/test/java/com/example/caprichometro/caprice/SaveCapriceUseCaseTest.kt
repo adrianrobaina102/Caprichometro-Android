@@ -1,5 +1,6 @@
 package com.example.caprichometro.caprice
 
+import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceRepository
@@ -14,6 +15,7 @@ class SaveCapriceUseCaseTest {
 
     private val capriceRepository = mockk<CapriceRepository>()
     private val saveCapriceUseCase = SaveCapriceUseCase(capriceRepository)
+    private val getCapricesUseCase = GetCapricesUseCase(capriceRepository)
 
     @Test
     fun `debe guardar un capricho correctamente y devolver el id`() = runTest {
@@ -32,5 +34,24 @@ class SaveCapriceUseCaseTest {
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(expectedId)
         coVerify(exactly = 1) { capriceRepository.save(caprice) }
+    }
+
+    @Test
+    fun `GetCapricesUseCase devuelve la lista de caprichos del usuario con el limite solicitado`() = runTest {
+        val caprice = Caprice.Builder()
+            .setUserId("user_123")
+            .setType("Plan")
+            .setQuestion("¿Vamos al cine hoy?")
+            .setOptions("Sí", "No")
+            .build()
+
+        coEvery { capriceRepository.getCaprices("user_123", 1) } returns Result.success(listOf(caprice))
+
+        val result = getCapricesUseCase.execute("user_123", limit = 1)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).hasSize(1)
+        assertThat(result.getOrNull()?.first()?.question).isEqualTo("¿Vamos al cine hoy?")
+        coVerify(exactly = 1) { capriceRepository.getCaprices("user_123", 1) }
     }
 }
