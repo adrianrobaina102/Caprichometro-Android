@@ -77,6 +77,26 @@ class FirestoreFriendshipRepository(
         }
     }
 
+    override suspend fun deleteFriendshipsForUser(userId: String): Result<Unit> {
+        return try {
+            val snapshot = db.collection("friendships")
+                .whereArrayContains("memberIDs", userId)
+                .get()
+                .await()
+
+            if (!snapshot.isEmpty) {
+                val batch = db.batch()
+                snapshot.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override fun getFriendships(userId: String): Flow<List<Friendship>> = callbackFlow {
         val subscription = db.collection("friendships")
             .whereArrayContains("memberIDs", userId)
@@ -108,10 +128,11 @@ class FirestoreFriendshipRepository(
                             val requestedBy = doc.getString("requestedBy")
                                 ?: doc.getString("senderId")
                                 ?: doc.getString("user1Id")
-                                ?: return@mapNotNull null
+                                ?: memberIDs.firstOrNull()
+                                ?: ""
 
-                            val statusString = doc.getString("status")?.lowercase() ?: "pending"
-                            val mappedStatus = FriendshipStatus.values().firstOrNull {
+                            val statusString = doc.getString("status") ?: "pending"
+                            val mappedStatus = FriendshipStatus.entries.firstOrNull {
                                 it.value.equals(statusString, ignoreCase = true) || it.name.equals(statusString, ignoreCase = true)
                             } ?: FriendshipStatus.PENDING
 
@@ -144,7 +165,5 @@ class FirestoreFriendshipRepository(
                 }
             }
         awaitClose { subscription.remove() }
-
     }
-
 }

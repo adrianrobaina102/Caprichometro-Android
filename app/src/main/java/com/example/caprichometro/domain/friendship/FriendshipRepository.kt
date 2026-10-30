@@ -7,5 +7,6 @@ interface FriendshipRepository {
     suspend fun searchUserByUsername(username: String): Result<UserProfile?>
     suspend fun sendFriendRequest(friendship: Friendship): Result<Unit>
     suspend fun updateFriendshipStatus(friendshipId: String, status: FriendshipStatus): Result<Unit>
+    suspend fun deleteFriendshipsForUser(userId: String): Result<Unit>
     fun getFriendships(userId: String): Flow<List<Friendship>>
 }

@@ -52,24 +52,39 @@ class FriendshipUseCasesTest {
         }
 
         @Test
-        fun `no descarta la solicitud si el perfil del remitente no se encuentra en users`() = runTest {
+        fun `omite la solicitud si el perfil del remitente no existe segun la norma de common_md`() = runTest {
             val myId = "user_me"
-            val senderId = "user_sender_unknown"
-            val friendship = Friendship(
-                id = "${senderId}_${myId}",
-                memberIDs = listOf(senderId, myId),
-                requestedBy = senderId,
+            val senderWithoutProfile = "user_deleted"
+            val senderWithProfile = "user_valid"
+
+            val friendship1 = Friendship(
+                id = "${senderWithoutProfile}_${myId}",
+                memberIDs = listOf(senderWithoutProfile, myId),
+                requestedBy = senderWithoutProfile,
                 status = FriendshipStatus.PENDING,
-                createdAt = Date(),
-                updatedAt = Date()
+                createdAt = Date(1000L),
+                updatedAt = Date(1000L)
             )
 
-            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
-            coEvery { userProfileRepository.getUserById(senderId) } returns Result.success(null)
+            val friendship2 = Friendship(
+                id = "${senderWithProfile}_${myId}",
+                memberIDs = listOf(senderWithProfile, myId),
+                requestedBy = senderWithProfile,
+                status = FriendshipStatus.PENDING,
+                createdAt = Date(2000L),
+                updatedAt = Date(2000L)
+            )
+
+            val validProfile = UserProfile(uid = senderWithProfile, username = "amigo_valido")
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship1, friendship2))
+            coEvery { userProfileRepository.getUserById(senderWithoutProfile) } returns Result.success(null)
+            coEvery { userProfileRepository.getUserById(senderWithProfile) } returns Result.success(validProfile)
 
             val result = useCase.execute(myId).first()
+
             assertEquals(1, result.size)
-            assertEquals("Usuario", result[0].sender.username)
+            assertEquals("amigo_valido", result[0].sender.username)
         }
     }
 
@@ -120,6 +135,45 @@ class FriendshipUseCasesTest {
             val friends = useCase.execute(myId).first()
             assertEquals(1, friends.size)
             assertEquals("buen_amigo", friends[0].username)
+        }
+
+        @Test
+        fun `omite amigos cuya cuenta haya sido borrada y no tengan perfil`() = runTest {
+            val myId = "user_me"
+            val deletedFriendId = "user_deleted"
+            val activeFriendId = "user_active"
+
+            val friendshipDeleted = Friendship(
+                id = "${myId}_${deletedFriendId}",
+                memberIDs = listOf(myId, deletedFriendId),
+                requestedBy = myId,
+                status = FriendshipStatus.ACCEPTED,
+                createdAt = Date(1000L),
+                updatedAt = Date(1000L)
+            )
+
+            val friendshipActive = Friendship(
+                id = "${myId}_${activeFriendId}",
+                memberIDs = listOf(myId, activeFriendId),
+                requestedBy = myId,
+                status = FriendshipStatus.ACCEPTED,
+                createdAt = Date(2000L),
+                updatedAt = Date(2000L)
+            )
+
+            val activeProfile = UserProfile(uid = activeFriendId, username = "amigo_activo")
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendshipDeleted, friendshipActive))
+            // El usuario borrado no devuelve perfil
+            coEvery { userProfileRepository.getUserById(deletedFriendId) } returns Result.success(null)
+            // El usuario activo sí
+            coEvery { userProfileRepository.getUserById(activeFriendId) } returns Result.success(activeProfile)
+
+            val friends = useCase.execute(myId).first()
+
+            // Debe mostrar solo el activo y omitir el borrado
+            assertEquals(1, friends.size)
+            assertEquals("amigo_activo", friends[0].username)
         }
     }
 }

@@ -38,7 +38,6 @@ import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
 import com.example.caprichometro.infrastructure.data.FirestoreUserProfileRepository
-import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
@@ -46,17 +45,50 @@ import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewMode
 import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
-    private val factory = ViewModelFactory()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Dependencias de Caprichos
+        val capriceRepository = FirestoreCapriceRepository()
+        val saveCapriceUseCase = SaveCapriceUseCase(capriceRepository)
+        val getCapricesUseCase = GetCapricesUseCase(capriceRepository)
+        val capriceViewModel = CapriceViewModel(saveCapriceUseCase, getCapricesUseCase)
+
+        // Dependencias de Auth
+        val userProfileRepository = FirestoreUserProfileRepository()
+        val authRepository = FirebaseAuthRepository()
+        val signInUseCase = SignInUseCase(authRepository)
+        val registerUseCase = RegisterUseCase(authRepository, userProfileRepository)
+        val signInWithGoogleUseCase = SignInWithGoogleUseCase(authRepository, userProfileRepository)
+        val signOutUseCase = SignOutUseCase(authRepository)
+        val deleteAccountUseCase = DeleteAccountUseCase(authRepository, userProfileRepository)
+        val getCurrentUserUseCase = GetCurrentUserUseCase(authRepository)
+        val authViewModel = AuthViewModel(
+            signInUseCase,
+            registerUseCase,
+            signInWithGoogleUseCase,
+            signOutUseCase,
+            deleteAccountUseCase,
+            getCurrentUserUseCase
+        )
+
+        // Dependencias de Amistad
+        val friendshipRepository = FirestoreFriendshipRepository()
+        val searchUserUseCase = SearchUserByUsernameUseCase(friendshipRepository)
+        val sendRequestUseCase = SendFriendRequestUseCase(friendshipRepository)
+        val getIncomingRequestsUseCase = GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository)
+        val respondToRequestUseCase = RespondToFriendRequestUseCase(friendshipRepository)
+        val getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+        val friendshipViewModel = FriendshipViewModel(
+            searchUserUseCase,
+            sendRequestUseCase,
+            getIncomingRequestsUseCase,
+            respondToRequestUseCase,
+            getAcceptedFriendsUseCase
+        )
+
         setContent {
-            CapriceApp(
-                authViewModel = factory.createAuthViewModel(),
-                capriceViewModel = factory.createCapriceViewModel(),
-                friendshipViewModel = factory.createFriendshipViewModel()
-            )
+            CapriceApp(authViewModel, capriceViewModel, friendshipViewModel)
         }
     }
 }
