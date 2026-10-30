@@ -52,24 +52,42 @@ class FriendshipUseCasesTest {
         }
 
         @Test
-        fun `no descarta la solicitud si el perfil del remitente no se encuentra en users`() = runTest {
+        fun `omite la solicitud si el perfil del remitente no existe segun la norma de common_md`() = runTest {
             val myId = "user_me"
-            val senderId = "user_sender_unknown"
-            val friendship = Friendship(
-                id = "${senderId}_${myId}",
-                memberIDs = listOf(senderId, myId),
-                requestedBy = senderId,
+            val senderWithoutProfile = "user_deleted"
+            val senderWithProfile = "user_valid"
+
+            val friendship1 = Friendship(
+                id = "${senderWithoutProfile}_${myId}",
+                memberIDs = listOf(senderWithoutProfile, myId),
+                requestedBy = senderWithoutProfile,
                 status = FriendshipStatus.PENDING,
-                createdAt = Date(),
-                updatedAt = Date()
+                createdAt = Date(1000L),
+                updatedAt = Date(1000L)
             )
 
-            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
-            coEvery { userProfileRepository.getUserById(senderId) } returns Result.success(null)
+            val friendship2 = Friendship(
+                id = "${senderWithProfile}_${myId}",
+                memberIDs = listOf(senderWithProfile, myId),
+                requestedBy = senderWithProfile,
+                status = FriendshipStatus.PENDING,
+                createdAt = Date(2000L),
+                updatedAt = Date(2000L)
+            )
+
+            val validProfile = UserProfile(uid = senderWithProfile, username = "amigo_valido")
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship1, friendship2))
+            // El primero no tiene perfil (null)
+            coEvery { userProfileRepository.getUserById(senderWithoutProfile) } returns Result.success(null)
+            // El segundo sí tiene perfil
+            coEvery { userProfileRepository.getUserById(senderWithProfile) } returns Result.success(validProfile)
 
             val result = useCase.execute(myId).first()
+
+            // Debe haber omitido el primero y conservado el segundo, sin inventar "Usuario"
             assertEquals(1, result.size)
-            assertEquals("Usuario", result[0].sender.username)
+            assertEquals("amigo_valido", result[0].sender.username)
         }
     }
 

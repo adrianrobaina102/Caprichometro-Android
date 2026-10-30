@@ -3,7 +3,6 @@ package com.example.caprichometro.application.usecase.friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.IncomingFriendRequest
-import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,20 +19,16 @@ class GetIncomingFriendRequestsUseCase(
                 friendship.status == FriendshipStatus.PENDING && friendship.requestedBy != currentUserId
             }
 
-            // Buscamos el perfil de cada persona para tener su @username
-            // Si el perfil no se encuentra aún en users, creamos un fallback para no perder la solicitud visualmente
-            pendingRequests.map { friendship ->
+            // Según la regla acordada en common.md:
+            // Si el remitente no tiene perfil en users, se omite esa solicitud específica
+            // sin inventar perfiles de reemplazo ("Usuario") y se muestran las demás.
+            pendingRequests.mapNotNull { friendship ->
                 val profileResult = userProfileRepository.getUserById(friendship.requestedBy)
-                val profile = profileResult.getOrNull()
-
-                val senderProfile = profile ?: UserProfile(
-                    uid = friendship.requestedBy,
-                    username = "Usuario"
-                )
+                val profile = profileResult.getOrNull() ?: return@mapNotNull null
 
                 IncomingFriendRequest(
                     friendshipId = friendship.id,
-                    sender = senderProfile,
+                    sender = profile,
                     createdAt = friendship.createdAt
                 )
             }.sortedByDescending { it.createdAt }
