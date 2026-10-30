@@ -43,7 +43,7 @@ fun ActivePollScreen(
     // Este bloque crea la cuenta atrás real
     LaunchedEffect(caprice) {
         if (caprice != null) {
-            val totalTimeMillis = 1 * 60 * 1000L
+            val totalTimeMillis = 5 * 60 * 1000L
 
             while (true) {
                 // Calculamos cuánto tiempo queda restando la hora actual menos la hora de creación
