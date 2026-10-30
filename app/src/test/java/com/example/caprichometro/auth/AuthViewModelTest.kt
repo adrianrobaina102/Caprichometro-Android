@@ -23,6 +23,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthViewModelTest {
@@ -73,6 +74,43 @@ class AuthViewModelTest {
         )
 
         assertThat(autologinViewModel.state.value.isAuthSuccessful).isTrue()
+    }
+
+    @Test
+    fun `signIn rechaza formato de correo invalido sin llamar al caso de uso`() = runTest {
+        viewModel.updateEmail("correo_sin_arroba")
+        viewModel.updatePassword("123456")
+
+        viewModel.signIn()
+
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("Por favor, introduce un correo electrónico válido")
+        coVerify(exactly = 0) { signInUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `register exige al menos 6 caracteres en la contrasena`() = runTest {
+        viewModel.updateName("adrian_dev")
+        viewModel.updateEmail("adrian@gmail.com")
+        viewModel.updatePassword("12345") // 5 caracteres -> inválido
+        viewModel.updateBirthday(LocalDate.of(2002, 5, 15))
+
+        viewModel.register()
+
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("La contraseña debe tener al menos 6 caracteres")
+        coVerify(exactly = 0) { registerUseCase.execute(any(), any(), any()) }
+    }
+
+    @Test
+    fun `register rechaza fecha de nacimiento futura`() = runTest {
+        viewModel.updateName("adrian_dev")
+        viewModel.updateEmail("adrian@gmail.com")
+        viewModel.updatePassword("123456")
+        viewModel.updateBirthday(LocalDate.now().plusDays(1))
+
+        viewModel.register()
+
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("La fecha de nacimiento no puede ser en el futuro")
+        coVerify(exactly = 0) { registerUseCase.execute(any(), any(), any()) }
     }
 
     @Test
