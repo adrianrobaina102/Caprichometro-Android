@@ -6,37 +6,44 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.util.Date
 
-class FirestoreUserProfileRepository (private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) : UserProfileRepository
-{
+class FirestoreUserProfileRepository(
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+) : UserProfileRepository {
+
     override suspend fun isUsernameAvailable(username: String): Result<Boolean> {
         return try {
             val document = db.collection("usernames").document(username).get().await()
             Result.success(!document.exists())
-        }catch (e: Exception) {
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     override suspend fun saveProfile(profile: UserProfile): Result<Unit> {
         return try {
-            val batch = db.batch()
-
             val userRef = db.collection("users").document(profile.uid)
-            val userData = mapOf(
-                "username" to profile.username,
-                "createdAt" to profile.createdAt
-            )
-            batch.set(userRef, userData)
-
             val usernameRef = db.collection("usernames").document(profile.username)
-            val usernameData = mapOf(
-                "uid" to profile.uid
-            )
-            batch.set(usernameRef, usernameData)
 
-            batch.commit().await()
+            db.runTransaction { transaction ->
+                val usernameSnap = transaction.get(usernameRef)
+                if (usernameSnap.exists() && usernameSnap.getString("uid") != profile.uid) {
+                    throw IllegalStateException("El nombre de usuario @${profile.username} ya está en uso.")
+                }
+
+                val userData = mapOf(
+                    "username" to profile.username,
+                    "createdAt" to profile.createdAt
+                )
+                val usernameData = mapOf(
+                    "uid" to profile.uid
+                )
+
+                transaction.set(userRef, userData)
+                transaction.set(usernameRef, usernameData)
+            }.await()
+
             Result.success(Unit)
-        }catch (e: Exception) {
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }
@@ -75,7 +82,6 @@ class FirestoreUserProfileRepository (private val db: FirebaseFirestore = Fireba
             Result.success(profile)
         } catch (e: Exception) {
             android.util.Log.e("FirestoreUserProfile", "Error consultando users/$userId: ${e.message}")
-            // Fallback en caso de excepción (por ejemplo, PERMISSION_DENIED en users/{id})
             try {
                 val usernameSnapshot = db.collection("usernames")
                     .whereEqualTo("uid", userId)

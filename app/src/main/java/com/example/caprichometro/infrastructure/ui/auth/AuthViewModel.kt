@@ -35,6 +35,8 @@ class AuthViewModel(
     private val getCurrentUserUseCase: GetCurrentUserUseCase
 ) : ViewModel() {
 
+    private val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+
     private val _state = MutableStateFlow(
         AuthState(isAuthSuccessful = getCurrentUserUseCase.execute() != null)
     )
@@ -46,6 +48,11 @@ class AuthViewModel(
     fun clearError() { _state.update { it.copy(errorMessage = null) } }
     fun updateBirthday(date: LocalDate) { _state.update { it.copy(birthday = date) } }
 
+    private fun isValidEmail(email: String): Boolean {
+        val pattern = android.util.Patterns.EMAIL_ADDRESS
+        return pattern?.matcher(email)?.matches() ?: emailRegex.matches(email.trim())
+    }
+
     fun signIn() {
         val currentState = _state.value
         if (currentState.email.isBlank() || currentState.password.isBlank()) {
@@ -53,7 +60,7 @@ class AuthViewModel(
             return
         }
 
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(currentState.email).matches()) {
+        if (!isValidEmail(currentState.email)) {
             _state.update { it.copy(errorMessage = "Por favor, introduce un correo electrónico válido") }
             return
         }
@@ -63,7 +70,7 @@ class AuthViewModel(
         viewModelScope.launch {
             val result = signInUseCase.execute(currentState.email, currentState.password)
             result.fold(
-                onSuccess = { user ->
+                onSuccess = {
                     _state.update { it.copy(isSubmitting = false, isAuthSuccessful = true) }
                 },
                 onFailure = { error ->
@@ -86,12 +93,12 @@ class AuthViewModel(
             return
         }
 
-        if (currentState.birthday.isAfter(java.time.LocalDate.now())) {
+        if (currentState.birthday.isAfter(LocalDate.now())) {
             _state.update { it.copy(errorMessage = "La fecha de nacimiento no puede ser en el futuro") }
             return
         }
 
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(currentState.email).matches()) {
+        if (!isValidEmail(currentState.email)) {
             _state.update { it.copy(errorMessage = "Por favor, introduce un correo electrónico válido") }
             return
         }
@@ -110,7 +117,7 @@ class AuthViewModel(
                 currentState.name
             )
             result.fold(
-                onSuccess = { user ->
+                onSuccess = {
                     _state.update { it.copy(isSubmitting = false, isAuthSuccessful = true) }
                 },
                 onFailure = { error ->
