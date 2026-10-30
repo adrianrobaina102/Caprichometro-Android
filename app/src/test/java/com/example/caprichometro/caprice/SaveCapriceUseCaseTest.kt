@@ -17,13 +17,12 @@ class SaveCapriceUseCaseTest {
 
     @Test
     fun `debe guardar un capricho correctamente y devolver el id`() = runTest {
-        val caprice = Caprice(
-            userId = "user_123",
-            type = "Compra",
-            question = "¿Me pillo este teclado mecánico?",
-            answer1 = "Sí, de una",
-            answer2 = "Mejor ahorra"
-        )
+        val caprice = Caprice.Builder()
+            .setUserId("user_123")
+            .setType("Compra")
+            .setQuestion("¿Me pillo este teclado mecánico?")
+            .setOptions("Sí, de una", "Mejor ahorra")
+            .build()
 
         val expectedId = "firebase_doc_id_123"
         coEvery { capriceRepository.save(caprice) } returns Result.success(expectedId)

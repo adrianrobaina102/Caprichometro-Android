@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 data class CapriceState(
     val isLoading: Boolean = false,
-    val latestCaprices: List<Caprice> = emptyList(), // Ahora guardamos una lista
+    val latestCaprices: List<Caprice> = emptyList(),
     val error: String? = null
 )
 
@@ -25,40 +25,36 @@ class CapriceViewModel(
 
     private val _state = MutableStateFlow(CapriceState())
     val state: StateFlow<CapriceState> = _state.asStateFlow()
-    // Consigue el ID del usuario logueado. Si es nulo, devuelve texto vacío.
+
     private val currentUserId: String
         get() = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
-    // Al guardar, ahora pasamos también el currentUserId
     fun saveCaprice(type: String, questionText: String, answer1: String, answer2: String) {
-        if (currentUserId.isBlank()) return // Si no hay usuario logueado, cortamos
+        if (currentUserId.isBlank()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
 
-            val caprice = Caprice(
-                userId = currentUserId, // Guardamos a quién pertenece
-                type = type,
-                question = questionText,
-                answer1 = answer1,
-                answer2 = answer2,
-                timestamp = System.currentTimeMillis()
-            )
+            // Uso del Patrón Creacional Builder
+            val caprice = Caprice.Builder()
+                .setUserId(currentUserId)
+                .setType(type)
+                .setQuestion(questionText)
+                .setOptions(answer1, answer2)
+                .build()
 
             saveCapriceUseCase.execute(caprice)
 
-             fetchUserCaprices(limit = 1)
+            fetchUserCaprices(limit = 1)
         }
     }
 
-    // El método que pedías: lee y pide la cantidad deseada
     fun fetchUserCaprices(limit: Int = 1) {
         if (currentUserId.isBlank()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
 
-            // Le pasamos el ID del usuario y la cantidad que queremos leer
             val result = getCapricesUseCase.execute(currentUserId, limit)
 
             result.fold(
