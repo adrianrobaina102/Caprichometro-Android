@@ -39,7 +39,7 @@ class ViewModelFactory {
             RegisterUseCase(authRepository, userProfileRepository),
             SignInWithGoogleUseCase(authRepository, userProfileRepository),
             SignOutUseCase(authRepository),
-            DeleteAccountUseCase(authRepository, userProfileRepository),
+            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
             GetCurrentUserUseCase(authRepository)
         )
     }
