@@ -37,16 +37,13 @@ fun ActivePollScreen(
 ) {
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
 
-    // Estado para guardar el texto del cronómetro
     var timeDisplay by remember { mutableStateOf("--:--") }
 
-    // Este bloque crea la cuenta atrás real
     LaunchedEffect(caprice) {
         if (caprice != null) {
             val totalTimeMillis = 5 * 60 * 1000L
 
             while (true) {
-                // Calculamos cuánto tiempo queda restando la hora actual menos la hora de creación
                 val elapsedTime = System.currentTimeMillis() - caprice.timestamp
                 val remainingTime = totalTimeMillis - elapsedTime
 
@@ -56,14 +53,12 @@ fun ActivePollScreen(
                     break
                 }
 
-                // Convertimos los milisegundos restantes a minutos y segundos
                 val minutes = (remainingTime / 1000) / 60
                 val seconds = (remainingTime / 1000) % 60
 
-                // Le damos formato 05:00
                 timeDisplay = String.format("%02d:%02d", minutes, seconds)
 
-                delay(1000L) // Esperamos 1 segundo antes de volver a calcular
+                delay(1000L)
             }
         }
     }
@@ -77,11 +72,13 @@ fun ActivePollScreen(
                     .padding(horizontal = 16.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Volver",
-                    tint = Color.White
-                )
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = Color.White
+                    )
+                }
                 Text(
                     text = "Tu duda está en el aire",
                     color = Color.White,
@@ -125,7 +122,6 @@ fun ActivePollScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // AQUI PINTAMOS EL TIEMPO REAL DE FIREBASE
             Text(
                 text = timeDisplay,
                 color = LimeGreen,
@@ -153,7 +149,6 @@ fun ActivePollScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // AQUI PINTAMOS LA PREGUNTA REAL DE FIREBASE
             Text(
                 text = questionText,
                 color = Color.White,

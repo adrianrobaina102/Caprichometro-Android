@@ -37,11 +37,13 @@ fun ResultScreen(
                     .padding(horizontal = 16.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Volver",
-                    tint = Color.White
-                )
+                IconButton(onClick = onGoHome) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = Color.White
+                    )
+                }
                 Text(
                     text = "El veredicto",
                     color = Color.White,
@@ -88,7 +90,6 @@ fun ResultScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Etiqueta VOTACIÓN CERRADA
             Box(
                 modifier = Modifier
                     .background(Color(0xFF1A1A1A), RoundedCornerShape(50))
@@ -104,7 +105,6 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Textos de resultado
             Text(
                 text = "Tus amigos\nhan dicho sí.",
                 color = Color.White,
@@ -122,7 +122,6 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Caja de la imagen
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -146,7 +145,6 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Barras de progreso de los votos
             ResultBar(
                 answerText = caprice?.answer1 ?: "Sí, de una",
                 percentage = 73,
@@ -184,7 +182,6 @@ fun ResultBar(answerText: String, percentage: Int, isWinner: Boolean) {
             )
             .clip(RoundedCornerShape(12.dp))
     ) {
-        // Fondo de la barra de progreso
         Box(
             modifier = Modifier
                 .fillMaxHeight()
@@ -192,7 +189,6 @@ fun ResultBar(answerText: String, percentage: Int, isWinner: Boolean) {
                 .background(if (isWinner) Color(0xFF333C14) else Color(0xFF2A2A2A))
         )
 
-        // Textos superpuestos
         Row(
             modifier = Modifier
                 .fillMaxSize()
