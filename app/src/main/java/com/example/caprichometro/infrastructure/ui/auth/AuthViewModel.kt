@@ -71,7 +71,7 @@ class AuthViewModel(
             val result = signInUseCase.execute(currentState.email, currentState.password)
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isSubmitting = false, isAuthSuccessful = true) }
+                    _state.update { it.copy(password = "", isSubmitting = false, isAuthSuccessful = true) }
                 },
                 onFailure = { error ->
                     _state.update {
@@ -118,7 +118,7 @@ class AuthViewModel(
             )
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isSubmitting = false, isAuthSuccessful = true) }
+                    _state.update { it.copy(password = "", isSubmitting = false, isAuthSuccessful = true) }
                 },
                 onFailure = { error ->
                     _state.update {
@@ -140,7 +140,7 @@ class AuthViewModel(
 
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isSubmitting = false, isAuthSuccessful = true) }
+                    _state.update { it.copy(password = "", isSubmitting = false, isAuthSuccessful = true) }
                 },
                 onFailure = { exception ->
                     _state.update {
