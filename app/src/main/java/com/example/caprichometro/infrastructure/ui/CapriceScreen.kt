@@ -9,11 +9,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,20 +40,17 @@ fun CapriceScreen(
 ) {
     val context = LocalContext.current
 
-    // Estados de la UI para capturar lo que escribe el usuario
     var isCompraType by remember { mutableStateOf(true) }
     var questionText by remember { mutableStateOf("") }
     var answer1 by remember { mutableStateOf("") }
     var answer2 by remember { mutableStateOf("") }
 
-    // Cadena de Responsabilidad (Chain of Responsibility) para validar la pregunta
     val questionValidatorChain = remember {
         val notBlank = NotBlankValidator("La pregunta")
         notBlank.setNext(MinLengthValidator("La pregunta", minLength = 6))
         notBlank
     }
 
-    // Validador de opciones distintas
     val optionsValidator = remember { DifferentOptionsValidator() }
 
     val isFormFilled = questionText.isNotBlank() && answer1.isNotBlank() && answer2.isNotBlank()
@@ -69,27 +64,19 @@ fun CapriceScreen(
                     .padding(horizontal = 16.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Volver",
-                    tint = Color.White,
-                    modifier = Modifier.clickable { /* Navegar atrás */ }
-                )
                 Text(
                     text = "Antes de lanzarlo",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                Spacer(modifier = Modifier.width(24.dp))
             }
         },
         bottomBar = {
             Button(
                 onClick = {
-                    // Validar usando la Cadena de Responsabilidad
                     val questionResult = questionValidatorChain.validate(questionText)
                     if (questionResult is ValidationResult.Error) {
                         Toast.makeText(context, questionResult.message, Toast.LENGTH_SHORT).show()
@@ -111,7 +98,6 @@ fun CapriceScreen(
                         answer2 = answer2.trim()
                     )
 
-                    viewModel.fetchUserCaprices(limit = 1)
                     onNavigateToActivePoll()
                 },
                 enabled = isFormFilled,
@@ -148,7 +134,6 @@ fun CapriceScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Selector de Tipo: Compra o Plan
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,7 +167,6 @@ fun CapriceScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Pregunta
             Text(
                 text = "Tu duda o capricho",
                 color = Color.White,
@@ -206,7 +190,6 @@ fun CapriceScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Opción 1
             Text(
                 text = "Opción A (Respuesta 1)",
                 color = Color.White,
@@ -230,7 +213,6 @@ fun CapriceScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Opción 2
             Text(
                 text = "Opción B (Respuesta 2)",
                 color = Color.White,
@@ -252,9 +234,44 @@ fun CapriceScreen(
                 )
             )
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Foto opcional",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+                    .background(DarkSurface, RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+                    .clickable {
+                        Toast.makeText(context, "Próximamente: adjuntar foto", Toast.LENGTH_SHORT).show()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "Añadir foto",
+                        tint = LimeGreen,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Elegir de galería o cámara",
+                        color = TextGray,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Tarjetas informativas
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -30,32 +30,39 @@ class CapriceViewModel(
         get() = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
     fun saveCaprice(type: String, questionText: String, answer1: String, answer2: String) {
-        if (currentUserId.isBlank()) return
+        val uid = currentUserId
+        if (uid.isBlank()) return
+
+        val caprice = Caprice.Builder()
+            .setUserId(uid)
+            .setType(type)
+            .setQuestion(questionText)
+            .setOptions(answer1, answer2)
+            .build()
+
+        _state.update { it.copy(isLoading = true, latestCaprices = listOf(caprice), error = null) }
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-
-            // Uso del Patrón Creacional Builder
-            val caprice = Caprice.Builder()
-                .setUserId(currentUserId)
-                .setType(type)
-                .setQuestion(questionText)
-                .setOptions(answer1, answer2)
-                .build()
-
-            saveCapriceUseCase.execute(caprice)
-
-            fetchUserCaprices(limit = 1)
+            val result = saveCapriceUseCase.execute(caprice)
+            result.fold(
+                onSuccess = {
+                    fetchUserCaprices(limit = 1)
+                },
+                onFailure = { e ->
+                    _state.update { it.copy(isLoading = false, error = e.message) }
+                }
+            )
         }
     }
 
     fun fetchUserCaprices(limit: Int = 1) {
-        if (currentUserId.isBlank()) return
+        val uid = currentUserId
+        if (uid.isBlank()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
 
-            val result = getCapricesUseCase.execute(currentUserId, limit)
+            val result = getCapricesUseCase.execute(uid, limit)
 
             result.fold(
                 onSuccess = { capriceList ->
