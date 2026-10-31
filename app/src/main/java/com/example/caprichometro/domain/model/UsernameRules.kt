@@ -7,7 +7,8 @@ object UsernameRules {
     }
 
     fun isValid(username: String): Boolean {
-        val regex = "^[a-zA-Z0-9_]{3,15}$".toRegex()
-        return regex.matches(username)
+        val normalized = normalize(username)
+        val regex = "^[a-z0-9_]{3,20}$".toRegex()
+        return regex.matches(normalized)
     }
 }

@@ -18,11 +18,12 @@ class UsernameRulesTest {
     }
 
     @Test
-    fun `isValid devuelve true para nombres de usuario validos`() {
+    fun `isValid devuelve true para nombres de usuario validos de 3 a 20 caracteres`() {
         assertTrue(UsernameRules.isValid("adrian_dev"))
         assertTrue(UsernameRules.isValid("user123"))
         assertTrue(UsernameRules.isValid("abc"))
         assertTrue(UsernameRules.isValid("un_nombre_largo"))
+        assertTrue(UsernameRules.isValid("un_nombre_de_20_char"))
     }
 
     @Test
