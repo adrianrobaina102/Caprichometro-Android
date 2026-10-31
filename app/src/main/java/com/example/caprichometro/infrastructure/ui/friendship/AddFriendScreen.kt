@@ -130,6 +130,9 @@ fun AddFriendScreen(
 
         // 3. TARJETA DEL USUARIO ENCONTRADO
         state.userFound?.let { user ->
+            val isSelf = user.uid == actualUserId
+            val isAlreadyFriend = state.friends.any { it.uid == user.uid }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -149,14 +152,42 @@ fun AddFriendScreen(
                         fontWeight = FontWeight.Medium
                     )
 
-                    IconButton(
-                        onClick = { viewModel.sendRequest(actualUserId) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PersonAdd,
-                            contentDescription = "Enviar solicitud",
-                            tint = LimeGreen
-                        )
+                    when {
+                        isSelf -> {
+                            Text(
+                                text = "Tú",
+                                color = Color.Gray,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        state.isFriendRequestBlocked -> {
+                            Text(
+                                text = "No disponible",
+                                color = Color(0xFFFF5252),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        isAlreadyFriend -> {
+                            Text(
+                                text = "Ya sois amigos",
+                                color = Color.Gray,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        else -> {
+                            IconButton(
+                                onClick = { viewModel.sendRequest(actualUserId) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonAdd,
+                                    contentDescription = "Enviar solicitud",
+                                    tint = LimeGreen
+                                )
+                            }
+                        }
                     }
                 }
             }

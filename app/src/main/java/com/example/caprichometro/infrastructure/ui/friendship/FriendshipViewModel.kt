@@ -23,6 +23,7 @@ data class FriendshipSearchState(
     val searchQuery: String = "",
     val isLoading: Boolean = false,
     val userFound: UserProfile? = null,
+    val isFriendRequestBlocked: Boolean = false,
     val errorMessage: String? = null,
     val requestSentSuccess: Boolean = false,
     val incomingRequests: List<IncomingFriendRequest> = emptyList(),
@@ -84,7 +85,15 @@ class FriendshipViewModel(
     }
 
     fun updateSearchQuery(query: String) {
-        _state.update { it.copy(searchQuery = query, errorMessage = null, userFound = null, requestSentSuccess = false) }
+        _state.update {
+            it.copy(
+                searchQuery = query,
+                errorMessage = null,
+                userFound = null,
+                isFriendRequestBlocked = false,
+                requestSentSuccess = false
+            )
+        }
     }
 
     fun clearError() {
@@ -95,7 +104,15 @@ class FriendshipViewModel(
         val query = _state.value.searchQuery
         if (query.isBlank()) return
 
-        _state.update { it.copy(isLoading = true, errorMessage = null, userFound = null) }
+        _state.update {
+            it.copy(
+                isLoading = true,
+                errorMessage = null,
+                userFound = null,
+                isFriendRequestBlocked = false,
+                requestSentSuccess = false
+            )
+        }
 
         viewModelScope.launch {
             val result = searchUserByUsernameUseCase.execute(query)
@@ -117,6 +134,7 @@ class FriendshipViewModel(
 
     fun sendRequest(currentUserId: String) {
         val targetUser = _state.value.userFound ?: return
+        if (_state.value.isFriendRequestBlocked || targetUser.uid == currentUserId) return
 
         _state.update { it.copy(isLoading = true, errorMessage = null) }
 
@@ -128,10 +146,24 @@ class FriendshipViewModel(
 
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isLoading = false, requestSentSuccess = true, userFound = null, searchQuery = "") }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            requestSentSuccess = true,
+                            userFound = null,
+                            searchQuery = ""
+                        )
+                    }
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "Error al enviar la solicitud.") }
+                    val isBlockedError = error.message?.contains("bloqueado", ignoreCase = true) == true
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            isFriendRequestBlocked = isBlockedError,
+                            errorMessage = error.message ?: "Error al enviar la solicitud."
+                        )
+                    }
                 }
             )
         }
@@ -152,7 +184,10 @@ class FriendshipViewModel(
             result.fold(
                 onSuccess = {
                     _state.update { state ->
-                        state.copy(friends = state.friends.filterNot { it.uid == friendId })
+                        state.copy(
+                            friends = state.friends.filterNot { it.uid == friendId },
+                            isFriendRequestBlocked = if (state.userFound?.uid == friendId) false else state.isFriendRequestBlocked
+                        )
                     }
                 },
                 onFailure = { error ->
@@ -169,10 +204,11 @@ class FriendshipViewModel(
             result.fold(
                 onSuccess = {
                     _state.update { state ->
+                        val matchesSearchedUser = state.userFound?.uid == blockedUserId
                         state.copy(
                             friends = state.friends.filterNot { it.uid == blockedUserId },
                             incomingRequests = state.incomingRequests.filterNot { it.sender.uid == blockedUserId },
-                            userFound = if (state.userFound?.uid == blockedUserId) null else state.userFound
+                            isFriendRequestBlocked = if (matchesSearchedUser) true else state.isFriendRequestBlocked
                         )
                     }
                 },
