@@ -6,8 +6,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Lock
@@ -46,19 +48,20 @@ fun AuthScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+    val scrollState = rememberScrollState()
 
     var isLoginMode by remember { mutableStateOf(true) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
-    // Nuevas variables para el registro
     var username by remember { mutableStateOf("") }
     var birthday by remember { mutableStateOf<LocalDate?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isAuthSuccessful) {
         if (state.isAuthSuccessful) {
+            password = ""
             onNavigateToHome()
         }
     }
@@ -70,7 +73,6 @@ fun AuthScreen(
         }
     }
 
-    // Lógica del calendario (DatePicker)
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
         DatePickerDialog(
@@ -109,13 +111,14 @@ fun AuthScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
+            .verticalScroll(scrollState)
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(48.dp))
 
         Icon(
-            painter = painterResource(id = R.drawable.ic_google),
+            painter = painterResource(id = R.drawable.ic_caprichometro_logo),
             contentDescription = "Logo Caprichómetro",
             tint = Color.Unspecified,
             modifier = Modifier.size(90.dp)
@@ -157,7 +160,6 @@ fun AuthScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // CAMPOS CONDICIONALES DE REGISTRO
         if (!isLoginMode) {
             OutlinedTextField(
                 value = username,
@@ -185,7 +187,7 @@ fun AuthScreen(
                     onValueChange = {},
                     placeholder = { Text("Fecha de nacimiento (AAAA-MM-DD)", color = Color.Gray) },
                     leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = "Fecha", tint = Color.Gray) },
-                    enabled = false, // Lo desactivamos para que no se abra el teclado, solo el calendario al hacer clic en la caja
+                    enabled = false,
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = TextFieldDefaults.colors(
@@ -202,7 +204,6 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // CAMPOS DE EMAIL Y CONTRASEÑA (Siempre visibles)
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -253,33 +254,41 @@ fun AuthScreen(
 
         Button(
             onClick = {
-                // Actualizamos estado en el ViewModel antes de disparar la acción
                 viewModel.updateEmail(email)
                 viewModel.updatePassword(password)
 
                 if (isLoginMode) {
                     viewModel.signIn()
                 } else {
-                    // Si estamos registrando, pasamos también el usuario y la fecha
                     viewModel.updateName(username)
                     birthday?.let { viewModel.updateBirthday(it) }
                     viewModel.register()
                 }
             },
+            enabled = !state.isSubmitting,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = LimeGreen,
-                contentColor = Color.Black
+                contentColor = Color.Black,
+                disabledContainerColor = Color.DarkGray
             ),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            Text(
-                text = if (isLoginMode) "Entrar" else "Crear cuenta",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+            if (state.isSubmitting) {
+                CircularProgressIndicator(
+                    color = Color.Black,
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = if (isLoginMode) "Entrar" else "Crear cuenta",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -312,6 +321,7 @@ fun AuthScreen(
 
         OutlinedButton(
             onClick = { viewModel.signInWithGoogle(context) },
+            enabled = !state.isSubmitting,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = Color.White
@@ -322,9 +332,9 @@ fun AuthScreen(
                 .height(50.dp)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.ic_caprichometro_logo),
-                contentDescription = "Logo Caprichómetro",
-                modifier = Modifier.size(24.dp) // Reduje un poco el tamaño del logo para que encaje mejor
+                painter = painterResource(id = R.drawable.ic_google),
+                contentDescription = "Logo Google",
+                modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text("Continuar con Google", fontWeight = FontWeight.Medium)
@@ -335,7 +345,8 @@ fun AuthScreen(
         Text(
             text = "Al continuar aceptas los términos",
             color = Color.Gray,
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 24.dp)
         )
     }
 }
