@@ -43,11 +43,14 @@ class FriendshipViewModel(
     val state: StateFlow<FriendshipSearchState> = _state.asStateFlow()
 
     private var listenRequestsJob: Job? = null
+    private var listeningUserId: String? = null
 
     fun listenToIncomingRequests(currentUserId: String) {
         if (currentUserId.isBlank()) return
+        if (listeningUserId == currentUserId && listenRequestsJob?.isActive == true) return
 
         listenRequestsJob?.cancel()
+        listeningUserId = currentUserId
         listenRequestsJob = viewModelScope.launch {
             launch {
                 getIncomingFriendRequestsUseCase.execute(currentUserId)
@@ -64,6 +67,7 @@ class FriendshipViewModel(
                 getAcceptedFriendsUseCase.execute(currentUserId)
                     .catch { e ->
                         android.util.Log.e("FriendshipViewModel", "Error al escuchar amigos: ${e.message}", e)
+                        _state.update { it.copy(errorMessage = "Error al recibir amigos: ${e.message}") }
                     }
                     .collect { friendsList ->
                         _state.update { it.copy(friends = friendsList) }
@@ -75,6 +79,7 @@ class FriendshipViewModel(
     fun stopListening() {
         listenRequestsJob?.cancel()
         listenRequestsJob = null
+        listeningUserId = null
         _state.update { it.copy(incomingRequests = emptyList(), friends = emptyList()) }
     }
 

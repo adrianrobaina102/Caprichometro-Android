@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -169,6 +170,29 @@ class FriendshipUseCasesTest {
 
             assertTrue(result.isEmpty())
             coVerify(exactly = 0) { userProfileRepository.getUserById(blockedSenderId) }
+        }
+
+        @Test
+        fun `propaga errores de red o permisos al consultar bloqueos o perfiles`() = runTest {
+            val myId = "user_me"
+            val senderId = "user_sender"
+            val friendship = Friendship(
+                id = "${senderId}_${myId}",
+                memberIDs = listOf(senderId, myId),
+                requestedBy = senderId,
+                status = FriendshipStatus.PENDING,
+                createdAt = Date(),
+                updatedAt = Date()
+            )
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(friendship))
+            coEvery { friendshipRepository.isBlocked(myId, senderId) } returns Result.failure(RuntimeException("Error de red"))
+
+            assertThrows(RuntimeException::class.java) {
+                kotlinx.coroutines.runBlocking {
+                    useCase.execute(myId).first()
+                }
+            }
         }
     }
 

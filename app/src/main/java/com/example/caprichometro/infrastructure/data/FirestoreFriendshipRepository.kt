@@ -47,6 +47,11 @@ class FirestoreFriendshipRepository(
                 return Result.success(null)
             }
 
+            val resolvedUsername = userDoc.getString("username")?.trim()
+            if (resolvedUsername.isNullOrBlank()) {
+                return Result.success(null)
+            }
+
             val createdAt = try {
                 userDoc.getDate("createdAt") ?: userDoc.getLong("createdAt")?.let { Date(it) } ?: Date()
             } catch (e: Exception) {
@@ -55,7 +60,7 @@ class FirestoreFriendshipRepository(
 
             val profile = UserProfile(
                 uid = uid,
-                username = userDoc.getString("username") ?: username,
+                username = resolvedUsername,
                 createdAt = createdAt
             )
             Result.success(profile)
@@ -253,39 +258,37 @@ class FirestoreFriendshipRepository(
                 if (snapshot != null) {
                     val friendships = snapshot.documents.mapNotNull { doc ->
                         try {
-                            val id = doc.getString("id") ?: doc.id
+                            val id = doc.getString("id")?.takeIf { it.isNotBlank() } ?: doc.id
 
                             val rawMembers = doc.get("memberIDs") as? List<*>
-                            val memberIDs = rawMembers?.mapNotNull { it?.toString() }
-                                ?: run {
-                                    val u1 = doc.getString("user1Id")
-                                    val u2 = doc.getString("user2Id")
-                                    if (u1 != null && u2 != null) listOf(u1, u2) else null
-                                }
+                            val memberIDs = rawMembers
+                                ?.mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotEmpty) }
+                                ?.takeIf { it.size == 2 && it[0] != it[1] }
                                 ?: return@mapNotNull null
 
-                            val requestedBy = doc.getString("requestedBy")
-                                ?: doc.getString("senderId")
-                                ?: doc.getString("user1Id")
-                                ?: memberIDs.firstOrNull()
-                                ?: ""
+                            val requestedBy = doc.getString("requestedBy")?.trim()
+                                ?.takeIf { it.isNotEmpty() && memberIDs.contains(it) }
+                                ?: return@mapNotNull null
 
-                            val statusString = doc.getString("status") ?: "pending"
-                            val mappedStatus = FriendshipStatus.entries.firstOrNull {
-                                it.value.equals(statusString, ignoreCase = true) || it.name.equals(statusString, ignoreCase = true)
-                            } ?: FriendshipStatus.PENDING
+                            val statusString = doc.getString("status")?.trim() ?: return@mapNotNull null
+                            val mappedStatus = when (statusString.lowercase()) {
+                                "pending" -> FriendshipStatus.PENDING
+                                "accepted" -> FriendshipStatus.ACCEPTED
+                                "declined", "rejected" -> FriendshipStatus.DECLINED
+                                else -> return@mapNotNull null
+                            }
 
                             val createdAt = try {
-                                doc.getDate("createdAt") ?: doc.getLong("createdAt")?.let { Date(it) } ?: Date()
+                                doc.getDate("createdAt") ?: doc.getLong("createdAt")?.let { Date(it) }
                             } catch (e: Exception) {
-                                doc.getLong("createdAt")?.let { Date(it) } ?: Date()
-                            }
+                                null
+                            } ?: return@mapNotNull null
 
                             val updatedAt = try {
-                                doc.getDate("updatedAt") ?: doc.getLong("updatedAt")?.let { Date(it) } ?: Date()
+                                doc.getDate("updatedAt") ?: doc.getLong("updatedAt")?.let { Date(it) }
                             } catch (e: Exception) {
-                                doc.getLong("updatedAt")?.let { Date(it) } ?: Date()
-                            }
+                                null
+                            } ?: createdAt
 
                             Friendship(
                                 id = id,

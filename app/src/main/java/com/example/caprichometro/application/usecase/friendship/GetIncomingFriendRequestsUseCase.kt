@@ -19,13 +19,12 @@ class GetIncomingFriendRequestsUseCase(
             }
 
             pendingRequests.mapNotNull { friendship ->
-                // Si existe bloqueo en cualquiera de los dos sentidos, se oculta la solicitud
                 val isBlocked = friendshipRepository.isBlocked(currentUserId, friendship.requestedBy)
-                    .getOrDefault(false)
+                    .getOrThrow()
                 if (isBlocked) return@mapNotNull null
 
-                // Si el remitente no tiene perfil en users, se omite esa solicitud específica
-                val profile = userProfileRepository.getUserById(friendship.requestedBy).getOrNull()
+                val profile = userProfileRepository.getUserById(friendship.requestedBy)
+                    .getOrThrow()
                     ?: return@mapNotNull null
 
                 IncomingFriendRequest(

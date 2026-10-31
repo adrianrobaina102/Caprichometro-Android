@@ -21,25 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.caprichometro.application.usecase.GetCapricesUseCase
-import com.example.caprichometro.application.usecase.SaveCapriceUseCase
-import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
-import com.example.caprichometro.application.usecase.auth.GetCurrentUserUseCase
-import com.example.caprichometro.application.usecase.auth.RegisterUseCase
-import com.example.caprichometro.application.usecase.auth.SignInUseCase
-import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCase
-import com.example.caprichometro.application.usecase.auth.SignOutUseCase
-import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
-import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
-import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
-import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
-import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
-import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
-import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
-import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
-import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
-import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
-import com.example.caprichometro.infrastructure.data.FirestoreUserProfileRepository
+import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
@@ -50,50 +32,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Dependencias de Caprichos
-        val capriceRepository = FirestoreCapriceRepository()
-        val saveCapriceUseCase = SaveCapriceUseCase(capriceRepository)
-        val getCapricesUseCase = GetCapricesUseCase(capriceRepository)
-        val capriceViewModel = CapriceViewModel(saveCapriceUseCase, getCapricesUseCase)
-
-        // Repositorios compartidos
-        val userProfileRepository = FirestoreUserProfileRepository()
-        val friendshipRepository = FirestoreFriendshipRepository()
-        val authRepository = FirebaseAuthRepository()
-
-        // Dependencias de Auth
-        val signInUseCase = SignInUseCase(authRepository)
-        val registerUseCase = RegisterUseCase(authRepository, userProfileRepository)
-        val signInWithGoogleUseCase = SignInWithGoogleUseCase(authRepository, userProfileRepository)
-        val signOutUseCase = SignOutUseCase(authRepository)
-        val deleteAccountUseCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
-        val getCurrentUserUseCase = GetCurrentUserUseCase(authRepository)
-        val authViewModel = AuthViewModel(
-            signInUseCase,
-            registerUseCase,
-            signInWithGoogleUseCase,
-            signOutUseCase,
-            deleteAccountUseCase,
-            getCurrentUserUseCase
-        )
-
-        // Dependencias de Amistad
-        val searchUserUseCase = SearchUserByUsernameUseCase(friendshipRepository)
-        val sendRequestUseCase = SendFriendRequestUseCase(friendshipRepository)
-        val getIncomingRequestsUseCase = GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository)
-        val respondToRequestUseCase = RespondToFriendRequestUseCase(friendshipRepository)
-        val getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
-        val removeFriendUseCase = RemoveFriendUseCase(friendshipRepository)
-        val blockUserUseCase = BlockUserUseCase(friendshipRepository)
-        val friendshipViewModel = FriendshipViewModel(
-            searchUserUseCase,
-            sendRequestUseCase,
-            getIncomingRequestsUseCase,
-            respondToRequestUseCase,
-            getAcceptedFriendsUseCase,
-            removeFriendUseCase,
-            blockUserUseCase
-        )
+        val viewModelFactory = ViewModelFactory()
+        val capriceViewModel = viewModelFactory.createCapriceViewModel()
+        val authViewModel = viewModelFactory.createAuthViewModel()
+        val friendshipViewModel = viewModelFactory.createFriendshipViewModel()
 
         setContent {
             CapriceApp(authViewModel, capriceViewModel, friendshipViewModel)

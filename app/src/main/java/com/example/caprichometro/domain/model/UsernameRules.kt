@@ -2,7 +2,6 @@ package com.example.caprichometro.domain.model
 
 object UsernameRules {
 
-    // <-- AÑADIR AQUÍ: Regla pura de normalización de username (sin dependencias externas)
     fun normalize(username: String): String {
         return username.trim().removePrefix("@").lowercase()
     }
