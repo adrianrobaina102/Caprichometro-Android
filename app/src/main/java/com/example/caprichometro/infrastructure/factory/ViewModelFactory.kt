@@ -54,7 +54,8 @@ class ViewModelFactory {
             RespondToFriendRequestUseCase(friendshipRepository),
             GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository),
             RemoveFriendUseCase(friendshipRepository),
-            BlockUserUseCase(friendshipRepository)
+            BlockUserUseCase(friendshipRepository),
+            userProfileRepository
         )
     }
 }

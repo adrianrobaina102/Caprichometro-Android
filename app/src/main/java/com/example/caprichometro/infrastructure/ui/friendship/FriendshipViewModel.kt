@@ -11,6 +11,7 @@ import com.example.caprichometro.application.usecase.friendship.SearchUserByUser
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.domain.model.IncomingFriendRequest
 import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.domain.model.UserProfileRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,8 @@ data class FriendshipSearchState(
     val errorMessage: String? = null,
     val requestSentSuccess: Boolean = false,
     val incomingRequests: List<IncomingFriendRequest> = emptyList(),
-    val friends: List<UserProfile> = emptyList()
+    val friends: List<UserProfile> = emptyList(),
+    val currentUsername: String? = null
 )
 
 class FriendshipViewModel(
@@ -37,7 +39,8 @@ class FriendshipViewModel(
     private val respondToFriendRequestUseCase: RespondToFriendRequestUseCase,
     private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase,
     private val removeFriendUseCase: RemoveFriendUseCase,
-    private val blockUserUseCase: BlockUserUseCase
+    private val blockUserUseCase: BlockUserUseCase,
+    private val userProfileRepository: UserProfileRepository? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FriendshipSearchState())
@@ -53,6 +56,14 @@ class FriendshipViewModel(
         listenRequestsJob?.cancel()
         listeningUserId = currentUserId
         listenRequestsJob = viewModelScope.launch {
+            launch {
+                userProfileRepository?.getUserById(currentUserId)?.onSuccess { profile ->
+                    if (profile != null) {
+                        _state.update { it.copy(currentUsername = profile.username) }
+                    }
+                }
+            }
+
             launch {
                 getIncomingFriendRequestsUseCase.execute(currentUserId)
                     .catch { e ->

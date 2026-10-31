@@ -514,12 +514,18 @@ fun AddFriendScreen(
         // Botón inferior: "Invitar a un amigo"
         Button(
             onClick = {
+                val usernameToShare = state.currentUsername?.takeIf { it.isNotBlank() }
+                    ?: FirebaseAuth.getInstance().currentUser?.displayName?.replace(" ", "")?.takeIf { it.isNotBlank() }
+
+                val shareText = if (!usernameToShare.isNullOrBlank()) {
+                    "¡Únete a Caprichómetro y ayúdame a decidir mis caprichos en 5 minutos! Búscame en la app como @$usernameToShare"
+                } else {
+                    "¡Únete a Caprichómetro y ayúdame a decidir mis caprichos en 5 minutos!"
+                }
+
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(
-                        Intent.EXTRA_TEXT,
-                        "¡Únete a Caprichómetro y ayúdame a decidir mis caprichos en 5 minutos!"
-                    )
+                    putExtra(Intent.EXTRA_TEXT, shareText)
                 }
                 context.startActivity(Intent.createChooser(shareIntent, "Invitar a un amigo"))
             },
