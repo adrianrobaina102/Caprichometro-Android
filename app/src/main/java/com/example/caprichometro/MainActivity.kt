@@ -6,9 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +24,8 @@ import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
+import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
+import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
@@ -36,9 +36,10 @@ class MainActivity : ComponentActivity() {
         val capriceViewModel = viewModelFactory.createCapriceViewModel()
         val authViewModel = viewModelFactory.createAuthViewModel()
         val friendshipViewModel = viewModelFactory.createFriendshipViewModel()
+        val profileViewModel = viewModelFactory.createProfileViewModel()
 
         setContent {
-            CapriceApp(authViewModel, capriceViewModel, friendshipViewModel)
+            CapriceApp(authViewModel, capriceViewModel, friendshipViewModel, profileViewModel)
         }
     }
 }
@@ -47,7 +48,8 @@ class MainActivity : ComponentActivity() {
 fun CapriceApp(
     authViewModel: AuthViewModel,
     capriceViewModel: CapriceViewModel,
-    friendshipViewModel: FriendshipViewModel
+    friendshipViewModel: FriendshipViewModel,
+    profileViewModel: ProfileViewModel
 ) {
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
@@ -65,8 +67,6 @@ fun CapriceApp(
     }
 
     var currentScreen by remember { mutableStateOf("create") }
-    var showProfileMenu by remember { mutableStateOf(false) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -89,7 +89,7 @@ fun CapriceApp(
                             Button(
                                 onClick = { currentScreen = "create" },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (currentScreen != "add_friend") Color(0xFFD4FF00) else Color.DarkGray,
+                                    containerColor = if (currentScreen != "add_friend" && currentScreen != "profile") Color(0xFFD4FF00) else Color.DarkGray,
                                     contentColor = Color.Black
                                 )
                             ) {
@@ -108,81 +108,15 @@ fun CapriceApp(
                             }
                         }
 
-                        // Menú de opciones de perfil (Cerrar sesión / Borrar cuenta)
-                        Box {
-                            IconButton(onClick = { showProfileMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = "Opciones de perfil",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = showProfileMenu,
-                                onDismissRequest = { showProfileMenu = false },
-                                modifier = Modifier.background(Color(0xFF2A2A2A))
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Cerrar sesión", color = Color.White) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                            contentDescription = null,
-                                            tint = Color.White
-                                        )
-                                    },
-                                    onClick = {
-                                        showProfileMenu = false
-                                        friendshipViewModel.stopListening()
-                                        authViewModel.signOut()
-                                    }
-                                )
-
-                                DropdownMenuItem(
-                                    text = { Text("Borrar cuenta", color = Color(0xFFFF5252)) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.DeleteForever,
-                                            contentDescription = null,
-                                            tint = Color(0xFFFF5252)
-                                        )
-                                    },
-                                    onClick = {
-                                        showProfileMenu = false
-                                        showDeleteConfirmDialog = true
-                                    }
-                                )
-                            }
+                        // Acceso a la pantalla de perfil
+                        IconButton(onClick = { currentScreen = "profile" }) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = "Mi perfil",
+                                tint = if (currentScreen == "profile") Color(0xFFD4FF00) else Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
-                    }
-
-                    if (showDeleteConfirmDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showDeleteConfirmDialog = false },
-                            title = { Text("¿Eliminar cuenta?") },
-                            text = { Text("Esta acción es irreversible y eliminará todos tus datos y perfil.") },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        showDeleteConfirmDialog = false
-                                        friendshipViewModel.stopListening()
-                                        authViewModel.deleteAccount(currentUserId, "")
-                                    }
-                                ) {
-                                    Text("Eliminar", color = Color.Red)
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                                    Text("Cancelar", color = Color.White)
-                                }
-                            },
-                            containerColor = Color(0xFF2A2A2A),
-                            titleContentColor = Color.White,
-                            textContentColor = Color.LightGray
-                        )
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
@@ -213,6 +147,18 @@ fun CapriceApp(
                                     viewModel = friendshipViewModel,
                                     currentUserId = currentUserId,
                                     onBack = { currentScreen = "create" }
+                                )
+                            }
+                            "profile" -> {
+                                ProfileScreen(
+                                    viewModel = profileViewModel,
+                                    currentUserId = currentUserId,
+                                    onBack = { currentScreen = "create" },
+                                    onSignedOut = {
+                                        friendshipViewModel.stopListening()
+                                        authViewModel.signOut()
+                                        currentScreen = "create"
+                                    }
                                 )
                             }
                         }

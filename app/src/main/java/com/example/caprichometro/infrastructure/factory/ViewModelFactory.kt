@@ -10,11 +10,13 @@ import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCas
 import com.example.caprichometro.application.usecase.auth.SignOutUseCase
 import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
+import com.example.caprichometro.application.usecase.friendship.GetBlockedUsersUseCase
 import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
 import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
 import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
+import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
 import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
@@ -22,6 +24,7 @@ import com.example.caprichometro.infrastructure.data.FirestoreUserProfileReposit
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
+import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 
 class ViewModelFactory {
     private val capriceRepository by lazy { FirestoreCapriceRepository() }
@@ -56,6 +59,17 @@ class ViewModelFactory {
             RemoveFriendUseCase(friendshipRepository),
             BlockUserUseCase(friendshipRepository),
             userProfileRepository
+        )
+    }
+
+    fun createProfileViewModel(): ProfileViewModel {
+        return ProfileViewModel(
+            GetCurrentUserUseCase(authRepository),
+            userProfileRepository,
+            GetBlockedUsersUseCase(friendshipRepository, userProfileRepository),
+            UnblockUserUseCase(friendshipRepository),
+            SignOutUseCase(authRepository),
+            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
         )
     }
 }
