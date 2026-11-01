@@ -3,10 +3,15 @@ package com.example.caprichometro.infrastructure.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,7 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
@@ -27,6 +36,11 @@ import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewMode
 import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
+
+private val NavBarBg = Color(0xFF0D0D0D)
+private val NavDivider = Color(0xFF222224)
+private val ActiveLime = Color(0xFFB8E636)
+private val InactiveIcon = Color(0xFF7C7C80)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,8 +67,6 @@ fun CapriceApp(
 ) {
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
-    val friendshipState by friendshipViewModel.state.collectAsState()
-
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
     // Escuchamos solicitudes pendientes y amigos en tiempo real en cuanto el usuario inicia sesión
@@ -69,7 +81,10 @@ fun CapriceApp(
     var currentScreen by remember { mutableStateOf("create") }
 
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = NavBarBg
+        ) {
             if (!authState.isAuthSuccessful) {
                 AuthScreen(
                     viewModel = authViewModel,
@@ -77,50 +92,23 @@ fun CapriceApp(
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF1E1E1E))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { currentScreen = "create" },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (currentScreen != "add_friend" && currentScreen != "profile") Color(0xFFD4FF00) else Color.DarkGray,
-                                    contentColor = Color.Black
-                                )
-                            ) {
-                                Text("Caprichos")
-                            }
-
-                            Button(
-                                onClick = { currentScreen = "add_friend" },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (currentScreen == "add_friend") Color(0xFFD4FF00) else Color.DarkGray,
-                                    contentColor = Color.Black
-                                )
-                            ) {
-                                val pendingCount = friendshipState.incomingRequests.size
-                                Text(if (pendingCount > 0) "Amigos ($pendingCount)" else "Amigos")
-                            }
-                        }
-
-                        // Acceso a la pantalla de perfil
-                        IconButton(onClick = { currentScreen = "profile" }) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = "Mi perfil",
-                                tint = if (currentScreen == "profile") Color(0xFFD4FF00) else Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-
                     Box(modifier = Modifier.weight(1f)) {
                         when (currentScreen) {
+                            "home" -> {
+                                val latestCaprice = capriceState.latestCaprices.firstOrNull()
+                                if (latestCaprice != null) {
+                                    ActivePollScreen(
+                                        caprice = latestCaprice,
+                                        onNavigateBack = { currentScreen = "create" },
+                                        onTimerFinished = { currentScreen = "result" }
+                                    )
+                                } else {
+                                    CapriceScreen(
+                                        viewModel = capriceViewModel,
+                                        onNavigateToActivePoll = { currentScreen = "active" }
+                                    )
+                                }
+                            }
                             "create" -> {
                                 CapriceScreen(
                                     viewModel = capriceViewModel,
@@ -146,13 +134,15 @@ fun CapriceApp(
                                 AddFriendScreen(
                                     viewModel = friendshipViewModel,
                                     currentUserId = currentUserId,
-                                    onBack = { currentScreen = "create" }
+                                    onBack = { currentScreen = "profile" }
                                 )
                             }
                             "profile" -> {
                                 ProfileScreen(
                                     viewModel = profileViewModel,
                                     currentUserId = currentUserId,
+                                    caprices = capriceState.latestCaprices,
+                                    onNavigateToFriends = { currentScreen = "add_friend" },
                                     onBack = { currentScreen = "create" },
                                     onSignedOut = {
                                         friendshipViewModel.stopListening()
@@ -163,8 +153,95 @@ fun CapriceApp(
                             }
                         }
                     }
+
+                    // Barra de navegación inferior (fiel a los mockups: Home | Cámara | Perfil)
+                    HorizontalDivider(color = NavDivider, thickness = 0.8.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(NavBarBg)
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Pestaña 1: Home / Feed
+                        val isHomeSelected = currentScreen == "home" || currentScreen == "active" || currentScreen == "result"
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clickable { currentScreen = "home" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isHomeSelected) Icons.Filled.Home else Icons.Outlined.Home,
+                                contentDescription = "Inicio",
+                                tint = if (isHomeSelected) ActiveLime else InactiveIcon,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+
+                        // Pestaña 2: Cámara / Crear Capricho
+                        val isCreateSelected = currentScreen == "create"
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clickable { currentScreen = "create" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CameraNavIcon(tint = if (isCreateSelected) ActiveLime else InactiveIcon)
+                        }
+
+                        // Pestaña 3: Perfil (resaltado en verde lima cuando estamos en perfil o amigos)
+                        val isProfileSelected = currentScreen == "profile" || currentScreen == "add_friend"
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clickable { currentScreen = "profile" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isProfileSelected) Icons.Filled.Person else Icons.Outlined.Person,
+                                contentDescription = "Perfil",
+                                tint = if (isProfileSelected) ActiveLime else InactiveIcon,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CameraNavIcon(tint: Color) {
+    Canvas(modifier = Modifier.size(25.dp)) {
+        val stroke = 2.dp.toPx()
+        val w = size.width
+        val h = size.height
+
+        // Cuerpo de la cámara
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.08f, h * 0.24f),
+            size = Size(w * 0.84f, h * 0.62f),
+            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        // Visor superior
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.34f, h * 0.12f),
+            size = Size(w * 0.32f, h * 0.12f),
+            cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        // Lente central
+        drawCircle(
+            color = tint,
+            radius = w * 0.18f,
+            center = Offset(w * 0.5f, h * 0.55f),
+            style = Stroke(width = stroke)
+        )
     }
 }
