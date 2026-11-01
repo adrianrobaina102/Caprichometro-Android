@@ -2,11 +2,13 @@ package com.example.caprichometro.friendship
 
 import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
+import com.example.caprichometro.application.usecase.friendship.GetBlockedUsersUseCase
 import com.example.caprichometro.application.usecase.friendship.GetIncomingFriendRequestsUseCase
 import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
 import com.example.caprichometro.application.usecase.friendship.RespondToFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
+import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
@@ -350,6 +352,78 @@ class FriendshipUseCasesTest {
             assertTrue(result.isFailure)
             assertEquals("No puedes bloquearte a ti mismo", result.exceptionOrNull()?.message)
             coVerify(exactly = 0) { friendshipRepository.blockUser(any(), any()) }
+        }
+    }
+
+    @Nested
+    inner class UnblockUserTests {
+        private val useCase = UnblockUserUseCase(friendshipRepository)
+
+        @Test
+        fun `desbloquea al usuario llamando al repositorio con exito`() = runTest {
+            coEvery { friendshipRepository.unblockUser("user_me", "user_blocked") } returns Result.success(Unit)
+
+            val result = useCase.execute("user_me", "user_blocked")
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { friendshipRepository.unblockUser("user_me", "user_blocked") }
+        }
+
+        @Test
+        fun `impide desbloquearse a uno mismo`() = runTest {
+            val result = useCase.execute("user_me", "user_me")
+
+            assertTrue(result.isFailure)
+            assertEquals("No puedes desbloquearte a ti mismo", result.exceptionOrNull()?.message)
+            coVerify(exactly = 0) { friendshipRepository.unblockUser(any(), any()) }
+        }
+
+        @Test
+        fun `falla si alguno de los IDs esta vacio`() = runTest {
+            val result1 = useCase.execute("", "user_blocked")
+            val result2 = useCase.execute("user_me", "  ")
+
+            assertTrue(result1.isFailure)
+            assertTrue(result2.isFailure)
+            coVerify(exactly = 0) { friendshipRepository.unblockUser(any(), any()) }
+        }
+    }
+
+    @Nested
+    inner class GetBlockedUsersTests {
+        private val useCase = GetBlockedUsersUseCase(friendshipRepository, userProfileRepository)
+
+        @Test
+        fun `recupera los IDs bloqueados y resuelve sus perfiles de usuario`() = runTest {
+            val myId = "user_me"
+            val blockedId1 = "user_blocked_1"
+            val blockedId2 = "user_blocked_2"
+            val profile1 = UserProfile(uid = blockedId1, username = "bloqueado_uno")
+            val profile2 = UserProfile(uid = blockedId2, username = "bloqueado_dos")
+
+            coEvery { friendshipRepository.getBlockedUserIds(myId) } returns Result.success(listOf(blockedId1, blockedId2))
+            coEvery { userProfileRepository.getUserById(blockedId1) } returns Result.success(profile1)
+            coEvery { userProfileRepository.getUserById(blockedId2) } returns Result.success(profile2)
+
+            val result = useCase.execute(myId)
+
+            assertTrue(result.isSuccess)
+            val list = result.getOrNull() ?: emptyList()
+            assertEquals(2, list.size)
+            assertEquals("bloqueado_dos", list[0].username)
+            assertEquals("bloqueado_uno", list[1].username)
+        }
+
+        @Test
+        fun `devuelve lista vacia si no hay usuarios bloqueados`() = runTest {
+            val myId = "user_me"
+            coEvery { friendshipRepository.getBlockedUserIds(myId) } returns Result.success(emptyList())
+
+            val result = useCase.execute(myId)
+
+            assertTrue(result.isSuccess)
+            assertTrue(result.getOrNull()?.isEmpty() == true)
+            coVerify(exactly = 0) { userProfileRepository.getUserById(any()) }
         }
     }
 }

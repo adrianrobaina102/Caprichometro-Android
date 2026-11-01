@@ -210,6 +210,29 @@ class FirestoreFriendshipRepository(
         }
     }
 
+    override suspend fun unblockUser(blockerId: String, blockedUserId: String): Result<Unit> {
+        return try {
+            blockReference(blockerId, blockedUserId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getBlockedUserIds(userId: String): Result<List<String>> {
+        return try {
+            val snapshot = db.collection("userBlocks")
+                .document(userId)
+                .collection("blockedUsers")
+                .get()
+                .await()
+            val ids = snapshot.documents.map { it.id }
+            Result.success(ids)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun isBlocked(userId: String, otherUserId: String): Result<Boolean> {
         return try {
             val outgoing = blockReference(userId, otherUserId).get().await()
