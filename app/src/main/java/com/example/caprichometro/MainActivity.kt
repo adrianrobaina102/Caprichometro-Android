@@ -73,12 +73,14 @@ fun CapriceApp(
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             friendshipViewModel.listenToIncomingRequests(currentUserId)
+            capriceViewModel.fetchUserCaprices(limit = 50)
         } else {
             friendshipViewModel.stopListening()
         }
     }
 
     var currentScreen by remember { mutableStateOf("create") }
+    var viewingProfileUserId by remember { mutableStateOf("") }
 
     MaterialTheme {
         Surface(
@@ -134,19 +136,38 @@ fun CapriceApp(
                                 AddFriendScreen(
                                     viewModel = friendshipViewModel,
                                     currentUserId = currentUserId,
-                                    onBack = { currentScreen = "profile" }
+                                    onBack = {
+                                        viewingProfileUserId = currentUserId
+                                        currentScreen = "profile"
+                                    },
+                                    onViewProfile = { friendUserId ->
+                                        viewingProfileUserId = friendUserId
+                                        currentScreen = "profile"
+                                    }
                                 )
                             }
                             "profile" -> {
+                                val targetId = if (viewingProfileUserId.isNotBlank()) viewingProfileUserId else currentUserId
                                 ProfileScreen(
                                     viewModel = profileViewModel,
+                                    targetUserId = targetId,
                                     currentUserId = currentUserId,
-                                    caprices = capriceState.latestCaprices,
                                     onNavigateToFriends = { currentScreen = "add_friend" },
-                                    onBack = { currentScreen = "create" },
+                                    onSelectCaprice = { _ ->
+                                        currentScreen = "home"
+                                    },
+                                    onBack = {
+                                        if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank()) {
+                                            viewingProfileUserId = currentUserId
+                                            currentScreen = "add_friend"
+                                        } else {
+                                            currentScreen = "create"
+                                        }
+                                    },
                                     onSignedOut = {
                                         friendshipViewModel.stopListening()
                                         authViewModel.signOut()
+                                        viewingProfileUserId = ""
                                         currentScreen = "create"
                                     }
                                 )
@@ -154,7 +175,7 @@ fun CapriceApp(
                         }
                     }
 
-                    // Barra de navegación inferior (fiel a los mockups: Home | Cámara | Perfil)
+                    // Barra de navegación inferior (Home | Cámara | Perfil)
                     HorizontalDivider(color = NavDivider, thickness = 0.8.dp)
                     Row(
                         modifier = Modifier
@@ -191,12 +212,15 @@ fun CapriceApp(
                             CameraNavIcon(tint = if (isCreateSelected) ActiveLime else InactiveIcon)
                         }
 
-                        // Pestaña 3: Perfil (resaltado en verde lima cuando estamos en perfil o amigos)
-                        val isProfileSelected = currentScreen == "profile" || currentScreen == "add_friend"
+                        // Pestaña 3: Perfil (resaltado en verde lima cuando estamos en perfil propio o amigos)
+                        val isProfileSelected = (currentScreen == "profile" && (viewingProfileUserId == currentUserId || viewingProfileUserId.isBlank())) || currentScreen == "add_friend"
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clickable { currentScreen = "profile" },
+                                .clickable {
+                                    viewingProfileUserId = currentUserId
+                                    currentScreen = "profile"
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(

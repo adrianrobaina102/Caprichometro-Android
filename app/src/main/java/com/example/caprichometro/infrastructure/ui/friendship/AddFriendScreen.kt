@@ -64,7 +64,8 @@ private fun formatDisplayName(username: String): String {
 fun AddFriendScreen(
     viewModel: FriendshipViewModel,
     currentUserId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onViewProfile: (userId: String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -442,7 +443,7 @@ fun AddFriendScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { menuExpanded = true }
+                        .clickable { onViewProfile(friend.uid) }
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -489,6 +490,13 @@ fun AddFriendScreen(
                             onDismissRequest = { menuExpanded = false },
                             modifier = Modifier.background(Color(0xFF242424))
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("Ver perfil", color = Color.White) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onViewProfile(friend.uid)
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Eliminar amigo", color = Color.White) },
                                 onClick = {
