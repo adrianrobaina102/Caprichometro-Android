@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -33,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -78,9 +80,10 @@ private fun avatarColorFor(username: String): Color {
 
 private fun capriceToMemory(caprice: Caprice): MemoryItem {
     val emoji = when (caprice.type.lowercase()) {
-        "compra" -> "🛍️"
+        "compra", "compras" -> "🛍️"
         "comida", "cena", "almuerzo" -> "🍕"
-        "plan", "viaje", "fiesta" -> "🎉"
+        "ropa" -> "👗"
+        "plan", "planes", "viaje", "fiesta" -> "🎉"
         else -> "💭"
     }
 
@@ -100,7 +103,7 @@ private fun capriceToMemory(caprice: Caprice): MemoryItem {
         subtitle = "${caprice.answer1} / ${caprice.answer2}",
         emoji = emoji,
         gradientColors = colors,
-        accepted = (hash % 2 == 0) // Alterna insignia verde / roja como representación del resultado
+        accepted = (hash % 2 == 0)
     )
 }
 
@@ -460,14 +463,28 @@ fun ProfileScreen(
         }
     }
 
-    // Pantalla Principal de Perfil (Perfil · Recuerdos)
+    // Pantalla Principal de Perfil (Perfil · Recuerdos y Perfil · Estadísticas)
     val rawUsername = state.profile?.username?.removePrefix("@")
         ?: if (state.isOwnProfile) "Dani" else "Usuario"
     val displayName = rawUsername.replaceFirstChar { it.uppercaseChar() }
 
     val totalDudas = state.caprices.size
-    val totalAmigos = state.friends.size
-    val totalResueltas = (state.caprices.size * 2 / 3).coerceAtLeast(0)
+    val totalResueltas = if (totalDudas > 0) {
+        val count = state.caprices.count { System.currentTimeMillis() - it.timestamp >= 5 * 60 * 1000L }
+        if (count > 0) count else (totalDudas * 2 / 3).coerceAtLeast(1)
+    } else {
+        0
+    }
+    val hiceCasoPercent = if (totalDudas > 0) {
+        ((totalResueltas.toFloat() / totalDudas) * 100).toInt().coerceIn(0, 100)
+    } else {
+        0
+    }
+
+    val comprasCount = state.caprices.count { it.type.contains("compra", ignoreCase = true) }
+    val planesCount = state.caprices.count { it.type.contains("plan", ignoreCase = true) }
+    val ropaCount = state.caprices.count { it.type.contains("ropa", ignoreCase = true) }
+    val otrosCount = (totalDudas - (comprasCount + planesCount + ropaCount)).coerceAtLeast(0)
 
     Column(
         modifier = Modifier
@@ -478,7 +495,7 @@ fun ProfileScreen(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Fila superior: Atrás (si es perfil de amigo) o Ajustes (si es propio)
+        // Fila superior: Atrás (si es perfil de amigo o pestaña estadísticas) o Ajustes (si es propio)
         Box(modifier = Modifier.fillMaxWidth()) {
             if (!state.isOwnProfile) {
                 IconButton(
@@ -502,22 +519,71 @@ fun ProfileScreen(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.Center)
                 )
-            } else {
+
                 IconButton(
                     onClick = {
-                        showPrivacySubSheet = false
-                        showSettingsSheet = true
+                        Toast.makeText(context, "Opciones de usuario", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Ajustes",
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Más opciones",
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
+                }
+            } else {
+                if (selectedTab == 1) {
+                    IconButton(
+                        onClick = { selectedTab = 0 },
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver a recuerdos",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            showPrivacySubSheet = false
+                            showSettingsSheet = true
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Opciones",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = {
+                            showPrivacySubSheet = false
+                            showSettingsSheet = true
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Ajustes",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -594,7 +660,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // Estadísticas reales vinculadas a Firestore
+        // Estadísticas vinculadas al mockup
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -603,8 +669,8 @@ fun ProfileScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             StatColumn(value = "$totalDudas", label = "dudas")
-            StatColumn(value = "$totalAmigos", label = "amigos")
-            StatColumn(value = if (totalDudas > 0) "$totalResueltas" else "0", label = "resueltas")
+            StatColumn(value = "$totalResueltas", label = "resueltas")
+            StatColumn(value = "$hiceCasoPercent%", label = "hice caso")
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -714,7 +780,6 @@ fun ProfileScreen(
                                     }
                             )
                         }
-                        // Rellenar espacios vacíos si la fila tiene menos de 3 elementos
                         if (rowItems.size < 3) {
                             repeat(3 - rowItems.size) {
                                 Spacer(modifier = Modifier.weight(1f))
@@ -722,36 +787,131 @@ fun ProfileScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Ver mis recuerdos",
+                    color = Color(0xFF3A3A3C),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         } else {
-            // Vista de estadísticas detalladas
+            // Pestaña Estadísticas: Resumen de decisiones + Mis categorías (fiel al mockup)
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CardSurface, RoundedCornerShape(18.dp))
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "Resumen de decisiones",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                val dudasCount = state.caprices.size.toFloat().coerceAtLeast(1f)
-                val comprasCount = state.caprices.count { it.type.equals("compra", ignoreCase = true) }
-                val planesCount = state.caprices.count { it.type.equals("plan", ignoreCase = true) }
+                // Tarjeta 1: Donut chart + Hice caso
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CardSurface, RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(92.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            DecisionDonutChart(percent = hiceCasoPercent / 100f)
+                            Text(
+                                text = "$hiceCasoPercent%",
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
 
-                val comprasPercent = (comprasCount / dudasCount).coerceIn(0.1f, 1f)
-                val planesPercent = (planesCount / dudasCount).coerceIn(0.1f, 1f)
+                        Column {
+                            Text(
+                                text = "Hice caso",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "de mis amigos",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "en $totalResueltas de $totalDudas dudas",
+                                color = SubtleGray,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
 
-                StatProgressRow(label = "Compras y caprichos", percent = comprasPercent, color = LimeGreen)
-                StatProgressRow(label = "Planes con amigos", percent = planesPercent, color = BadgeGreen)
-                StatProgressRow(
-                    label = "Amigos en común",
-                    percent = (state.friends.size / 10f).coerceIn(0.05f, 1f),
-                    color = Color(0xFF60A5FA)
-                )
+                // Tarjeta 2: Mis categorías
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CardSurface, RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Mis categorías",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Ver todas",
+                                color = LimeGreen,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            CategoryStatItem(
+                                icon = { ShoppingBagIcon() },
+                                name = "Compras",
+                                count = comprasCount,
+                                backgroundColor = Color(0xFF381A26)
+                            )
+                            CategoryStatItem(
+                                icon = { PartyPopperIcon() },
+                                name = "Planes",
+                                count = planesCount,
+                                backgroundColor = Color(0xFF241B3B)
+                            )
+                            CategoryStatItem(
+                                icon = { HangerIcon() },
+                                name = "Ropa",
+                                count = ropaCount,
+                                backgroundColor = Color(0xFF302B1B)
+                            )
+                            CategoryStatItem(
+                                icon = { MoreDotsIcon() },
+                                name = "Otros",
+                                count = otrosCount,
+                                backgroundColor = Color(0xFF242426)
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -784,7 +944,6 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.verticalGradient(item.gradientColors))
     ) {
-        // Ilustración central sutil
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -816,7 +975,6 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             }
         }
 
-        // Badge inferior izquierdo (Check verde o Cruz roja)
         if (item.accepted != null) {
             Box(
                 modifier = Modifier
@@ -836,7 +994,6 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             }
         }
 
-        // Badge '+2' cuando hay recuerdos agrupados
         if (item.extraCount > 0) {
             Box(
                 modifier = Modifier
@@ -854,6 +1011,162 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DecisionDonutChart(percent: Float) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val strokeWidth = 11.dp.toPx()
+        val diameter = size.minDimension - strokeWidth
+        val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
+        val arcSize = Size(diameter, diameter)
+
+        // Fondo del donut en gris oscuro
+        drawArc(
+            color = Color(0xFF2B2E24),
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth)
+        )
+
+        // Arco de progreso verde lima
+        val sweep = (percent * 360f).coerceIn(0f, 360f)
+        drawArc(
+            color = LimeGreen,
+            startAngle = -90f,
+            sweepAngle = sweep,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
+private fun CategoryStatItem(
+    icon: @Composable () -> Unit,
+    name: String,
+    count: Int,
+    backgroundColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(backgroundColor),
+            contentAlignment = Alignment.Center
+        ) {
+            icon()
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = name,
+            color = SubtleGray,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "$count",
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ShoppingBagIcon(tint: Color = Color(0xFFF472B6)) {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = 1.8.dp.toPx()
+        val w = size.width
+        val h = size.height
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.16f, h * 0.28f),
+            size = Size(w * 0.68f, h * 0.60f),
+            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(w * 0.33f, h * 0.14f),
+            size = Size(w * 0.34f, h * 0.28f),
+            style = Stroke(width = stroke, cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
+private fun PartyPopperIcon(tint: Color = Color(0xFFA78BFA)) {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = 1.8.dp.toPx()
+        val w = size.width
+        val h = size.height
+
+        val path = Path().apply {
+            moveTo(w * 0.18f, h * 0.82f)
+            lineTo(w * 0.72f, h * 0.48f)
+            lineTo(w * 0.48f, h * 0.22f)
+            close()
+        }
+        drawPath(path, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
+
+        drawCircle(color = tint, radius = 1.6.dp.toPx(), center = Offset(w * 0.76f, h * 0.24f))
+        drawCircle(color = tint, radius = 1.3.dp.toPx(), center = Offset(w * 0.84f, h * 0.40f))
+        drawCircle(color = tint, radius = 1.4.dp.toPx(), center = Offset(w * 0.62f, h * 0.14f))
+    }
+}
+
+@Composable
+private fun HangerIcon(tint: Color = Color(0xFFFBBF24)) {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = 1.8.dp.toPx()
+        val w = size.width
+        val h = size.height
+
+        drawArc(
+            color = tint,
+            startAngle = 160f,
+            sweepAngle = 220f,
+            useCenter = false,
+            topLeft = Offset(w * 0.42f, h * 0.12f),
+            size = Size(w * 0.20f, h * 0.20f),
+            style = Stroke(width = stroke, cap = StrokeCap.Round)
+        )
+
+        val path = Path().apply {
+            moveTo(w * 0.5f, h * 0.32f)
+            lineTo(w * 0.86f, h * 0.68f)
+            lineTo(w * 0.14f, h * 0.68f)
+            close()
+        }
+        drawPath(path, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun MoreDotsIcon(tint: Color = Color(0xFF9CA3AF)) {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val r = 2.2.dp.toPx()
+        val cy = size.height / 2f
+        val w = size.width
+        drawCircle(color = tint, radius = r, center = Offset(w * 0.25f, cy))
+        drawCircle(color = tint, radius = r, center = Offset(w * 0.50f, cy))
+        drawCircle(color = tint, radius = r, center = Offset(w * 0.75f, cy))
     }
 }
 
@@ -889,40 +1202,6 @@ private fun SettingsRow(
             tint = SubtleGray,
             modifier = Modifier.size(20.dp)
         )
-    }
-}
-
-@Composable
-private fun StatProgressRow(label: String, percent: Float, color: Color) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = label, color = SubtleGray, fontSize = 13.sp)
-            Text(
-                text = "${(percent * 100).toInt()}%",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(DividerDark)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(percent)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(color)
-            )
-        }
     }
 }
 
