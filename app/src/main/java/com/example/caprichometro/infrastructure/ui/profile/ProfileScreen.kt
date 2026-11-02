@@ -1,5 +1,7 @@
 package com.example.caprichometro.infrastructure.ui.profile
 
+import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -277,7 +279,14 @@ fun ProfileScreen(
                         },
                         title = "Notificaciones",
                         onClick = {
-                            Toast.makeText(context, "Notificaciones activadas", Toast.LENGTH_SHORT).show()
+                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            try {
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                Toast.makeText(context, "Ajustes de notificaciones no disponibles", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                     HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
