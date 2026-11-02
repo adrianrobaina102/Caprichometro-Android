@@ -48,6 +48,8 @@ class PollNotificationTest {
     fun `constantes del canal de notificaciones y extras son consistentes`() {
         assertThat(PollNotificationHelper.CHANNEL_ID).isEqualTo("caprice_poll_channel")
         assertThat(PollNotificationHelper.CHANNEL_NAME).isEqualTo("Votaciones de Caprichos")
+        assertThat(PollNotificationHelper.NOTIFICATION_ID).isEqualTo(1001)
+        assertThat(PollNotificationHelper.CREATED_NOTIFICATION_ID).isEqualTo(1002)
         assertThat(PollNotificationHelper.EXTRA_NAVIGATE_TO).isEqualTo("EXTRA_NAVIGATE_TO")
         assertThat(PollNotificationHelper.EXTRA_CAPRICE_ID).isEqualTo("EXTRA_CAPRICE_ID")
         assertThat(PollNotificationHelper.EXTRA_CAPRICE_QUESTION).isEqualTo("EXTRA_CAPRICE_QUESTION")

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.delay
 
@@ -59,6 +60,7 @@ fun ActivePollScreen(
 
                 if (remainingTime <= 0) {
                     timeDisplay = "00:00"
+                    PollNotificationHelper.showPollClosedNotification(context, caprice.question, caprice.id)
                     onTimerFinished()
                     break
                 }

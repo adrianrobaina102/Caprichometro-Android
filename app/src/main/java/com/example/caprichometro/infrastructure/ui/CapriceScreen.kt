@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
 import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
@@ -98,6 +99,7 @@ fun CapriceScreen(
                         answer2 = answer2.trim()
                     )
 
+                    PollNotificationHelper.showCapriceCreatedNotification(context, questionText.trim())
                     onNavigateToActivePoll()
                 },
                 enabled = isFormFilled,

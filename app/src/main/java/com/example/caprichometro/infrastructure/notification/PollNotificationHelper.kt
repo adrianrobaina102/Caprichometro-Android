@@ -15,6 +15,7 @@ object PollNotificationHelper {
     const val CHANNEL_ID = "caprice_poll_channel"
     const val CHANNEL_NAME = "Votaciones de Caprichos"
     const val NOTIFICATION_ID = 1001
+    const val CREATED_NOTIFICATION_ID = 1002
 
     const val EXTRA_NAVIGATE_TO = "EXTRA_NAVIGATE_TO"
     const val EXTRA_CAPRICE_ID = "EXTRA_CAPRICE_ID"
@@ -32,6 +33,49 @@ object PollNotificationHelper {
             }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             notificationManager?.createNotificationChannel(channel)
+        }
+    }
+
+    fun showCapriceCreatedNotification(
+        context: Context,
+        capriceQuestion: String
+    ) {
+        createNotificationChannel(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NAVIGATE_TO, "active")
+            putExtra(EXTRA_CAPRICE_QUESTION, capriceQuestion)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            CREATED_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_caprichometro_logo)
+            .setContentTitle("¡Duda en marcha! ⏳")
+            .setContentText("Ya queda menos para saber si es un capricho o no.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    if (capriceQuestion.isNotBlank()) "Publicado: \"$capriceQuestion\". Ya queda menos para saber si es un capricho o no. ¡Tus amigos tienen 5 minutos!"
+                    else "Tu duda está en marcha. Ya queda menos para saber si es un capricho o no. ¡Tus amigos tienen 5 minutos!"
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(
+                CREATED_NOTIFICATION_ID,
+                notification
+            )
+        } catch (_: SecurityException) {
         }
     }
 
