@@ -69,7 +69,9 @@ class ViewModelFactory {
             GetBlockedUsersUseCase(friendshipRepository, userProfileRepository),
             UnblockUserUseCase(friendshipRepository),
             SignOutUseCase(authRepository),
-            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
+            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
+            GetCapricesUseCase(capriceRepository),
+            GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
         )
     }
 }

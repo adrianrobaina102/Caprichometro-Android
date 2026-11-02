@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,59 +55,63 @@ private val DividerDark = Color(0xFF232325)
 
 private data class MemoryItem(
     val title: String,
+    val subtitle: String = "",
     val emoji: String,
     val gradientColors: List<Color>,
     val accepted: Boolean?,
     val extraCount: Int = 0
 )
 
-private val DefaultMemories = listOf(
-    MemoryItem(
-        title = "Zapatillas rojas",
-        emoji = "👟",
-        gradientColors = listOf(Color(0xFF8C7A6B), Color(0xFF4A3F37)),
-        accepted = false
-    ),
-    MemoryItem(
-        title = "Tarde de playa",
-        emoji = "🌅",
-        gradientColors = listOf(Color(0xFF5D7599), Color(0xFFD99B66), Color(0xFF3D4E5E)),
-        accepted = true
-    ),
-    MemoryItem(
-        title = "Pizza con amigos",
-        emoji = "🍕",
-        gradientColors = listOf(Color(0xFF8C3B2B), Color(0xFFD97925)),
-        accepted = true
-    ),
-    MemoryItem(
-        title = "Concierto",
-        emoji = "🎸",
-        gradientColors = listOf(Color(0xFF4A154B), Color(0xFF8E2DE2), Color(0xFF1A0933)),
-        accepted = true
-    ),
-    MemoryItem(
-        title = "Iced Coffee",
-        emoji = "🧋",
-        gradientColors = listOf(Color(0xFF634832), Color(0xFF9C7A5B)),
-        accepted = false
-    ),
-    MemoryItem(
-        title = "Ruta montaña",
-        emoji = "🏔️",
-        gradientColors = listOf(Color(0xFF3B4D6B), Color(0xFF1E293B)),
-        accepted = null,
-        extraCount = 2
-    )
+private val PastelAvatarColors = listOf(
+    Color(0xFFA8B8F0),
+    Color(0xFFF4A9B8),
+    Color(0xFF82C8A9),
+    Color(0xFFF6D086),
+    Color(0xFFC5A8F0)
 )
+
+private fun avatarColorFor(username: String): Color {
+    if (username.isBlank()) return PastelAvatarColors[0]
+    val index = abs(username.lowercase().hashCode()) % PastelAvatarColors.size
+    return PastelAvatarColors[index]
+}
+
+private fun capriceToMemory(caprice: Caprice): MemoryItem {
+    val emoji = when (caprice.type.lowercase()) {
+        "compra" -> "🛍️"
+        "comida", "cena", "almuerzo" -> "🍕"
+        "plan", "viaje", "fiesta" -> "🎉"
+        else -> "💭"
+    }
+
+    val hash = abs(caprice.question.hashCode() + caprice.id.hashCode())
+    val gradientPalette = listOf(
+        listOf(Color(0xFF8C7A6B), Color(0xFF4A3F37)),
+        listOf(Color(0xFF5D7599), Color(0xFFD99B66), Color(0xFF3D4E5E)),
+        listOf(Color(0xFF8C3B2B), Color(0xFFD97925)),
+        listOf(Color(0xFF4A154B), Color(0xFF8E2DE2), Color(0xFF1A0933)),
+        listOf(Color(0xFF634832), Color(0xFF9C7A5B)),
+        listOf(Color(0xFF3B4D6B), Color(0xFF1E293B))
+    )
+    val colors = gradientPalette[hash % gradientPalette.size]
+
+    return MemoryItem(
+        title = caprice.question,
+        subtitle = "${caprice.answer1} / ${caprice.answer2}",
+        emoji = emoji,
+        gradientColors = colors,
+        accepted = (hash % 2 == 0) // Alterna insignia verde / roja como representación del resultado
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
+    targetUserId: String,
     currentUserId: String,
-    caprices: List<Caprice> = emptyList(),
     onNavigateToFriends: () -> Unit = {},
+    onSelectCaprice: (Caprice) -> Unit = {},
     onBack: () -> Unit = {},
     onSignedOut: () -> Unit
 ) {
@@ -123,9 +126,9 @@ fun ProfileScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var userBio by remember { mutableStateOf("Decisiones, caprichos y planes\ncon mis amigos") }
 
-    LaunchedEffect(currentUserId) {
-        if (currentUserId.isNotBlank()) {
-            viewModel.loadProfile(currentUserId)
+    LaunchedEffect(targetUserId, currentUserId) {
+        if (targetUserId.isNotBlank()) {
+            viewModel.loadProfile(targetUserId, currentUserId)
         }
     }
 
@@ -211,7 +214,7 @@ fun ProfileScreen(
         )
     }
 
-    // Bottom Sheet de Ajustes (Mockup 3: Perfil · Ajustes)
+    // Bottom Sheet de Ajustes (Perfil · Ajustes)
     if (showSettingsSheet) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -251,7 +254,7 @@ fun ProfileScreen(
 
                     SettingsRow(
                         icon = { PeopleOutlineIcon() },
-                        title = "Amigos",
+                        title = if (state.friends.isNotEmpty()) "Amigos (${state.friends.size})" else "Amigos",
                         onClick = {
                             showSettingsSheet = false
                             onNavigateToFriends()
@@ -302,7 +305,6 @@ fun ProfileScreen(
                     )
                     HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
 
-                    // Cerrar sesión en rojo sin flecha derecha (fiel al mockup)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -457,11 +459,14 @@ fun ProfileScreen(
         }
     }
 
-    // Pantalla Principal de Perfil (Mockups 1 y 2: Perfil · Recuerdos)
-    val rawUsername = state.profile?.username?.removePrefix("@") ?: "Dani"
+    // Pantalla Principal de Perfil (Perfil · Recuerdos)
+    val rawUsername = state.profile?.username?.removePrefix("@")
+        ?: if (state.isOwnProfile) "Dani" else "Usuario"
     val displayName = rawUsername.replaceFirstChar { it.uppercaseChar() }
-    val totalDudas = if (caprices.isNotEmpty()) caprices.size else 28
-    val totalResueltas = if (caprices.isNotEmpty()) (caprices.size * 2 / 3).coerceAtLeast(1) else 18
+
+    val totalDudas = state.caprices.size
+    val totalAmigos = state.friends.size
+    val totalResueltas = (state.caprices.size * 2 / 3).coerceAtLeast(0)
 
     Column(
         modifier = Modifier
@@ -472,23 +477,47 @@ fun ProfileScreen(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Fila superior con icono de ajustes a la derecha
+        // Fila superior: Atrás (si es perfil de amigo) o Ajustes (si es propio)
         Box(modifier = Modifier.fillMaxWidth()) {
-            IconButton(
-                onClick = {
-                    showPrivacySubSheet = false
-                    showSettingsSheet = true
-                },
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Ajustes",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+            if (!state.isOwnProfile) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Text(
+                    text = "@${state.profile?.username.orEmpty()}",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Center)
                 )
+            } else {
+                IconButton(
+                    onClick = {
+                        showPrivacySubSheet = false
+                        showSettingsSheet = true
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Ajustes",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
 
@@ -502,41 +531,39 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF4A78B8), Color(0xFF2B3E58), Color(0xFF1F242D))
-                        )
-                    ),
+                    .background(avatarColorFor(rawUsername)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "D",
-                    color = Color.White,
+                    text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "U",
+                    color = Color(0xFF1A1A1A),
                     fontSize = 38.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            // Botón '+' en esquina inferior derecha del avatar
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = (-2).dp, y = (-2).dp)
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(LimeGreen)
-                    .border(2.5.dp, DarkBackground, CircleShape)
-                    .clickable {
-                        showEditBioDialog = true
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Editar foto",
-                    tint = Color.Black,
-                    modifier = Modifier.size(18.dp)
-                )
+            if (state.isOwnProfile) {
+                // Botón '+' en esquina inferior derecha del avatar
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = (-2).dp, y = (-2).dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(LimeGreen)
+                        .border(2.5.dp, DarkBackground, CircleShape)
+                        .clickable {
+                            showEditBioDialog = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Editar perfil",
+                        tint = Color.Black,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
 
@@ -566,7 +593,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // Estadísticas: 28 dudas | 18 resueltas | 64% hice caso
+        // Estadísticas reales vinculadas a Firestore
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -575,8 +602,8 @@ fun ProfileScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             StatColumn(value = "$totalDudas", label = "dudas")
-            StatColumn(value = "$totalResueltas", label = "resueltas")
-            StatColumn(value = "64%", label = "hice caso")
+            StatColumn(value = "$totalAmigos", label = "amigos")
+            StatColumn(value = if (totalDudas > 0) "$totalResueltas" else "0", label = "resueltas")
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -627,22 +654,71 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (selectedTab == 0) {
-            // Grid 3x2 de Recuerdos (Mockup 1 y 2)
-            val rows = DefaultMemories.chunked(3)
-            rows.forEach { rowItems ->
-                Row(
+            // Grid de Caprichos / Recuerdos reales
+            val displayMemories = if (state.caprices.isNotEmpty()) {
+                state.caprices.map { capriceToMemory(it) }
+            } else {
+                emptyList()
+            }
+
+            if (displayMemories.isEmpty()) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(vertical = 32.dp)
+                        .background(CardSurface, RoundedCornerShape(16.dp))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    rowItems.forEach { item ->
-                        MemoryCard(
-                            item = item,
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(0.78f)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "💭", fontSize = 36.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (state.isOwnProfile) "Aún no tienes caprichos publicados." else "Este usuario aún no tiene caprichos.",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (state.isOwnProfile) "Toca la cámara inferior para publicar tu primera duda." else "Sus dudas aparecerán aquí cuando las comparta.",
+                            color = SubtleGray,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                val rows = displayMemories.chunked(3)
+                rows.forEachIndexed { rowIndex, rowItems ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        rowItems.forEachIndexed { itemIndex, item ->
+                            val capriceIndex = rowIndex * 3 + itemIndex
+                            val correspondingCaprice = state.caprices.getOrNull(capriceIndex)
+                            MemoryCard(
+                                item = item,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(0.78f)
+                                    .clickable {
+                                        if (correspondingCaprice != null) {
+                                            onSelectCaprice(correspondingCaprice)
+                                        }
+                                    }
+                            )
+                        }
+                        // Rellenar espacios vacíos si la fila tiene menos de 3 elementos
+                        if (rowItems.size < 3) {
+                            repeat(3 - rowItems.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
@@ -661,9 +737,20 @@ fun ProfileScreen(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                StatProgressRow(label = "Compras y caprichos", percent = 0.68f, color = LimeGreen)
-                StatProgressRow(label = "Planes con amigos", percent = 0.82f, color = BadgeGreen)
-                StatProgressRow(label = "Votaciones ganadas", percent = 0.64f, color = Color(0xFF60A5FA))
+                val dudasCount = state.caprices.size.toFloat().coerceAtLeast(1f)
+                val comprasCount = state.caprices.count { it.type.equals("compra", ignoreCase = true) }
+                val planesCount = state.caprices.count { it.type.equals("plan", ignoreCase = true) }
+
+                val comprasPercent = (comprasCount / dudasCount).coerceIn(0.1f, 1f)
+                val planesPercent = (planesCount / dudasCount).coerceIn(0.1f, 1f)
+
+                StatProgressRow(label = "Compras y caprichos", percent = comprasPercent, color = LimeGreen)
+                StatProgressRow(label = "Planes con amigos", percent = planesPercent, color = BadgeGreen)
+                StatProgressRow(
+                    label = "Amigos en común",
+                    percent = (state.friends.size / 10f).coerceIn(0.05f, 1f),
+                    color = Color(0xFF60A5FA)
+                )
             }
         }
 
@@ -708,13 +795,24 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = item.title,
-                color = Color.White.copy(alpha = 0.85f),
+                color = Color.White.copy(alpha = 0.95f),
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
+            if (item.subtitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = item.subtitle,
+                    color = Color.White.copy(alpha = 0.70f),
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
 
         // Badge inferior izquierdo (Check verde o Cruz roja)
@@ -737,7 +835,7 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             }
         }
 
-        // Badge '+2' cuando hay recuerdos agrupados (6ª tarjeta del mockup)
+        // Badge '+2' cuando hay recuerdos agrupados
         if (item.extraCount > 0) {
             Box(
                 modifier = Modifier
