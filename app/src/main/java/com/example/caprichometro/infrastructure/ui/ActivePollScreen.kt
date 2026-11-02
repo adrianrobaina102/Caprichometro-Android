@@ -18,11 +18,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.delay
 
 private val DarkBackground = Color(0xFF0F0F0F)
@@ -35,13 +37,21 @@ fun ActivePollScreen(
     onNavigateBack: () -> Unit = {},
     onTimerFinished: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
 
     var timeDisplay by remember { mutableStateOf("--:--") }
 
+    // Programa la notificación en segundo plano para cuando se cumplan los 5 minutos
+    LaunchedEffect(caprice?.id, caprice?.timestamp) {
+        if (caprice != null) {
+            PollNotificationScheduler.schedulePollExpiration(context, caprice)
+        }
+    }
+
     LaunchedEffect(caprice) {
         if (caprice != null) {
-            val totalTimeMillis = 5 * 60 * 1000L
+            val totalTimeMillis = PollNotificationScheduler.POLL_DURATION_MILLIS
 
             while (true) {
                 val elapsedTime = System.currentTimeMillis() - caprice.timestamp

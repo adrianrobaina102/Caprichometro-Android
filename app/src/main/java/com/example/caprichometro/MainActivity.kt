@@ -1,8 +1,15 @@
 package com.example.caprichometro.infrastructure.ui
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
+import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
@@ -43,8 +51,17 @@ private val ActiveLime = Color(0xFFB8E636)
 private val InactiveIcon = Color(0xFF7C7C80)
 
 class MainActivity : ComponentActivity() {
+    private var initialScreen = "create"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Crea el canal de notificaciones para los avisos de votación
+        PollNotificationHelper.createNotificationChannel(this)
+
+        if (intent?.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO) == "result") {
+            initialScreen = "result"
+        }
 
         val viewModelFactory = ViewModelFactory()
         val capriceViewModel = viewModelFactory.createCapriceViewModel()
@@ -53,8 +70,19 @@ class MainActivity : ComponentActivity() {
         val profileViewModel = viewModelFactory.createProfileViewModel()
 
         setContent {
-            CapriceApp(authViewModel, capriceViewModel, friendshipViewModel, profileViewModel)
+            CapriceApp(
+                authViewModel = authViewModel,
+                capriceViewModel = capriceViewModel,
+                friendshipViewModel = friendshipViewModel,
+                profileViewModel = profileViewModel,
+                startScreen = initialScreen
+            )
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 }
 
@@ -63,11 +91,30 @@ fun CapriceApp(
     authViewModel: AuthViewModel,
     capriceViewModel: CapriceViewModel,
     friendshipViewModel: FriendshipViewModel,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
+    startScreen: String = "create"
 ) {
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+    // Solicitud del permiso de notificaciones en tiempo de ejecución (Android 13+ / API 33+)
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* El usuario decide si autoriza o deniega las notificaciones */ }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val isGranted = ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!isGranted) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     // Escuchamos solicitudes pendientes y amigos en tiempo real en cuanto el usuario inicia sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
@@ -81,7 +128,7 @@ fun CapriceApp(
         }
     }
 
-    var currentScreen by remember { mutableStateOf("create") }
+    var currentScreen by remember { mutableStateOf(startScreen) }
     var viewingProfileUserId by remember { mutableStateOf("") }
 
     MaterialTheme {
