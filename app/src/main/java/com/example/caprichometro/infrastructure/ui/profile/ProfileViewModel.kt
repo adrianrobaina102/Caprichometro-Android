@@ -46,6 +46,10 @@ class ProfileViewModel(
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
+    fun reset() {
+        _state.value = ProfileState()
+    }
+
     fun loadProfile(targetUserId: String, currentUserId: String = targetUserId) {
         if (targetUserId.isBlank()) return
 
@@ -57,6 +61,7 @@ class ProfileViewModel(
                 isLoading = true,
                 email = email,
                 isOwnProfile = isOwn,
+                isSignedOut = false,
                 errorMessage = null
             )
         }

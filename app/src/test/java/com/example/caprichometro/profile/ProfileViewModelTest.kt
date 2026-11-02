@@ -154,4 +154,15 @@ class ProfileViewModelTest {
         assertThat(viewModel.state.value.isSignedOut).isTrue()
         coVerify(exactly = 1) { signOutUseCase.execute() }
     }
+
+    @Test
+    fun `loadProfile o reset restablece isSignedOut a false`() = runTest {
+        coEvery { signOutUseCase.execute() } returns Result.success(Unit)
+        viewModel.signOut()
+        advanceUntilIdle()
+        assertThat(viewModel.state.value.isSignedOut).isTrue()
+
+        viewModel.reset()
+        assertThat(viewModel.state.value.isSignedOut).isFalse()
+    }
 }

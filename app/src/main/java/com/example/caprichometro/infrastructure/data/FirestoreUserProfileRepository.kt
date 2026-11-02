@@ -61,10 +61,13 @@ class FirestoreUserProfileRepository(
             }
 
             val createdAt = try {
-                userDoc.getDate("createdAt") ?: userDoc.getLong("createdAt")?.let { Date(it) }
+                userDoc.getTimestamp("createdAt")?.toDate()
+                    ?: userDoc.getDate("createdAt")
+                    ?: userDoc.getLong("createdAt")?.let { Date(it) }
+                    ?: Date()
             } catch (e: Exception) {
-                null
-            } ?: return Result.success(null)
+                Date()
+            }
 
             val profile = UserProfile(
                 uid = userId,

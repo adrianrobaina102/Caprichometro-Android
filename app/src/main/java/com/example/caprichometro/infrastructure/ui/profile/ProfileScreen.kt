@@ -134,6 +134,7 @@ fun ProfileScreen(
 
     LaunchedEffect(state.isSignedOut) {
         if (state.isSignedOut) {
+            viewModel.reset()
             onSignedOut()
         }
     }

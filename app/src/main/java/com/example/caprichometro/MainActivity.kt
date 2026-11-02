@@ -72,9 +72,11 @@ fun CapriceApp(
     // Escuchamos solicitudes pendientes y amigos en tiempo real en cuanto el usuario inicia sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
+            profileViewModel.reset()
             friendshipViewModel.listenToIncomingRequests(currentUserId)
             capriceViewModel.fetchUserCaprices(limit = 50)
         } else {
+            profileViewModel.reset()
             friendshipViewModel.stopListening()
         }
     }
@@ -165,6 +167,7 @@ fun CapriceApp(
                                         }
                                     },
                                     onSignedOut = {
+                                        profileViewModel.reset()
                                         friendshipViewModel.stopListening()
                                         authViewModel.signOut()
                                         viewingProfileUserId = ""
