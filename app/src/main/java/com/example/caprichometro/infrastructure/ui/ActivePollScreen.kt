@@ -43,7 +43,7 @@ fun ActivePollScreen(
     var timeDisplay by remember { mutableStateOf("--:--") }
 
     // Programa la notificación en segundo plano para cuando se cumplan los 5 minutos
-    LaunchedEffect(caprice?.id, caprice?.timestamp) {
+    LaunchedEffect(caprice?.timestamp, caprice?.question) {
         if (caprice != null) {
             PollNotificationScheduler.schedulePollExpiration(context, caprice)
         }

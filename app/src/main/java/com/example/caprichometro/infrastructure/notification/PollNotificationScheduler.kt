@@ -18,6 +18,10 @@ object PollNotificationScheduler {
         return (calculateTriggerTime(timestamp) - currentTimeMillis) <= 0
     }
 
+    fun getPollRequestCode(caprice: Caprice): Int {
+        return (caprice.timestamp xor caprice.question.hashCode().toLong()).toInt()
+    }
+
     fun schedulePollExpiration(context: Context, caprice: Caprice) {
         val triggerAtMillis = calculateTriggerTime(caprice.timestamp)
         val remainingMillis = triggerAtMillis - System.currentTimeMillis()
@@ -34,7 +38,7 @@ object PollNotificationScheduler {
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            if (caprice.id.isNotBlank()) caprice.id.hashCode() else caprice.timestamp.toInt(),
+            getPollRequestCode(caprice),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

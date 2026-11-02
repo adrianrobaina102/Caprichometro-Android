@@ -51,7 +51,7 @@ object PollNotificationHelper {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            if (capriceId.isNotBlank()) capriceId.hashCode() else NOTIFICATION_ID,
+            NOTIFICATION_ID,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -77,7 +77,7 @@ object PollNotificationHelper {
 
         try {
             NotificationManagerCompat.from(context).notify(
-                if (capriceId.isNotBlank()) capriceId.hashCode() else NOTIFICATION_ID,
+                NOTIFICATION_ID,
                 notification
             )
         } catch (_: SecurityException) {
