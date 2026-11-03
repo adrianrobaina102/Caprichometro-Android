@@ -9,6 +9,7 @@ data class Caprice(
     val question: String = "",
     val answer1: String = "",
     val answer2: String = "",
+    val imageUrl: String = "",
     val timestamp: Long = System.currentTimeMillis()
 ) {
     class Builder {
@@ -18,6 +19,7 @@ data class Caprice(
         private var question: String = ""
         private var answer1: String = ""
         private var answer2: String = ""
+        private var imageUrl: String = ""
         private var timestamp: Long = System.currentTimeMillis()
 
         fun setId(id: String) = apply { this.id = id }
@@ -28,6 +30,7 @@ data class Caprice(
             this.answer1 = ans1
             this.answer2 = ans2
         }
+        fun setImageUrl(imageUrl: String) = apply { this.imageUrl = imageUrl }
         fun setTimestamp(timestamp: Long) = apply { this.timestamp = timestamp }
 
         fun build(): Caprice {
@@ -40,6 +43,7 @@ data class Caprice(
                 question = question,
                 answer1 = answer1,
                 answer2 = answer2,
+                imageUrl = imageUrl,
                 timestamp = timestamp
             )
         }
