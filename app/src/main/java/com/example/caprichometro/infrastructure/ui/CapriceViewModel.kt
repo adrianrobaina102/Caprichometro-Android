@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,8 @@ data class CapriceState(
 
 class CapriceViewModel(
     private val saveCapriceUseCase: SaveCapriceUseCase,
-    private val getCapricesUseCase: GetCapricesUseCase
+    private val getCapricesUseCase: GetCapricesUseCase,
+    private val uploadCapriceImageUseCase: UploadCapriceImageUseCase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CapriceState())
@@ -29,30 +31,51 @@ class CapriceViewModel(
     private val currentUserId: String
         get() = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
-    fun saveCaprice(type: String, questionText: String, answer1: String, answer2: String) {
+    suspend fun saveCaprice(
+        type: String,
+        questionText: String,
+        answer1: String,
+        answer2: String,
+        imageBytes: ByteArray? = null
+    ): Result<Caprice> {
         val uid = currentUserId
-        if (uid.isBlank()) return
+        if (uid.isBlank()) return Result.failure(IllegalStateException("No hay sesión activa"))
 
-        val caprice = Caprice.Builder()
+        val capriceBuilder = Caprice.Builder()
             .setUserId(uid)
             .setType(type)
             .setQuestion(questionText)
             .setOptions(answer1, answer2)
-            .build()
 
-        _state.update { it.copy(isLoading = true, latestCaprices = listOf(caprice), error = null) }
+        val preliminaryCaprice = capriceBuilder.build()
+        _state.update { it.copy(isLoading = true, error = null) }
 
-        viewModelScope.launch {
-            val result = saveCapriceUseCase.execute(caprice)
-            result.fold(
-                onSuccess = {
-                    fetchUserCaprices(limit = 1)
+        var finalImageUrl = ""
+        if (imageBytes != null && uploadCapriceImageUseCase != null) {
+            val uploadResult = uploadCapriceImageUseCase.execute(imageBytes, preliminaryCaprice.id)
+            uploadResult.fold(
+                onSuccess = { url ->
+                    finalImageUrl = url
                 },
                 onFailure = { e ->
-                    _state.update { it.copy(isLoading = false, error = e.message) }
+                    android.util.Log.e("CapriceViewModel", "Error subiendo imagen a Firebase Storage", e)
                 }
             )
         }
+
+        val capriceToSave = capriceBuilder.setImageUrl(finalImageUrl).build()
+        val result = saveCapriceUseCase.execute(capriceToSave)
+        return result.fold(
+            onSuccess = { docId ->
+                val savedCaprice = capriceToSave.copy(id = docId)
+                _state.update { it.copy(isLoading = false, latestCaprices = listOf(savedCaprice)) }
+                Result.success(savedCaprice)
+            },
+            onFailure = { e ->
+                _state.update { it.copy(isLoading = false, error = e.message) }
+                Result.failure(e)
+            }
+        )
     }
 
     fun fetchUserCaprices(limit: Int = 1) {

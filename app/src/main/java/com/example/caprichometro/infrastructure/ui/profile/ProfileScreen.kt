@@ -45,6 +45,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.domain.model.Caprice
 import kotlin.math.abs
 
@@ -61,6 +64,7 @@ private data class MemoryItem(
     val title: String,
     val subtitle: String = "",
     val emoji: String,
+    val imageUrl: String = "",
     val gradientColors: List<Color>,
     val accepted: Boolean?,
     val extraCount: Int = 0
@@ -104,6 +108,7 @@ private fun capriceToMemory(caprice: Caprice): MemoryItem {
         title = caprice.question,
         subtitle = "${caprice.answer1} / ${caprice.answer2}",
         emoji = emoji,
+        imageUrl = caprice.imageUrl,
         gradientColors = colors,
         accepted = (hash % 2 == 0)
     )
@@ -948,20 +953,45 @@ private fun StatColumn(value: String, label: String) {
 
 @Composable
 private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
+    val imageModel = remember(item.imageUrl) {
+        ImageModelHelper.parseImageModel(item.imageUrl)
+    }
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.verticalGradient(item.gradientColors))
     ) {
+        if (item.imageUrl.isNotBlank()) {
+            AsyncImage(
+                model = imageModel,
+                contentDescription = item.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f)),
+                            startY = 60f
+                        )
+                    )
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = if (item.imageUrl.isNotBlank()) Arrangement.Bottom else Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = item.emoji, fontSize = 34.sp)
-            Spacer(modifier = Modifier.height(6.dp))
+            if (item.imageUrl.isBlank()) {
+                Text(text = item.emoji, fontSize = 34.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+            }
             Text(
                 text = item.title,
                 color = Color.White.copy(alpha = 0.95f),
@@ -971,7 +1001,7 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
-            if (item.subtitle.isNotBlank()) {
+            if (item.subtitle.isNotBlank() && item.imageUrl.isBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = item.subtitle,

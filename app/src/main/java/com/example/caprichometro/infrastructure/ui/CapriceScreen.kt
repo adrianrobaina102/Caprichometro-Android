@@ -1,32 +1,43 @@
 package com.example.caprichometro.infrastructure.ui
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
+import coil.compose.AsyncImage
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
 import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
 import com.example.caprichometro.domain.validation.ValidationResult
+import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
+import com.example.caprichometro.infrastructure.util.ImageCompressor
+import kotlinx.coroutines.launch
 
 // Colores del tema
 private val DarkBackground = Color(0xFF0F0F0F)
@@ -40,11 +51,20 @@ fun CapriceScreen(
     onNavigateToActivePoll: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     var isCompraType by remember { mutableStateOf(true) }
     var questionText by remember { mutableStateOf("") }
     var answer1 by remember { mutableStateOf("") }
     var answer2 by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        selectedImageUri = uri
+    }
 
     val questionValidatorChain = remember {
         val notBlank = NotBlankValidator("La pregunta")
@@ -92,17 +112,34 @@ fun CapriceScreen(
 
                     val typeString = if (isCompraType) "Compra" else "Plan"
 
-                    viewModel.saveCaprice(
-                        type = typeString,
-                        questionText = questionText.trim(),
-                        answer1 = answer1.trim(),
-                        answer2 = answer2.trim()
-                    )
+                    coroutineScope.launch {
+                        isSubmitting = true
+                        val imageBytes = selectedImageUri?.let { uri ->
+                            try {
+                                ImageCompressor.compressUriToWebP(context, uri)
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
 
-                    PollNotificationHelper.showCapriceCreatedNotification(context, questionText.trim())
-                    onNavigateToActivePoll()
+                        val saveResult = viewModel.saveCaprice(
+                            type = typeString,
+                            questionText = questionText.trim(),
+                            answer1 = answer1.trim(),
+                            answer2 = answer2.trim(),
+                            imageBytes = imageBytes
+                        )
+
+                        isSubmitting = false
+                        if (saveResult.isSuccess) {
+                            PollNotificationHelper.showCapriceCreatedNotification(context, questionText.trim())
+                            onNavigateToActivePoll()
+                        } else {
+                            Toast.makeText(context, "Error al guardar: ${saveResult.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 },
-                enabled = isFormFilled,
+                enabled = isFormFilled && !isSubmitting,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
@@ -113,19 +150,34 @@ fun CapriceScreen(
                     disabledContainerColor = Color(0xFF4A5500)
                 )
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = if (isFormFilled) Color.Black else Color.Gray,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Publicar · 5 min",
-                    color = if (isFormFilled) Color.Black else Color.Gray,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
+                if (isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.Black,
+                        strokeWidth = 2.5.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Optimizando y publicando...",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = if (isFormFilled) Color.Black else Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Publicar · 5 min",
+                        color = if (isFormFilled) Color.Black else Color.Gray,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -245,30 +297,66 @@ fun CapriceScreen(
                 fontSize = 14.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(110.dp)
-                    .background(DarkSurface, RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-                    .clickable {
-                        Toast.makeText(context, "Próximamente: adjuntar foto", Toast.LENGTH_SHORT).show()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Añadir foto",
-                        tint = LimeGreen,
-                        modifier = Modifier.size(28.dp)
+
+            if (selectedImageUri != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.5.dp, LimeGreen.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                ) {
+                    AsyncImage(
+                        model = selectedImageUri,
+                        contentDescription = "Foto seleccionada",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Elegir de galería o cámara",
-                        color = TextGray,
-                        fontSize = 13.sp
-                    )
+
+                    IconButton(
+                        onClick = { selectedImageUri = null },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(30.dp)
+                            .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Quitar foto",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .background(DarkSurface, RoundedCornerShape(12.dp))
+                        .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+                        .clickable {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Añadir foto",
+                            tint = LimeGreen,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Elegir de galería",
+                            color = TextGray,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
 

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,6 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.domain.model.Caprice
 
 private val DarkBackground = Color(0xFF0F0F0F)
@@ -28,6 +32,9 @@ fun ResultScreen(
     caprice: Caprice?,
     onGoHome: () -> Unit
 ) {
+    val imageModel = remember(caprice?.imageUrl) {
+        ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
+    }
     Scaffold(
         containerColor = DarkBackground,
         topBar = {
@@ -126,8 +133,17 @@ fun ResultScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .background(Color(0xFFB73239), RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF1C1C1E))
             ) {
+                if (!caprice?.imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = imageModel,
+                        contentDescription = caprice.question,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .padding(12.dp)

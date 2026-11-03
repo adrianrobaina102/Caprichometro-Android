@@ -2,6 +2,8 @@ package com.example.caprichometro.infrastructure.factory
 
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
+import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
 import com.example.caprichometro.application.usecase.auth.GetCurrentUserUseCase
 import com.example.caprichometro.application.usecase.auth.RegisterUseCase
@@ -31,11 +33,13 @@ class ViewModelFactory {
     private val userProfileRepository by lazy { FirestoreUserProfileRepository() }
     private val authRepository by lazy { FirebaseAuthRepository() }
     private val friendshipRepository by lazy { FirestoreFriendshipRepository() }
+    private val imageStorageRepository by lazy { Base64ImageStorageRepository() }
 
     fun createCapriceViewModel(): CapriceViewModel {
         val saveUseCase = SaveCapriceUseCase(capriceRepository)
         val getUseCase = GetCapricesUseCase(capriceRepository)
-        return CapriceViewModel(saveUseCase, getUseCase)
+        val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
+        return CapriceViewModel(saveUseCase, getUseCase, uploadImageUseCase)
     }
 
     fun createAuthViewModel(): AuthViewModel {

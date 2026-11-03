@@ -23,6 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
@@ -40,6 +43,10 @@ fun ActivePollScreen(
 ) {
     val context = LocalContext.current
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
+
+    val imageModel = remember(caprice?.imageUrl) {
+        ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
+    }
 
     var timeDisplay by remember { mutableStateOf("--:--") }
 
@@ -149,14 +156,35 @@ fun ActivePollScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .background(Color(0xFFB73239), RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Imagen de Zapatillas", color = Color.White, modifier = Modifier.padding(16.dp))
+            if (!caprice?.imageUrl.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1C1C1E))
+                ) {
+                    AsyncImage(
+                        model = imageModel,
+                        contentDescription = caprice.question,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(Color(0xFF241B3B), RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = if (caprice?.type?.contains("compra", ignoreCase = true) == true) "🛍️" else "🎉", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = caprice?.type ?: "Duda", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
