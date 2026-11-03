@@ -13,7 +13,7 @@ class FirestoreCapriceRepository : CapriceRepository {
 
     override suspend fun save(caprice: Caprice): Result<String> {
         return try {
-            val data = mapOf(
+            val data = mutableMapOf<String, Any>(
                 "userId" to caprice.userId,
                 "type" to caprice.type,
                 "question" to caprice.question,
@@ -21,6 +21,9 @@ class FirestoreCapriceRepository : CapriceRepository {
                 "answer2" to caprice.answer2,
                 "timestamp" to caprice.timestamp
             )
+            if (caprice.imageUrl.isNotBlank()) {
+                data["imageUrl"] = caprice.imageUrl
+            }
             val document = db.collection(collectionName).add(data).await()
             Result.success(document.id)
         } catch (e: Exception) {
@@ -45,6 +48,7 @@ class FirestoreCapriceRepository : CapriceRepository {
                     question = doc.getString("question") ?: "",
                     answer1 = doc.getString("answer1") ?: "",
                     answer2 = doc.getString("answer2") ?: "",
+                    imageUrl = doc.getString("imageUrl").orEmpty(),
                     timestamp = doc.getLong("timestamp") ?: 0L
                 )
             }
