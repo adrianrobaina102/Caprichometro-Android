@@ -2,8 +2,6 @@ package com.example.caprichometro.infrastructure.ui
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalContext
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -34,7 +32,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
@@ -51,7 +53,7 @@ private val ActiveLime = Color(0xFFB8E636)
 private val InactiveIcon = Color(0xFF7C7C80)
 
 class MainActivity : ComponentActivity() {
-    private var initialScreen = "create"
+    private var initialScreen = "home"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,7 +94,7 @@ fun CapriceApp(
     capriceViewModel: CapriceViewModel,
     friendshipViewModel: FriendshipViewModel,
     profileViewModel: ProfileViewModel,
-    startScreen: String = "create"
+    startScreen: String = "home"
 ) {
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
@@ -116,12 +118,13 @@ fun CapriceApp(
         }
     }
 
-    // Escuchamos solicitudes pendientes y amigos en tiempo real en cuanto el usuario inicia sesión
+    // Escuchamos solicitudes pendientes, amigos y el feed en cuanto el usuario inicia sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             profileViewModel.reset()
             friendshipViewModel.listenToIncomingRequests(currentUserId)
             capriceViewModel.fetchUserCaprices(limit = 50)
+            capriceViewModel.loadFriendsFeed()
         } else {
             profileViewModel.reset()
             friendshipViewModel.stopListening()
@@ -130,6 +133,8 @@ fun CapriceApp(
 
     var currentScreen by remember { mutableStateOf(startScreen) }
     var viewingProfileUserId by remember { mutableStateOf("") }
+    var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
+    var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
 
     MaterialTheme {
         Surface(
@@ -146,39 +151,58 @@ fun CapriceApp(
                     Box(modifier = Modifier.weight(1f)) {
                         when (currentScreen) {
                             "home" -> {
-                                val latestCaprice = capriceState.latestCaprices.firstOrNull()
-                                if (latestCaprice != null) {
-                                    ActivePollScreen(
-                                        caprice = latestCaprice,
-                                        onNavigateBack = { currentScreen = "create" },
-                                        onTimerFinished = { currentScreen = "result" }
-                                    )
-                                } else {
-                                    CapriceScreen(
-                                        viewModel = capriceViewModel,
-                                        onNavigateToActivePoll = { currentScreen = "active" }
-                                    )
-                                }
+                                HomeScreen(
+                                    viewModel = capriceViewModel,
+                                    onSelectFeedItem = { item ->
+                                        selectedFeedItem = item
+                                        currentScreen = "friend_poll"
+                                    },
+                                    onNavigateToFriends = {
+                                        currentScreen = "add_friend"
+                                    }
+                                )
+                            }
+                            "friend_poll" -> {
+                                val item = selectedFeedItem
+                                ActivePollScreen(
+                                    caprice = item?.caprice,
+                                    authorUsername = item?.author?.username,
+                                    onNavigateBack = { currentScreen = "home" },
+                                    onTimerFinished = {}
+                                )
                             }
                             "create" -> {
                                 CapriceScreen(
                                     viewModel = capriceViewModel,
-                                    onNavigateToActivePoll = { currentScreen = "active" }
+                                    onNavigateToActivePoll = {
+                                        selectedProfileCaprice = null
+                                        currentScreen = "active"
+                                    }
                                 )
                             }
                             "active" -> {
-                                val latestCaprice = capriceState.latestCaprices.firstOrNull()
+                                val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
                                 ActivePollScreen(
-                                    caprice = latestCaprice,
-                                    onNavigateBack = { currentScreen = "create" },
+                                    caprice = capriceToShow,
+                                    onNavigateBack = {
+                                        if (selectedProfileCaprice != null) {
+                                            selectedProfileCaprice = null
+                                            currentScreen = "profile"
+                                        } else {
+                                            currentScreen = "create"
+                                        }
+                                    },
                                     onTimerFinished = { currentScreen = "result" }
                                 )
                             }
                             "result" -> {
-                                val latestCaprice = capriceState.latestCaprices.firstOrNull()
+                                val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
                                 ResultScreen(
-                                    caprice = latestCaprice,
-                                    onGoHome = { currentScreen = "create" }
+                                    caprice = capriceToShow,
+                                    onGoHome = {
+                                        selectedProfileCaprice = null
+                                        currentScreen = "home"
+                                    }
                                 )
                             }
                             "add_friend" -> {
@@ -202,15 +226,16 @@ fun CapriceApp(
                                     targetUserId = targetId,
                                     currentUserId = currentUserId,
                                     onNavigateToFriends = { currentScreen = "add_friend" },
-                                    onSelectCaprice = { _ ->
-                                        currentScreen = "home"
+                                    onSelectCaprice = { caprice ->
+                                        selectedProfileCaprice = caprice
+                                        currentScreen = "active"
                                     },
                                     onBack = {
                                         if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank()) {
                                             viewingProfileUserId = currentUserId
                                             currentScreen = "add_friend"
                                         } else {
-                                            currentScreen = "create"
+                                            currentScreen = "home"
                                         }
                                     },
                                     onSignedOut = {
@@ -218,7 +243,9 @@ fun CapriceApp(
                                         friendshipViewModel.stopListening()
                                         authViewModel.signOut()
                                         viewingProfileUserId = ""
-                                        currentScreen = "create"
+                                        selectedFeedItem = null
+                                        selectedProfileCaprice = null
+                                        currentScreen = "home"
                                     }
                                 )
                             }
@@ -236,7 +263,7 @@ fun CapriceApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Pestaña 1: Home / Feed
-                        val isHomeSelected = currentScreen == "home" || currentScreen == "active" || currentScreen == "result"
+                        val isHomeSelected = currentScreen == "home" || currentScreen == "friend_poll"
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
@@ -252,11 +279,14 @@ fun CapriceApp(
                         }
 
                         // Pestaña 2: Cámara / Crear Capricho
-                        val isCreateSelected = currentScreen == "create"
+                        val isCreateSelected = currentScreen == "create" || currentScreen == "active" || currentScreen == "result"
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clickable { currentScreen = "create" },
+                                .clickable {
+                                    selectedProfileCaprice = null
+                                    currentScreen = "create"
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             CameraNavIcon(tint = if (isCreateSelected) ActiveLime else InactiveIcon)

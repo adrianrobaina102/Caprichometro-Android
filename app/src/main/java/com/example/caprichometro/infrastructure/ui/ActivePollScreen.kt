@@ -3,8 +3,10 @@ package com.example.caprichometro.infrastructure.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -18,30 +20,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
-import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import kotlinx.coroutines.delay
 
 private val DarkBackground = Color(0xFF0F0F0F)
 private val LimeGreen = Color(0xFFD4FF00)
 private val TextGray = Color(0xFFAAAAAA)
+private val OptionCardBg = Color(0xFF1A1A1D)
+private val OptionCardBorder = Color(0xFF2C2C30)
 
 @Composable
 fun ActivePollScreen(
     caprice: Caprice?,
+    authorUsername: String? = null,
     onNavigateBack: () -> Unit = {},
     onTimerFinished: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val isFriendPoll = !authorUsername.isNullOrBlank()
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
 
     val imageModel = remember(caprice?.imageUrl) {
@@ -49,15 +55,16 @@ fun ActivePollScreen(
     }
 
     var timeDisplay by remember { mutableStateOf("--:--") }
+    var isPollExpired by remember { mutableStateOf(false) }
 
-    // Programa la notificación en segundo plano para cuando se cumplan los 5 minutos
-    LaunchedEffect(caprice?.timestamp, caprice?.question) {
-        if (caprice != null) {
+    // Solo programa la notificación en segundo plano cuando la duda es propia
+    LaunchedEffect(caprice?.timestamp, caprice?.question, isFriendPoll) {
+        if (caprice != null && !isFriendPoll) {
             PollNotificationScheduler.schedulePollExpiration(context, caprice)
         }
     }
 
-    LaunchedEffect(caprice) {
+    LaunchedEffect(caprice, isFriendPoll) {
         if (caprice != null) {
             val totalTimeMillis = PollNotificationScheduler.POLL_DURATION_MILLIS
 
@@ -67,11 +74,15 @@ fun ActivePollScreen(
 
                 if (remainingTime <= 0) {
                     timeDisplay = "00:00"
-                    PollNotificationHelper.showPollClosedNotification(context, caprice.question, caprice.id)
-                    onTimerFinished()
+                    isPollExpired = true
+                    if (!isFriendPoll) {
+                        PollNotificationHelper.showPollClosedNotification(context, caprice.question, caprice.id)
+                        onTimerFinished()
+                    }
                     break
                 }
 
+                isPollExpired = false
                 val minutes = (remainingTime / 1000) / 60
                 val seconds = (remainingTime / 1000) % 60
 
@@ -81,6 +92,9 @@ fun ActivePollScreen(
             }
         }
     }
+
+    val headerTitle = if (isFriendPoll) "Duda de @$authorUsername" else "Tu duda está en el aire"
+    val avatarInitial = authorUsername?.firstOrNull()?.uppercaseChar()?.toString() ?: "D"
 
     Scaffold(
         containerColor = DarkBackground,
@@ -99,7 +113,7 @@ fun ActivePollScreen(
                     )
                 }
                 Text(
-                    text = "Tu duda está en el aire",
+                    text = headerTitle,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
@@ -112,7 +126,7 @@ fun ActivePollScreen(
                         .background(LimeGreen, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("D", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(avatarInitial, color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -121,7 +135,8 @@ fun ActivePollScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -132,7 +147,7 @@ fun ActivePollScreen(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = "SOLO TUS AMIGOS",
+                    text = if (isFriendPoll) "@$authorUsername · ${(caprice?.type ?: "DUDA").uppercase()}" else "SOLO TUS AMIGOS",
                     color = TextGray,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -143,18 +158,22 @@ fun ActivePollScreen(
 
             Text(
                 text = timeDisplay,
-                color = LimeGreen,
+                color = if (isPollExpired) TextGray else LimeGreen,
                 fontSize = 80.sp,
                 fontWeight = FontWeight.Bold,
                 lineHeight = 80.sp
             )
             Text(
-                text = "para que tus amigos opinen",
+                text = when {
+                    isPollExpired -> "Votación cerrada"
+                    isFriendPoll -> "tiempo restante para votar"
+                    else -> "para que tus amigos opinen"
+                },
                 color = TextGray,
                 fontSize = 14.sp
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             if (!caprice?.imageUrl.isNullOrBlank()) {
                 Box(
@@ -180,7 +199,10 @@ fun ActivePollScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = if (caprice?.type?.contains("compra", ignoreCase = true) == true) "🛍️" else "🎉", fontSize = 48.sp)
+                        Text(
+                            text = if (caprice?.type?.contains("compra", ignoreCase = true) == true) "🛍️" else "🎉",
+                            fontSize = 48.sp
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = caprice?.type ?: "Duda", color = Color.White, fontWeight = FontWeight.Bold)
                     }
@@ -198,7 +220,18 @@ fun ActivePollScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            if (caprice != null && (caprice.answer1.isNotBlank() || caprice.answer2.isNotBlank())) {
+                Spacer(modifier = Modifier.height(20.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    PollOptionRow(label = "A", text = caprice.answer1)
+                    PollOptionRow(label = "B", text = caprice.answer2)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy((-12).dp)
@@ -224,7 +257,7 @@ fun ActivePollScreen(
                 fontSize = 12.sp
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = "En la app real no se puede adelantar el cierre.",
@@ -233,6 +266,41 @@ fun ActivePollScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun PollOptionRow(label: String, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(OptionCardBg)
+            .border(1.dp, OptionCardBorder, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(OptionCardBorder),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                color = LimeGreen,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
