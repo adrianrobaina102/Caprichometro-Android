@@ -13,11 +13,15 @@ Antes de realizar cambios en la arquitectura, datos o modelos, consulta la docum
    - [shared-docs/agent-guides/android.md](shared-docs/agent-guides/android.md)
    *(Contiene las reglas de Kotlin, Compose, patrones de diseño, estructura de paquetes, pruebas con MockK y ciclo de vida de autenticación y datos).*
 
-3. **Contrato de datos de Firebase:**
+3. **Hoja de Ruta Compartida (Android e iOS):**
+   - [shared-docs/roadmaps/ROADMAP.md](shared-docs/roadmaps/ROADMAP.md)
+   *(Única fuente de verdad del roadmap; no crear un `ROADMAP.md` duplicado en la raíz de este repositorio).*
+
+4. **Contrato de datos de Firebase:**
    - [shared-docs/architecture/firebase-data-contract.md](shared-docs/architecture/firebase-data-contract.md)
    *(Cualquier modificación en las colecciones `users`, `usernames`, `friendships`, `userBlocks` o `caprices` debe respetar estrictamente este contrato para mantener la sincronización con iOS).*
 
-4. **Flujo Git y Ramas:**
+5. **Flujo Git y Ramas:**
    - [shared-docs/development/git-workflow.md](shared-docs/development/git-workflow.md)
    *(Describe las cinco ramas funcionales acordadas: `feature/authentication`, `feature/friendships`, `feature/caprices`, `feature/voting`, `feature/profile`, el formato de commits en inglés con Conventional Commits y el procedimiento para actualizar el submódulo).*
 
@@ -36,3 +40,8 @@ Antes de realizar cambios en la arquitectura, datos o modelos, consulta la docum
    - `app/google-services.json` y `local.properties` están estrictamente excluidos de Git por `.gitignore` y deben mantenerse seguros localmente.
 4. **Regla estricta de prefijos de Commit:**
    - Todo commit dentro del submódulo `shared-docs/` (`caprichometro_docs`) o que modifique únicamente documentación debe llevar siempre el prefijo **`docs:`** (nunca `feat:`, `fix:` ni `refactor:`).
+5. **Actualización obligatoria de Documentación, Diagramas y Roadmap:**
+   - Al completar cualquier funcionalidad o sincronizar avances con el repositorio del compañero de iOS (`https://github.com/DanielLuzardo/caprichometro_ios`), el agente **DEBE OBLIGATORIAMENTE**:
+     1. Actualizar [`shared-docs/roadmaps/ROADMAP.md`](shared-docs/roadmaps/ROADMAP.md) contrastando el código real de ambos repositorios para tachar lo completado y mantener al día la lista de tareas pendientes de Android e iOS.
+     2. Actualizar [`shared-docs/agent-guides/android.md`](shared-docs/agent-guides/android.md) y los esquemas de flujo en [`shared-docs/architecture/modules/`](shared-docs/architecture/modules/) (incluyendo el nombre de la clase y una breve descripción de su función en cada nodo del diagrama).
+     3. Subir los cambios de `shared-docs` a `origin/main` (con prefijo `docs:`) y actualizar la referencia del submódulo en `Caprichometro-Android`.
