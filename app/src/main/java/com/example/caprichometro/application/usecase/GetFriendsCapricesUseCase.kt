@@ -26,7 +26,7 @@ class GetFriendsCapricesUseCase(
             acceptedFriends.map { friend ->
                 async {
                     val caprices = capriceRepository.getCaprices(friend.uid, perFriendLimit)
-                        .getOrElse { emptyList() }
+                        .getOrThrow()
                     caprices.map { caprice ->
                         CapriceFeedItem(caprice = caprice, author = friend)
                     }
