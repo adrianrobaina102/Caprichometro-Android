@@ -3,9 +3,11 @@ package com.example.caprichometro.infrastructure.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,13 +18,17 @@ import kotlinx.coroutines.launch
 data class CapriceState(
     val isLoading: Boolean = false,
     val latestCaprices: List<Caprice> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val feedItems: List<CapriceFeedItem> = emptyList(),
+    val isFeedLoading: Boolean = false,
+    val feedError: String? = null
 )
 
 class CapriceViewModel(
     private val saveCapriceUseCase: SaveCapriceUseCase,
     private val getCapricesUseCase: GetCapricesUseCase,
-    private val uploadCapriceImageUseCase: UploadCapriceImageUseCase? = null
+    private val uploadCapriceImageUseCase: UploadCapriceImageUseCase? = null,
+    private val getFriendsCapricesUseCase: GetFriendsCapricesUseCase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CapriceState())
@@ -58,7 +64,7 @@ class CapriceViewModel(
                     finalImageUrl = url
                 },
                 onFailure = { e ->
-                    android.util.Log.e("CapriceViewModel", "Error subiendo imagen a Firebase Storage", e)
+                    android.util.Log.e("CapriceViewModel", "Error procesando imagen", e)
                 }
             )
         }
@@ -93,6 +99,31 @@ class CapriceViewModel(
                 },
                 onFailure = { e ->
                     _state.update { it.copy(isLoading = false, error = e.message) }
+                }
+            )
+        }
+    }
+
+    fun loadFriendsFeed() {
+        val uid = currentUserId
+        val useCase = getFriendsCapricesUseCase ?: return
+        if (uid.isBlank()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isFeedLoading = true, feedError = null) }
+
+            val result = useCase.execute(uid, perFriendLimit = 20, totalLimit = 20)
+            result.fold(
+                onSuccess = { items ->
+                    _state.update { it.copy(isFeedLoading = false, feedItems = items, feedError = null) }
+                },
+                onFailure = { e ->
+                    _state.update {
+                        it.copy(
+                            isFeedLoading = false,
+                            feedError = e.message ?: "No se pudo cargar el feed de amigos."
+                        )
+                    }
                 }
             )
         }

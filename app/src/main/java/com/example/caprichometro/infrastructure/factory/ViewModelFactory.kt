@@ -1,6 +1,7 @@
 package com.example.caprichometro.infrastructure.factory
 
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
 import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
@@ -39,7 +40,9 @@ class ViewModelFactory {
         val saveUseCase = SaveCapriceUseCase(capriceRepository)
         val getUseCase = GetCapricesUseCase(capriceRepository)
         val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
-        return CapriceViewModel(saveUseCase, getUseCase, uploadImageUseCase)
+        val getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+        val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(getAcceptedFriendsUseCase, capriceRepository)
+        return CapriceViewModel(saveUseCase, getUseCase, uploadImageUseCase, getFriendsCapricesUseCase)
     }
 
     fun createAuthViewModel(): AuthViewModel {
