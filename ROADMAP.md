@@ -1,6 +1,6 @@
 # 🗺️ Hoja de Ruta y Guía de Pruebas — Caprichómetro Android
 
-Estado del proyecto, esquema resumido de arquitectura y checklist de pruebas tras la actualización del **4 de noviembre de 2026**.
+Estado del proyecto, comparativa con iOS, esquema de arquitectura y guía de pruebas tras la actualización del **4 de noviembre de 2026**.
 
 ---
 
@@ -12,59 +12,65 @@ Estado del proyecto, esquema resumido de arquitectura y checklist de pruebas tra
 | **Almacenamiento Base64 (0€ / Sin tarjeta)** | ✅ Guardado en `imageUrl` | ✅ `Base64ImageStorageRepository` | Paridad total |
 | **Visualización fluida (Anti-parpadeo)** | ✅ `CapriceImageView` estable | ✅ `ImageModelHelper` (`LruCache`) + `remember` | Paridad total |
 | **Feed Social de Inicio (`Home`)** | ✅ `CapriceFeedView` | ✅ `HomeScreen` + `GetFriendsCapricesUseCase` | Paridad total |
+| **Refresco y Resiliencia en Red** | ⚠️ Consulta estándar | ✅ Forzado `Source.SERVER` + Fallback sin índices compuestos | 🚀 Android más robusto |
 | **Recuerdos en Perfil con Fotos** | ⏳ Pendiente en iOS | ✅ Cuadrícula de fotos en `ProfileScreen` | 🚀 Android por delante |
-| **Cámara Nativa (Disparo directo)** | ✅ Selector Cámara / Galería | ⚠️ Solo PhotoPicker de galería | 🔴 **PENDIENTE EN ANDROID** |
+| **Cámara Nativa (Disparo directo)** | ✅ Selector Cámara / Galería | ⚠️ Solo PhotoPicker de galería | 🔴 **ÚNICA PENDIENTE DE PARIDAD** |
 
 ---
 
-## ⚡ 2. Esquema Resumido de Clases (Feed e Imágenes)
+## ⚡ 2. Esquema de Arquitectura del Feed de Inicio
 
 ```text
 [ 🏠 HomeScreen.kt — Pantalla de Inicio; recalcula cada 60s "Ahora/Xm/Xh" y "Activa/Cerrada" ]
        │
-       ▼ (1. Al abrir Inicio o pulsar 'Actualizar')
-[ ⚙️ CapriceViewModel.kt — Pone isFeedLoading = true (ruedita de carga) y pide el feed ]
+       ▼ (1. Al abrir Inicio o pulsar el botón de refresco 🔄)
+[ ⚙️ CapriceViewModel.kt — Activa isFeedLoading = true (spinner en botón) y gestiona el Job ]
        │
        ▼ (2. Ejecuta la lógica de negocio)
 [ 🧠 GetFriendsCapricesUseCase.kt — Descarga las dudas de tus amigos ]
-       ├── GetAcceptedFriendsUseCase.kt (filtra amigos aceptados y sin bloqueo)
-       ├── FirestoreCapriceRepository.kt (descarga en paralelo hasta 20 dudas por amigo)
-       └── CapriceFeedItem.kt (une cada Caprice con el @username de su autor)
+       ├── GetAcceptedFriendsUseCase.kt (obtiene amigos aceptados y sin bloqueo)
+       ├── FirestoreCapriceRepository.kt (intenta consulta indexada a servidor; si falta índice,
+       │                                  hace fallback a consulta simple y ordena en memoria)
+       └── CapriceFeedItem.kt (une cada Caprice con el @username y avatar del amigo)
        │
-       ▼ (3. Actualiza CapriceState: isFeedLoading = false, feedItems = top 20)
-[ 🃏 CapriceFeedCard (en HomeScreen.kt) — Dibuja @username, foto WebP sin parpadeo y opciones A/B ]
+       ▼ (3. Actualiza CapriceState: isFeedLoading = false, feedItems = lista ordenada)
+[ 🃏 CapriceFeedCard (en HomeScreen.kt) — Dibuja @username, tipo, foto WebP y opciones A/B ]
        │
-       ▼ (4. Al tocar una tarjeta de un amigo)
-[ ⏱️ ActivePollScreen.kt (con authorUsername) — Muestra "Duda de @amigo" y su cuenta atrás ]
+       ▼ (4. Al tocar una tarjeta del feed)
+[ ⏱️ ActivePollScreen.kt (con authorUsername) — Detalle: "Duda de @amigo" y cuenta atrás real ]
 ```
 
 ---
 
-## 🧪 3. Roadmap de Pruebas (Qué debemos probar en el emulador / móvil)
+## 🧪 3. Checklist de Pruebas y Verificación
 
-### A. Pruebas del Feed de Inicio (`HomeScreen`)
-- [ ] **Estado vacío (sin amigos o sin dudas):** Entrar a la pestaña de Inicio (`🏠`) y comprobar que aparece *"Nada por aquí todavía"* con los botones **«Actualizar»** y **«Buscar amigos»**.
-- [ ] **Ver dudas de un amigo:** Con una cuenta que tenga al menos un amigo aceptado que haya publicado caprichos (desde Android o desde el iPhone de Daniel), pulsar el botón de refresco (`🔄`) arriba a la derecha y verificar que aparecen sus tarjetas ordenadas de más reciente a más antigua.
-- [ ] **Insignia Activa vs Cerrada:**
-  - Publicar una duda desde la cuenta de un amigo y comprobar que en el feed aparece en verde lima como **«Activa»** y tiempo **«Ahora»** / **«1m»**.
-  - En dudas de hace más de 5 minutos, comprobar que aparece en gris como **«Cerrada»**.
-- [ ] **Detalle de duda de un amigo (`ActivePollScreen`):**
-  - Pulsar sobre una tarjeta del feed y comprobar que se abre la pantalla con el título **«Duda de @amigo»**, muestra la foto (si tiene), las opciones **A** y **B**, y el contador en tiempo real (o `00:00` / *«Votación cerrada»* si ya expiró).
-  - Verificar que **no** salta notificación local de autor en tu móvil por la duda de un amigo.
+### A. Feed de Inicio (`HomeScreen`)
+- [x] **Carga real de dudas de amigos desde Firestore:** Verificado en emulador con 14 caprichos de amigos obtenidos y ordenados cronológicamente.
+- [x] **Botón de refresco (`🔄`):** Animación de carga con `CircularProgressIndicator` en el botón y barra de progreso superior mientras descarga los datos más frescos del servidor.
+- [x] **Resiliencia ante falta de índices:** Funciona automáticamente incluso si Firestore no tiene configurado el índice compuesto de `userId` + `timestamp`.
+- [ ] **Comprobar visualmente en tu pantalla:** Ver que las tarjetas de tus amigos se muestran con su inicial en círculo lima, `@username`, etiqueta de categoría (*Compra* / *Plan*), foto (si tiene) y las opciones A y B.
+- [ ] **Antigüedad y estado de la duda:**
+  - Si la duda tiene menos de 5 minutos: Insignia verde **«Activa»** y tiempo relativo (*"Ahora"*, *"2m"*).
+  - Si han pasado más de 5 minutos: Insignia gris **«Cerrada»** y tiempo relativo (*"1h"*, *"2d"*).
+- [ ] **Navegación al detalle:** Al tocar la tarjeta de un amigo, se abre la cuenta atrás con el título *"Duda de @amigo"* sin activar notificaciones locales de autor en tu dispositivo.
 
-### B. Pruebas de Fotos y Anti-Parpadeo (Android ↔ iOS)
-- [ ] **Publicar duda con foto desde galería:** En la pestaña central (`📷`), elegir una foto con *Añadir foto*, comprobar la miniatura y el botón `✖` para quitarla, escribir pregunta + 2 opciones distintas y pulsar **Publicar**.
-- [ ] **Sin parpadeo en cuenta atrás:** Verificar en `ActivePollScreen` que mientras el reloj baja segundo a segundo (`04:59`, `04:58`...), la imagen permanece completamente fija sin parpadear.
-- [ ] **Compatibilidad cruzada con iOS:** Comprobar que una foto subida por Daniel desde iOS se ve en tu `HomeScreen` de Android, y que una foto subida por ti desde Android se ve en el iOS de Daniel.
-- [ ] **Cuadrícula de Recuerdos en Perfil:** Entrar a la pestaña de Perfil (`👤`) y comprobar que la foto aparece en la cuadrícula de recuerdos y al abrir el detalle.
+### B. Fotos y Rendimiento
+- [x] **Compresión WebP y Base64:** Las fotos se comprimen en memoria a ~40-60 KB sin necesidad de Firebase Storage de pago (plan Blaze).
+- [x] **Eliminación de parpadeo (Anti-flicker):** Con la caché `LruCache` en `ImageModelHelper` y el `remember(imageUrl)`, la imagen se mantiene completamente fija durante el tic-tac de la cuenta atrás.
+- [ ] **Interoperabilidad:** Comprobar que una duda con foto publicada desde Android se ve en el iPhone de Daniel, y viceversa.
 
 ---
 
-## 🛠️ 4. Única Tarea de Desarrollo Pendiente (Paridad con iOS)
+## 🎯 4. Próximos Pasos en el Desarrollo
 
-### 📷 Captura con la Cámara Nativa (`TakePicture`)
-- [ ] Declarar `FileProvider` en `app/src/main/AndroidManifest.xml` y crear `app/src/main/res/xml/file_paths.xml`.
-- [ ] En `CapriceScreen.kt`, al pulsar *"Añadir foto"*, mostrar un selector:
-  - **"Hacer foto con la cámara"** (`ActivityResultContracts.TakePicture()`).
-  - **"Elegir de la galería"** (`ActivityResultContracts.PickVisualMedia()`).
-- [ ] Pasar la foto capturada por `ImageCompressor` (WebP 800 px, 75%).
+### Prioridad 1: 📷 Disparo directo con la Cámara Nativa (`TakePicture`)
+Actualmente solo se puede elegir de la galería. Para alcanzar **100% de paridad con iOS** en este módulo:
+1. Declarar `FileProvider` en `AndroidManifest.xml` con `res/xml/file_paths.xml`.
+2. Crear diálogo selector al pulsar *"Añadir foto"* en `CapriceScreen.kt`:
+   - *"Hacer foto con la cámara"* (`ActivityResultContracts.TakePicture()`).
+   - *"Elegir de la galería"* (`ActivityResultContracts.PickVisualMedia()`).
+3. Enrutar el resultado de la cámara por el mismo compresor `ImageCompressor` a WebP.
+
+### Prioridad 2: 🗳️ Módulo de Votaciones en Tiempo Real (Siguiente fase del proyecto)
+- Persistencia de votos individuales (`caprices/{id}/votes/{userId}`).
+- Cierre definitivo de votaciones y cálculo de resultados en vivo.
