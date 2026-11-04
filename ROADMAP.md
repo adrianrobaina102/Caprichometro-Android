@@ -1,6 +1,6 @@
 # 🗺️ Hoja de Ruta y Guía de Pruebas — Caprichómetro (Android e iOS)
 
-Estado del proyecto, comparativa entre ambas plataformas, esquemas de arquitectura y guía de pruebas tras la actualización del **4 de noviembre de 2026**.
+Estado del proyecto, comparativa entre ambas plataformas, fases de desarrollo y guía de pruebas tras la actualización del **4 de noviembre de 2026**.
 
 ---
 
@@ -27,27 +27,31 @@ Estado del proyecto, comparativa entre ambas plataformas, esquemas de arquitectu
 
 ---
 
-## ⚡ 2. Esquema de Arquitectura del Feed de Inicio
+## 🗺️ 2. Fases del Proyecto y Estado de los Módulos
 
 ```text
-[ 🏠 HomeScreen.kt — Pantalla de Inicio; recalcula cada 60s "Ahora/Xm/Xh" y "Activa/Cerrada" ]
-       │
-       ▼ (1. Al abrir Inicio o pulsar el botón de refresco 🔄)
-[ ⚙️ CapriceViewModel.kt — Activa isFeedLoading = true (spinner en botón) y gestiona el Job ]
-       │
-       ▼ (2. Ejecuta la lógica de negocio)
-[ 🧠 GetFriendsCapricesUseCase.kt — Descarga las dudas de tus amigos ]
-       ├── GetAcceptedFriendsUseCase.kt (obtiene amigos aceptados y sin bloqueo)
-       ├── FirestoreCapriceRepository.kt (intenta consulta indexada a servidor; si falta índice,
-       │                                  hace fallback a consulta simple y ordena en memoria)
-       └── CapriceFeedItem.kt (une cada Caprice con el @username y avatar del amigo)
-       │
-       ▼ (3. Actualiza CapriceState: isFeedLoading = false, feedItems = lista ordenada)
-[ 🃏 CapriceFeedCard (en HomeScreen.kt) — Dibuja @username, tipo, foto WebP y opciones A/B ]
-       │
-       ▼ (4. Al tocar una tarjeta del feed)
-[ ⏱️ ActivePollScreen.kt (con authorUsername) — Detalle: "Duda de @amigo" y cuenta atrás real ]
+[ Fase 1: Auth & Cuentas ] ──────────► ✅ Completada (Android e iOS)
+[ Fase 2: Amistades & "Tu gente" ] ──► ✅ Completada (Android e iOS; Android incluye desbloqueo y Share Sheet)
+[ Fase 3: Caprichos, Feed & Fotos ] ─► 🟡 En curso (Feed, WebP y Base64 listos; pendiente cámara nativa en Android)
+[ Fase 4: Perfil & Recuerdos ] ──────► 🚀 Completada en Android / ⏳ Pendiente en iOS
+[ Fase 5: Votaciones en Tiempo Real ]► ⏳ Siguiente fase conjunta del proyecto (feature/voting)
+[ Fase 6: Notificaciones Push Remotas ] ⏳ Fase posterior (FCM / APNs en la nube)
 ```
+
+1. **Fase 1 — Autenticación y Registro (`feature/authentication`):**
+   - Inicio de sesión con correo y contraseña, Google Sign-In, validaciones de formato/edad y reserva atómica de `@username` único en Firestore (`usernames/{username}`).
+2. **Fase 2 — Amistades y "Tu gente" (`feature/friendships`):**
+   - Búsqueda normalizada por `@username`, envío y respuesta de solicitudes con ID canónico `minUid_maxUid`, bloqueo bidireccional y escucha reactiva en tiempo real. Android incorpora además compartir invitación nativa (`Share Sheet`) y desbloqueo de usuarios.
+3. **Fase 3 — Caprichos, Feed Social y Fotos WebP (`feature/caprices`):**
+   - Formulario de creación con validación desacoplada y patrón Builder.
+   - Compresión en memoria a WebP (~40-60 KB) y almacenamiento Base64 a 0€ sin tarjeta de crédito.
+   - Renderizado con caché `LruCache` que elimina el parpadeo de imagen durante recomposiciones.
+   - Feed social de inicio (`HomeScreen` / `CapriceFeedView`) con las 20 dudas más recientes de amigos y recálculo automático cada 60s sin peticiones adicionales.
+   - *Pendiente en Android para cerrar la fase al 100%:* Disparo directo con la cámara nativa (`TakePicture`).
+4. **Fase 4 — Perfil, Historial y Estadísticas (`feature/profile`):**
+   - Operativa al 100% en Android: cuadrícula de recuerdos en 3 columnas, apertura de detalle, gráficos en Canvas (`DecisionDonutChart` y 4 categorías), perfil de amigos con privacidad protegida y ajustes completos. Pendiente de implementación en iOS.
+5. **Fase 5 — Votaciones en Tiempo Real (`feature/voting`):**
+   - Siguiente gran objetivo conjunto: persistencia de votos individuales (`caprices/{id}/votes/{userId}`) y cálculo en directo del resultado ganador.
 
 ---
 
@@ -70,22 +74,21 @@ Estado del proyecto, comparativa entre ambas plataformas, esquemas de arquitectu
 
 ---
 
-## 🎯 4. Próximos Pasos en el Desarrollo (Paridad Android)
+## 🎯 4. Próximos Pasos en el Desarrollo
 
 ### Prioridad 1: 📷 Disparo directo con la Cámara Nativa (`TakePicture`)
-Actualmente solo se puede elegir de la galería. Para alcanzar paridad en captura:
+Actualmente solo se puede elegir foto desde la galería (`PickVisualMedia`). Para completar la Fase 3 al 100%:
 1. Declarar `FileProvider` en `AndroidManifest.xml` con `res/xml/file_paths.xml`.
 2. Crear diálogo selector al pulsar *"Añadir foto"* en `CapriceScreen.kt`:
    - *"Hacer foto con la cámara"* (`ActivityResultContracts.TakePicture()`).
    - *"Elegir de la galería"* (`ActivityResultContracts.PickVisualMedia()`).
-3. Enrutar el resultado de la cámara por el mismo compresor `ImageCompressor` a WebP.
+3. Enrutar el archivo temporal resultante por el compresor existente `ImageCompressor` a WebP.
 
-### Prioridad 2: 🔔 Avisos de dudas de amigos con la app abierta (Sección 5)
-Implementar la observación de amigos y recuperación de pendientes según la especificación de la Sección 5.
-
-### Prioridad 3: 🗳️ Módulo de Votaciones en Tiempo Real (Siguiente fase del proyecto)
-- Persistencia de votos individuales (`caprices/{id}/votes/{userId}`).
-- Cierre definitivo de votaciones y cálculo de resultados en vivo (común para Android e iOS).
+### Prioridad 2: 🗳️ Módulo de Votaciones en Tiempo Real (Fase 5 — `feature/voting`)
+El siguiente gran salto de producto para ambas plataformas:
+- Subcolección `caprices/{capriceId}/votes/{userId}` para persistir votos (opción A u opción B).
+- Listener en tiempo real para actualizar barras y porcentajes al instante.
+- Cierre formal de la votación y paso a pantalla de resultados (`ResultScreen`).
 
 ---
 
