@@ -47,6 +47,7 @@ fun HomeScreen(
 
     // Carga inicial al entrar en la pestaña de Inicio
     LaunchedEffect(Unit) {
+        nowMillis = System.currentTimeMillis()
         viewModel.loadFriendsFeed()
     }
 
@@ -61,44 +62,64 @@ fun HomeScreen(
     Scaffold(
         containerColor = FeedBg,
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "Inicio",
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "Las dudas recientes de tus amigos",
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Inicio",
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = "Las dudas recientes de tus amigos",
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            nowMillis = System.currentTimeMillis()
+                            viewModel.loadFriendsFeed()
+                        },
+                        enabled = !state.isFeedLoading,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(CardBg)
+                            .border(1.dp, CardBorder, CircleShape)
+                    ) {
+                        if (state.isFeedLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = LimeAccent,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Actualizar feed",
+                                tint = LimeAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
 
-                IconButton(
-                    onClick = {
-                        nowMillis = System.currentTimeMillis()
-                        viewModel.loadFriendsFeed()
-                    },
-                    enabled = !state.isFeedLoading,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(CardBg)
-                        .border(1.dp, CardBorder, CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Actualizar feed",
-                        tint = if (state.isFeedLoading) TextSecondary else LimeAccent,
-                        modifier = Modifier.size(20.dp)
+                if (state.isFeedLoading && state.feedItems.isNotEmpty()) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp),
+                        color = LimeAccent,
+                        trackColor = Color.Transparent
                     )
                 }
             }
@@ -203,6 +224,7 @@ fun HomeScreen(
                                     nowMillis = System.currentTimeMillis()
                                     viewModel.loadFriendsFeed()
                                 },
+                                enabled = !state.isFeedLoading,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                             ) {
