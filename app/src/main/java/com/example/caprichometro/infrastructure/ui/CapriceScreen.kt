@@ -1,5 +1,7 @@
 package com.example.caprichometro.infrastructure.ui
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,7 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +35,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
 import com.example.caprichometro.domain.validation.MinLengthValidator
@@ -38,6 +45,7 @@ import com.example.caprichometro.domain.validation.ValidationResult
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.util.ImageCompressor
 import kotlinx.coroutines.launch
+import java.io.File
 
 // Colores del tema
 private val DarkBackground = Color(0xFF0F0F0F)
@@ -45,6 +53,7 @@ private val DarkSurface = Color(0xFF1C1C1C)
 private val LimeGreen = Color(0xFFD4FF00)
 private val TextGray = Color(0xFFAAAAAA)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CapriceScreen(
     viewModel: CapriceViewModel,
@@ -58,12 +67,64 @@ fun CapriceScreen(
     var answer1 by remember { mutableStateOf("") }
     var answer2 by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var showPhotoSourceSheet by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
 
+    // Launcher de la galería nativa (PickVisualMedia)
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        selectedImageUri = uri
+        // Si el usuario selecciona foto, la asignamos; si cancela, se conserva la anterior
+        if (uri != null) {
+            selectedImageUri = uri
+        }
+    }
+
+    // Launcher de captura directa con la cámara nativa (TakePicture)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        // Si el disparo fue correcto, fijamos la URI capturada; si canceló, se conserva la previa
+        if (success && tempCameraUri != null) {
+            selectedImageUri = tempCameraUri
+        }
+    }
+
+    // Solicitud de permiso de cámara en tiempo de ejecución
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val uri = getTempCameraUri(context)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Se necesita permiso de cámara para hacer fotos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val launchCamera = {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            try {
+                val uri = getTempCameraUri(context)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
     }
 
     val questionValidatorChain = remember {
@@ -143,11 +204,13 @@ fun CapriceScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = LimeGreen,
-                    disabledContainerColor = Color(0xFF4A5500)
+                    contentColor = Color.Black,
+                    disabledContainerColor = Color(0xFF2C2C2E),
+                    disabledContentColor = Color.Gray
                 )
             ) {
                 if (isSubmitting) {
@@ -156,27 +219,20 @@ fun CapriceScreen(
                         color = Color.Black,
                         strokeWidth = 2.5.dp
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "Optimizando y publicando...",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
                 } else {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = if (isFormFilled) Color.Black else Color.Gray,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Publicar · 5 min",
-                        color = if (isFormFilled) Color.Black else Color.Gray,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Lanzar a mis amigos",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -188,11 +244,18 @@ fun CapriceScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "¿De qué se trata?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
                     onClick = { isCompraType = true },
@@ -313,20 +376,38 @@ fun CapriceScreen(
                         contentScale = ContentScale.Crop
                     )
 
-                    IconButton(
-                        onClick = { selectedImageUri = null },
+                    Row(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .size(30.dp)
-                            .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Quitar foto",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Button(
+                            onClick = { showPhotoSourceSheet = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Black.copy(alpha = 0.75f),
+                                contentColor = LimeGreen
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Cambiar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        IconButton(
+                            onClick = { selectedImageUri = null },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color.Black.copy(alpha = 0.75f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Quitar foto",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             } else {
@@ -336,11 +417,7 @@ fun CapriceScreen(
                         .height(110.dp)
                         .background(DarkSurface, RoundedCornerShape(12.dp))
                         .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-                        .clickable {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
+                        .clickable { showPhotoSourceSheet = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -352,7 +429,7 @@ fun CapriceScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Elegir de galería",
+                            text = "Hacer foto o elegir de la galería",
                             color = TextGray,
                             fontSize = 13.sp
                         )
@@ -396,5 +473,129 @@ fun CapriceScreen(
 
             Spacer(modifier = Modifier.height(30.dp))
         }
+
+        // Modal selector: Cámara nativa vs Galería
+        if (showPhotoSourceSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showPhotoSourceSheet = false },
+                containerColor = Color(0xFF1E1E22),
+                contentColor = Color.White,
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Foto de tu capricho",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                showPhotoSourceSheet = false
+                                launchCamera()
+                            }
+                            .padding(vertical = 14.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Cámara",
+                            tint = LimeGreen,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "Hacer foto con la cámara",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                showPhotoSourceSheet = false
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            }
+                            .padding(vertical = 14.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = "Galería",
+                            tint = LimeGreen,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "Elegir de la galería",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
+
+                    if (selectedImageUri != null) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 6.dp),
+                            color = Color(0xFF2C2C30)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    showPhotoSourceSheet = false
+                                    selectedImageUri = null
+                                }
+                                .padding(vertical = 14.dp, horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Quitar foto",
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Text(
+                                text = "Quitar foto",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFFF5252)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+            }
+        }
     }
+}
+
+private fun getTempCameraUri(context: Context): Uri {
+    val tempFile = File.createTempFile("caprice_capture_", ".jpg", context.cacheDir).apply {
+        createNewFile()
+        deleteOnExit()
+    }
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        tempFile
+    )
 }
