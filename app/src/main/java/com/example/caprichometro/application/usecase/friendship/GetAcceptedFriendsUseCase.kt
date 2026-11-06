@@ -4,6 +4,9 @@ import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -15,16 +18,19 @@ class GetAcceptedFriendsUseCase(
         return friendshipRepository.getFriendships(currentUserId).map { friendships ->
             val acceptedFriendships = friendships.filter { it.status == FriendshipStatus.ACCEPTED }
 
-            acceptedFriendships.mapNotNull { friendship ->
-                val friendId = friendship.memberIDs.firstOrNull { it != currentUserId } ?: return@mapNotNull null
+            coroutineScope {
+                acceptedFriendships.map { friendship ->
+                    async {
+                        val friendId = friendship.memberIDs.firstOrNull { it != currentUserId } ?: return@async null
 
-                val isBlocked = friendshipRepository.isBlocked(currentUserId, friendId)
-                    .getOrThrow()
-                if (isBlocked) return@mapNotNull null
+                        val isBlocked = friendshipRepository.isBlocked(currentUserId, friendId)
+                            .getOrNull() ?: false
+                        if (isBlocked) return@async null
 
-                userProfileRepository.getUserById(friendId)
-                    .getOrThrow()
-            }.sortedBy { it.username.lowercase() }
+                        userProfileRepository.getUserById(friendId).getOrNull()
+                    }
+                }.awaitAll().filterNotNull().sortedBy { it.username.lowercase() }
+            }
         }
     }
 }
