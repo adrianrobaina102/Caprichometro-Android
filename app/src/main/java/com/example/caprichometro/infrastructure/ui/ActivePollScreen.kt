@@ -32,6 +32,9 @@ import com.example.caprichometro.infrastructure.notification.PollNotificationHel
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val DarkBackground = Color(0xFF0F0F0F)
 private val LimeGreen = Color(0xFFD4FF00)
@@ -172,6 +175,23 @@ fun ActivePollScreen(
                 color = TextGray,
                 fontSize = 14.sp
             )
+
+            // Hora explícita local de cierre acordada ("Cierra a las HH:mm" / "Cerró a las HH:mm")
+            val closeTimeFormatted = remember(caprice?.timestamp) {
+                if (caprice != null && caprice.timestamp > 0L) {
+                    val closeTimestamp = caprice.timestamp + PollNotificationScheduler.POLL_DURATION_MILLIS
+                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(closeTimestamp))
+                } else null
+            }
+            if (closeTimeFormatted != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isPollExpired) "Cerró a las $closeTimeFormatted" else "Cierra a las $closeTimeFormatted",
+                    color = TextGray.copy(alpha = 0.85f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             Spacer(modifier = Modifier.height(28.dp))
 
