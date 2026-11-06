@@ -42,6 +42,12 @@ class CapriceViewModel(
     private val currentUserId: String
         get() = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
+    fun reset() {
+        feedLoadJob?.cancel()
+        feedLoadJob = null
+        _state.value = CapriceState()
+    }
+
     suspend fun saveCaprice(
         type: String,
         questionText: String,

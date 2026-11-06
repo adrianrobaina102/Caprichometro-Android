@@ -43,9 +43,18 @@ class ActivePollViewModel(
     private var votesJob: Job? = null
     private var tickerJob: Job? = null
 
+    fun reset() {
+        votesJob?.cancel()
+        tickerJob?.cancel()
+        votesJob = null
+        tickerJob = null
+        _state.value = ActivePollUiState()
+    }
+
     fun initialize(caprice: Caprice, currentUserId: String, authorUsername: String? = null) {
         val previousCaprice = _state.value.caprice
-        if (previousCaprice?.id == caprice.id && _state.value.currentUserId == currentUserId) {
+        val isSameUserAndCaprice = previousCaprice?.id == caprice.id && _state.value.currentUserId == currentUserId
+        if (isSameUserAndCaprice && votesJob?.isActive == true && tickerJob?.isActive == true) {
             return
         }
 
