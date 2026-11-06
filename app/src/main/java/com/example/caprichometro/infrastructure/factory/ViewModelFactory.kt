@@ -23,6 +23,9 @@ import com.example.caprichometro.application.usecase.friendship.RespondToFriendR
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
+import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
+import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
+import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
 import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
 import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceDetailsRepository
@@ -30,7 +33,9 @@ import com.example.caprichometro.infrastructure.data.FirestoreCapriceObservation
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
 import com.example.caprichometro.infrastructure.data.FirestoreUserProfileRepository
+import com.example.caprichometro.infrastructure.data.FirestoreVoteRepository
 import com.example.caprichometro.infrastructure.data.SharedPreferencesCapriceNotificationHistoryRepository
+import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
@@ -44,6 +49,7 @@ class ViewModelFactory(private val context: Context? = null) {
     private val imageStorageRepository by lazy { Base64ImageStorageRepository() }
     private val capriceDetailsRepository by lazy { FirestoreCapriceDetailsRepository() }
     private val capriceObservationRepository by lazy { FirestoreCapriceObservationRepository() }
+    private val voteRepository by lazy { FirestoreVoteRepository() }
     private val notificationHistoryRepository by lazy {
         SharedPreferencesCapriceNotificationHistoryRepository(context ?: throw IllegalStateException("Context required for notification history"))
     }
@@ -94,6 +100,15 @@ class ViewModelFactory(private val context: Context? = null) {
             DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
             GetCapricesUseCase(capriceRepository),
             acceptedFriendsUseCase
+        )
+    }
+
+    fun createActivePollViewModel(): ActivePollViewModel {
+        return ActivePollViewModel(
+            CastVoteUseCase(voteRepository),
+            ObserveVotesUseCase(voteRepository),
+            CalculateVerdictUseCase(),
+            voteRepository
         )
     }
 
