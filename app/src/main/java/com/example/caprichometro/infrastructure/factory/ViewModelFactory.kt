@@ -1,10 +1,13 @@
 package com.example.caprichometro.infrastructure.factory
 
+import android.content.Context
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
+import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
+import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
+import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
-import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
 import com.example.caprichometro.application.usecase.auth.GetCurrentUserUseCase
 import com.example.caprichometro.application.usecase.auth.RegisterUseCase
@@ -21,27 +24,39 @@ import com.example.caprichometro.application.usecase.friendship.SearchUserByUser
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
 import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
+import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
+import com.example.caprichometro.infrastructure.data.FirestoreCapriceDetailsRepository
+import com.example.caprichometro.infrastructure.data.FirestoreCapriceObservationRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
 import com.example.caprichometro.infrastructure.data.FirestoreUserProfileRepository
+import com.example.caprichometro.infrastructure.data.SharedPreferencesCapriceNotificationHistoryRepository
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 
-class ViewModelFactory {
+class ViewModelFactory(private val context: Context? = null) {
     private val capriceRepository by lazy { FirestoreCapriceRepository() }
     private val userProfileRepository by lazy { FirestoreUserProfileRepository() }
     private val authRepository by lazy { FirebaseAuthRepository() }
     private val friendshipRepository by lazy { FirestoreFriendshipRepository() }
     private val imageStorageRepository by lazy { Base64ImageStorageRepository() }
+    private val capriceDetailsRepository by lazy { FirestoreCapriceDetailsRepository() }
+    private val capriceObservationRepository by lazy { FirestoreCapriceObservationRepository() }
+    private val notificationHistoryRepository by lazy {
+        SharedPreferencesCapriceNotificationHistoryRepository(context ?: throw IllegalStateException("Context required for notification history"))
+    }
+
+    private val acceptedFriendsUseCase by lazy {
+        GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+    }
 
     fun createCapriceViewModel(): CapriceViewModel {
         val saveUseCase = SaveCapriceUseCase(capriceRepository)
         val getUseCase = GetCapricesUseCase(capriceRepository)
         val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
-        val getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
-        val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(getAcceptedFriendsUseCase, capriceRepository)
+        val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(acceptedFriendsUseCase, capriceRepository)
         return CapriceViewModel(saveUseCase, getUseCase, uploadImageUseCase, getFriendsCapricesUseCase)
     }
 
@@ -62,7 +77,7 @@ class ViewModelFactory {
             SendFriendRequestUseCase(friendshipRepository),
             GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository),
             RespondToFriendRequestUseCase(friendshipRepository),
-            GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository),
+            acceptedFriendsUseCase,
             RemoveFriendUseCase(friendshipRepository),
             BlockUserUseCase(friendshipRepository),
             userProfileRepository
@@ -78,7 +93,19 @@ class ViewModelFactory {
             SignOutUseCase(authRepository),
             DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
             GetCapricesUseCase(capriceRepository),
-            GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+            acceptedFriendsUseCase
         )
+    }
+
+    fun createObserveFriendCapricesUseCase(): ObserveFriendCapricesUseCase {
+        return ObserveFriendCapricesUseCase(acceptedFriendsUseCase, capriceObservationRepository)
+    }
+
+    fun createNotifyFriendCapriceUseCase(): NotifyFriendCapriceUseCase {
+        return NotifyFriendCapriceUseCase(acceptedFriendsUseCase, capriceRepository, notificationHistoryRepository)
+    }
+
+    fun createGetNotificationCapriceUseCase(): GetNotificationCapriceUseCase {
+        return GetNotificationCapriceUseCase(capriceDetailsRepository, userProfileRepository, acceptedFriendsUseCase)
     }
 }

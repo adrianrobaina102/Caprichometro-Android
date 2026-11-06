@@ -35,10 +35,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
+import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
+import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
+import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
@@ -46,6 +50,7 @@ import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewMode
 import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 private val NavBarBg = Color(0xFF0D0D0D)
 private val NavDivider = Color(0xFF222224)
@@ -53,23 +58,24 @@ private val ActiveLime = Color(0xFFB8E636)
 private val InactiveIcon = Color(0xFF7C7C80)
 
 class MainActivity : ComponentActivity() {
-    private var initialScreen = "home"
+    private var pendingIntentState = mutableStateOf<Intent?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Crea el canal de notificaciones para los avisos de votación
+        // Crea el canal de notificaciones para los avisos de votación y amigos
         PollNotificationHelper.createNotificationChannel(this)
 
-        if (intent?.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO) == "result") {
-            initialScreen = "result"
-        }
+        pendingIntentState.value = intent
 
-        val viewModelFactory = ViewModelFactory()
+        val viewModelFactory = ViewModelFactory(this)
         val capriceViewModel = viewModelFactory.createCapriceViewModel()
         val authViewModel = viewModelFactory.createAuthViewModel()
         val friendshipViewModel = viewModelFactory.createFriendshipViewModel()
         val profileViewModel = viewModelFactory.createProfileViewModel()
+        val observeFriendCapricesUseCase = viewModelFactory.createObserveFriendCapricesUseCase()
+        val notifyFriendCapriceUseCase = viewModelFactory.createNotifyFriendCapriceUseCase()
+        val getNotificationCapriceUseCase = viewModelFactory.createGetNotificationCapriceUseCase()
 
         setContent {
             CapriceApp(
@@ -77,7 +83,11 @@ class MainActivity : ComponentActivity() {
                 capriceViewModel = capriceViewModel,
                 friendshipViewModel = friendshipViewModel,
                 profileViewModel = profileViewModel,
-                startScreen = initialScreen
+                observeFriendCapricesUseCase = observeFriendCapricesUseCase,
+                notifyFriendCapriceUseCase = notifyFriendCapriceUseCase,
+                getNotificationCapriceUseCase = getNotificationCapriceUseCase,
+                pendingIntent = pendingIntentState.value,
+                onClearPendingIntent = { pendingIntentState.value = null }
             )
         }
     }
@@ -85,6 +95,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        pendingIntentState.value = intent
     }
 }
 
@@ -94,7 +105,11 @@ fun CapriceApp(
     capriceViewModel: CapriceViewModel,
     friendshipViewModel: FriendshipViewModel,
     profileViewModel: ProfileViewModel,
-    startScreen: String = "home"
+    observeFriendCapricesUseCase: ObserveFriendCapricesUseCase,
+    notifyFriendCapriceUseCase: NotifyFriendCapriceUseCase,
+    getNotificationCapriceUseCase: GetNotificationCapriceUseCase,
+    pendingIntent: Intent? = null,
+    onClearPendingIntent: () -> Unit = {}
 ) {
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
@@ -118,23 +133,85 @@ fun CapriceApp(
         }
     }
 
-    // Escuchamos solicitudes pendientes, amigos y el feed en cuanto el usuario inicia sesión
+    var currentScreen by remember { mutableStateOf("home") }
+    var viewingProfileUserId by remember { mutableStateOf("") }
+    var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
+    var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
+
+    // Intercepta notificaciones pulsadas (apertura exacta por capriceId)
+    LaunchedEffect(pendingIntent, authState.isAuthSuccessful, currentUserId) {
+        val targetIntent = pendingIntent
+        if (targetIntent != null && authState.isAuthSuccessful && currentUserId.isNotBlank()) {
+            val capriceId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_ID)
+                ?: targetIntent.data?.lastPathSegment
+            val navigateTo = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO)
+            val recipientUserId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID) ?: currentUserId
+
+            if (!capriceId.isNullOrBlank()) {
+                val result = getNotificationCapriceUseCase.execute(capriceId, recipientUserId)
+                val item = result.getOrNull()
+                if (item != null) {
+                    if (item.caprice.userId == currentUserId) {
+                        selectedProfileCaprice = item.caprice
+                        currentScreen = if (navigateTo == "result" || PollNotificationScheduler.isPollExpired(item.caprice.timestamp)) {
+                            "result"
+                        } else {
+                            "active"
+                        }
+                    } else {
+                        selectedFeedItem = item
+                        currentScreen = "friend_poll"
+                    }
+                }
+            } else if (navigateTo == "result") {
+                currentScreen = "result"
+            } else if (navigateTo == "active") {
+                currentScreen = "active"
+            }
+            onClearPendingIntent()
+        }
+    }
+
+    // Escuchamos solicitudes pendientes, amigos, feed y notificaciones de amigos al iniciar sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             profileViewModel.reset()
             friendshipViewModel.listenToIncomingRequests(currentUserId)
             capriceViewModel.fetchUserCaprices(limit = 50)
             capriceViewModel.loadFriendsFeed()
+
+            val foregroundStart = System.currentTimeMillis()
+
+            // 1. Recuperación al volver a la app: último capricho no notificado por amigo (limit = 1)
+            launch {
+                notifyFriendCapriceUseCase.checkAndNotifyUnnotifiedFriendCaprices(currentUserId) { author, caprice ->
+                    PollNotificationHelper.showFriendCapriceNotification(
+                        context = context,
+                        recipientUserId = currentUserId,
+                        authorUsername = author.username,
+                        caprice = caprice
+                    )
+                }
+            }
+
+            // 2. Escucha en vivo de publicaciones nuevas de amigos mientras la sesión está abierta
+            launch {
+                observeFriendCapricesUseCase.execute(currentUserId, foregroundStart).collect { item ->
+                    PollNotificationHelper.showFriendCapriceNotification(
+                        context = context,
+                        recipientUserId = currentUserId,
+                        authorUsername = item.author.username,
+                        caprice = item.caprice
+                    )
+                    // Recargamos el feed social para que aparezca la nueva duda
+                    capriceViewModel.loadFriendsFeed()
+                }
+            }
         } else {
             profileViewModel.reset()
             friendshipViewModel.stopListening()
         }
     }
-
-    var currentScreen by remember { mutableStateOf(startScreen) }
-    var viewingProfileUserId by remember { mutableStateOf("") }
-    var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
-    var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
 
     MaterialTheme {
         Surface(
