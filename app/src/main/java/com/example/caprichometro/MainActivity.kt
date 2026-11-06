@@ -213,6 +213,8 @@ fun CapriceApp(
         } else {
             profileViewModel.reset()
             friendshipViewModel.stopListening()
+            activePollViewModel.reset()
+            capriceViewModel.reset()
         }
     }
 
@@ -285,8 +287,9 @@ fun CapriceApp(
                                     caprice = capriceToShow,
                                     viewModel = activePollViewModel,
                                     onGoHome = {
+                                        val wasFromProfile = selectedProfileCaprice != null
                                         selectedProfileCaprice = null
-                                        currentScreen = "home"
+                                        currentScreen = if (wasFromProfile) "profile" else "home"
                                     }
                                 )
                             }
@@ -313,12 +316,13 @@ fun CapriceApp(
                                     onNavigateToFriends = { currentScreen = "add_friend" },
                                     onSelectCaprice = { caprice ->
                                         selectedProfileCaprice = caprice
-                                        currentScreen = "active"
+                                        val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                                        currentScreen = if (isExpired) "result" else "active"
                                     },
                                     onBack = {
                                         if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank()) {
                                             viewingProfileUserId = currentUserId
-                                            currentScreen = "add_friend"
+                                             currentScreen = "add_friend"
                                         } else {
                                             currentScreen = "home"
                                         }
@@ -326,6 +330,8 @@ fun CapriceApp(
                                     onSignedOut = {
                                         profileViewModel.reset()
                                         friendshipViewModel.stopListening()
+                                        activePollViewModel.reset()
+                                        capriceViewModel.reset()
                                         authViewModel.signOut()
                                         viewingProfileUserId = ""
                                         selectedFeedItem = null

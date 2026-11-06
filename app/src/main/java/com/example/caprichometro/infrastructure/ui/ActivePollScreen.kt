@@ -1,6 +1,7 @@
 package com.example.caprichometro.infrastructure.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -213,15 +214,15 @@ fun ActivePollScreen(
             )
             Text(
                 text = when {
-                    isPollExpired -> "Votación cerrada"
+                    isPollExpired -> "Votación cerrada · Resultados finales"
                     currentPollState is PollState.Voted -> "¡Ya has votado! Esperando a los demás"
                     currentPollState is PollState.Author -> "Tus amigos están votando en directo"
                     isFriendPoll -> "Toca tu opción favorita para votar"
                     else -> "para que tus amigos opinen"
                 },
-                color = if (currentPollState is PollState.Voted) LimeGreen else TextGray,
+                color = if (isPollExpired || currentPollState is PollState.Voted) LimeGreen else TextGray,
                 fontSize = 14.sp,
-                fontWeight = if (currentPollState is PollState.Voted) FontWeight.SemiBold else FontWeight.Normal
+                fontWeight = if (isPollExpired || currentPollState is PollState.Voted) FontWeight.SemiBold else FontWeight.Normal
             )
 
             // Hora explícita local de cierre acordada ("Cierra a las HH:mm" / "Cerró a las HH:mm")
@@ -241,7 +242,57 @@ fun ActivePollScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            // Banner explicativo y visual del veredicto si la votación ya cerró
+            if (isPollExpired) {
+                val verdict = (currentPollState as? PollState.Expired)?.verdictResult
+                val headline = verdict?.headline ?: "¡Votación cerrada!"
+                val subtitle = verdict?.subtitle ?: "Consulta el veredicto final a continuación."
+
+                Spacer(modifier = Modifier.height(18.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2815)),
+                    border = BorderStroke(1.dp, LimeGreen.copy(alpha = 0.7f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = headline,
+                            color = LimeGreen,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = subtitle,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        if (!isFriendPoll) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = onTimerFinished,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = LimeGreen,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Ver pantalla de veredicto 🏆", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             if (!caprice?.imageUrl.isNullOrBlank()) {
                 Box(
@@ -253,26 +304,22 @@ fun ActivePollScreen(
                 ) {
                     AsyncImage(
                         model = imageModel,
-                        contentDescription = caprice.question,
+                        contentDescription = questionText,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .background(Color(0xFF241B3B), RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(50))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
                         Text(
-                            text = if (caprice?.type?.contains("compra", ignoreCase = true) == true) "🛍️" else "🎉",
-                            fontSize = 48.sp
+                            text = caprice?.type ?: "Duda",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = caprice?.type ?: "Duda", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -295,19 +342,24 @@ fun ActivePollScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     val canVote = currentPollState is PollState.Active && !isPollExpired && !(vmState?.isCastingVote ?: false)
-                    val showPercentages = currentPollState is PollState.Voted || currentPollState is PollState.Author
+                    val showPercentages = currentPollState is PollState.Voted ||
+                            currentPollState is PollState.Author ||
+                            isPollExpired
 
                     val opt1Pct = when (currentPollState) {
                         is PollState.Voted -> currentPollState.option1Percentage
                         is PollState.Author -> currentPollState.option1Percentage
+                        is PollState.Expired -> currentPollState.verdictResult.option1Percentage
                         else -> 0f
                     }
                     val opt2Pct = when (currentPollState) {
                         is PollState.Voted -> currentPollState.option2Percentage
                         is PollState.Author -> currentPollState.option2Percentage
+                        is PollState.Expired -> currentPollState.verdictResult.option2Percentage
                         else -> 0f
                     }
                     val userOption = (currentPollState as? PollState.Voted)?.selectedOption
+                    val winningOption = (currentPollState as? PollState.Expired)?.verdictResult?.winningOption
 
                     PollOptionCard(
                         label = "A",
@@ -315,6 +367,7 @@ fun ActivePollScreen(
                         percentage = opt1Pct,
                         showPercentage = showPercentages,
                         isSelectedByUser = userOption == 1,
+                        isWinner = isPollExpired && winningOption == 1,
                         clickable = canVote,
                         onClick = { viewModel?.castVote(1) }
                     )
@@ -325,6 +378,7 @@ fun ActivePollScreen(
                         percentage = opt2Pct,
                         showPercentage = showPercentages,
                         isSelectedByUser = userOption == 2,
+                        isWinner = isPollExpired && winningOption == 2,
                         clickable = canVote,
                         onClick = { viewModel?.castVote(2) }
                     )
@@ -337,6 +391,7 @@ fun ActivePollScreen(
             val totalVotesCount = when (currentPollState) {
                 is PollState.Voted -> currentPollState.totalVotes
                 is PollState.Author -> currentPollState.totalVotes
+                is PollState.Expired -> currentPollState.verdictResult.totalVotes
                 else -> vmState?.votes?.size ?: 0
             }
 
@@ -353,6 +408,7 @@ fun ActivePollScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = when {
+                    isPollExpired -> "Votación finalizada. Resultados actualizados vía Firestore."
                     currentPollState is PollState.Active -> "Vota para ver los porcentajes de tus amigos."
                     else -> "Los votos se actualizan en vivo vía Firestore."
                 },
@@ -372,6 +428,7 @@ private fun PollOptionCard(
     percentage: Float,
     showPercentage: Boolean,
     isSelectedByUser: Boolean,
+    isWinner: Boolean = false,
     clickable: Boolean,
     onClick: () -> Unit
 ) {
@@ -380,14 +437,20 @@ private fun PollOptionCard(
         label = "poll_percentage"
     )
 
+    val borderColor = when {
+        isWinner || isSelectedByUser -> LimeGreen
+        else -> OptionCardBorder
+    }
+    val borderWidth = if (isWinner || isSelectedByUser) 2.dp else 1.dp
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(OptionCardBg)
             .border(
-                width = if (isSelectedByUser) 2.dp else 1.dp,
-                color = if (isSelectedByUser) LimeGreen else OptionCardBorder,
+                width = borderWidth,
+                color = borderColor,
                 shape = RoundedCornerShape(14.dp)
             )
             .clickable(enabled = clickable, onClick = onClick)
@@ -398,7 +461,7 @@ private fun PollOptionCard(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(animatedPercentage)
-                    .background(if (isSelectedByUser) LimeGreen.copy(alpha = 0.28f) else VotedBarBg)
+                    .background(if (isWinner || isSelectedByUser) LimeGreen.copy(alpha = 0.28f) else VotedBarBg)
             )
         }
 
@@ -412,7 +475,7 @@ private fun PollOptionCard(
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(if (isSelectedByUser) LimeGreen else OptionCardBorder),
+                    .background(if (isWinner || isSelectedByUser) LimeGreen else OptionCardBorder),
                 contentAlignment = Alignment.Center
             ) {
                 if (isSelectedByUser) {
@@ -425,7 +488,7 @@ private fun PollOptionCard(
                 } else {
                     Text(
                         text = label,
-                        color = LimeGreen,
+                        color = if (isWinner) Color.Black else LimeGreen,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -434,18 +497,27 @@ private fun PollOptionCard(
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            Text(
-                text = text,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = text,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = if (isWinner) FontWeight.Bold else FontWeight.SemiBold
+                )
+                if (isWinner) {
+                    Text(
+                        text = "🏆 OPCIÓN GANADORA",
+                        color = LimeGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             if (showPercentage) {
                 Text(
                     text = "${percentage.toInt()}%",
-                    color = if (isSelectedByUser) LimeGreen else Color.White,
+                    color = if (isWinner || isSelectedByUser) LimeGreen else Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

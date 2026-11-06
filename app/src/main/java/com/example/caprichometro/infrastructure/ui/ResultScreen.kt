@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -44,6 +45,12 @@ fun ResultScreen(
     val authorInitial = caprice?.userId?.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
 
     val vmState by viewModel?.state?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(null)
+
+    LaunchedEffect(caprice?.id) {
+        if (caprice != null && viewModel != null && vmState?.caprice?.id != caprice.id) {
+            viewModel.initialize(caprice, caprice.userId)
+        }
+    }
 
     val verdict = remember(vmState?.votes, vmState?.pollState, caprice) {
         if (caprice != null) {
@@ -127,17 +134,17 @@ fun ResultScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = verdict?.headline ?: "Tus amigos\nhan opinado.",
                 color = Color.White,
-                fontSize = 32.sp,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                lineHeight = 36.sp
+                lineHeight = 34.sp
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = verdict?.subtitle ?: "Votación cerrada. Consulta el veredicto final.",
                 color = TextGray,
@@ -145,7 +152,7 @@ fun ResultScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Box(
                 modifier = Modifier
@@ -184,15 +191,30 @@ fun ResultScreen(
             val winner = verdict?.winningOption
 
             ResultBar(
+                label = "A",
                 answerText = caprice?.answer1 ?: "Opción A",
                 percentage = opt1Pct,
                 isWinner = winner == 1
             )
             Spacer(modifier = Modifier.height(12.dp))
             ResultBar(
+                label = "B",
                 answerText = caprice?.answer2 ?: "Opción B",
                 percentage = opt2Pct,
                 isWinner = winner == 2
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+            val totalVotes = verdict?.totalVotes ?: 0
+            Text(
+                text = when (totalVotes) {
+                    0 -> "Ningún amigo votó durante el tiempo de la encuesta"
+                    1 -> "1 amigo ha opinado"
+                    else -> "$totalVotes amigos han opinado"
+                },
+                color = TextGray,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -200,6 +222,7 @@ fun ResultScreen(
 
 @Composable
 fun ResultBar(
+    label: String,
     answerText: String,
     percentage: Int,
     isWinner: Boolean
@@ -216,9 +239,9 @@ fun ResultBar(
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFF1A1A1D))
             .border(
-                1.dp,
-                if (isWinner) LimeGreen else Color(0xFF2C2C30),
-                RoundedCornerShape(14.dp)
+                width = if (isWinner) 2.dp else 1.dp,
+                color = if (isWinner) LimeGreen else Color(0xFF2C2C30),
+                shape = RoundedCornerShape(14.dp)
             )
     ) {
         // Barra de progreso interior
@@ -238,13 +261,43 @@ fun ResultBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = answerText,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = if (isWinner) FontWeight.Bold else FontWeight.SemiBold,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
-            )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(if (isWinner) LimeGreen else Color(0xFF2C2C30)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        color = if (isWinner) Color.Black else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = answerText,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = if (isWinner) FontWeight.Bold else FontWeight.SemiBold
+                    )
+                    if (isWinner) {
+                        Text(
+                            text = "🏆 GANADOR",
+                            color = LimeGreen,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
             Text(
                 text = "$percentage%",
                 color = if (isWinner) LimeGreen else Color.White,
