@@ -6,6 +6,9 @@ import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
 class NotifyFriendCapriceUseCase(
@@ -14,7 +17,7 @@ class NotifyFriendCapriceUseCase(
     private val historyRepository: CapriceNotificationHistoryRepository
 ) {
     /**
-     * Consulta el último capricho (limit = 1) de cada amigo aceptado en Firestore.
+     * Consulta el último capricho (limit = 1) de cada amigo aceptado en Firestore de forma concurrente.
      * Si no se había notificado previamente para esta cuenta receptora, invoca [onNotify]
      * y actualiza el checkpoint en el historial local para no repetirlo.
      */
@@ -28,29 +31,30 @@ class NotifyFriendCapriceUseCase(
             val acceptedFriends = getAcceptedFriendsUseCase.execute(recipientUserId).first()
             if (acceptedFriends.isEmpty()) return emptyList()
 
-            val newlyNotified = mutableListOf<CapriceFeedItem>()
+            coroutineScope {
+                acceptedFriends.map { friend ->
+                    async {
+                        val capricesResult = capriceRepository.getCaprices(friend.uid, limit = 1)
+                        val latestCaprice = capricesResult.getOrNull()?.firstOrNull() ?: return@async null
 
-            for (friend in acceptedFriends) {
-                val capricesResult = capriceRepository.getCaprices(friend.uid, limit = 1)
-                val latestCaprice = capricesResult.getOrNull()?.firstOrNull() ?: continue
+                        val lastId = historyRepository.getLastNotifiedCapriceId(recipientUserId, friend.uid)
+                        val lastTs = historyRepository.getLastNotifiedTimestamp(recipientUserId, friend.uid)
 
-                val lastId = historyRepository.getLastNotifiedCapriceId(recipientUserId, friend.uid)
-                val lastTs = historyRepository.getLastNotifiedTimestamp(recipientUserId, friend.uid)
-
-                // Comprobamos si es un capricho que no ha sido notificado aún
-                if (latestCaprice.id != lastId && latestCaprice.timestamp > lastTs) {
-                    onNotify(friend, latestCaprice)
-                    historyRepository.setLastNotified(
-                        recipientUserId = recipientUserId,
-                        friendUserId = friend.uid,
-                        capriceId = latestCaprice.id,
-                        timestamp = latestCaprice.timestamp
-                    )
-                    newlyNotified.add(CapriceFeedItem(caprice = latestCaprice, author = friend))
-                }
+                        if (latestCaprice.id != lastId && latestCaprice.timestamp > lastTs) {
+                            onNotify(friend, latestCaprice)
+                            historyRepository.setLastNotified(
+                                recipientUserId = recipientUserId,
+                                friendUserId = friend.uid,
+                                capriceId = latestCaprice.id,
+                                timestamp = latestCaprice.timestamp
+                            )
+                            CapriceFeedItem(caprice = latestCaprice, author = friend)
+                        } else {
+                            null
+                        }
+                    }
+                }.awaitAll().filterNotNull()
             }
-
-            newlyNotified
         } catch (_: Exception) {
             emptyList()
         }

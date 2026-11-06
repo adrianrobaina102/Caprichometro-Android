@@ -5,10 +5,14 @@ import com.example.caprichometro.domain.model.UserProfileRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 
 class FirestoreUserProfileRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) : UserProfileRepository {
+
+    // Caché en memoria para evitar llamadas redundantes de red a users/{uid}
+    private val userProfileCache = ConcurrentHashMap<String, UserProfile>()
 
     override suspend fun isUsernameAvailable(username: String): Result<Boolean> {
         return try {
@@ -42,6 +46,7 @@ class FirestoreUserProfileRepository(
                 transaction.set(usernameRef, usernameData)
             }.await()
 
+            userProfileCache[profile.uid] = profile
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -49,6 +54,12 @@ class FirestoreUserProfileRepository(
     }
 
     override suspend fun getUserById(userId: String): Result<UserProfile?> {
+        if (userId.isBlank()) return Result.success(null)
+
+        userProfileCache[userId]?.let { cached ->
+            return Result.success(cached)
+        }
+
         return try {
             val userDoc = db.collection("users").document(userId).get().await()
             if (!userDoc.exists()) {
@@ -74,6 +85,7 @@ class FirestoreUserProfileRepository(
                 username = username,
                 createdAt = createdAt
             )
+            userProfileCache[userId] = profile
             Result.success(profile)
         } catch (e: Exception) {
             Result.failure(e)
@@ -82,6 +94,7 @@ class FirestoreUserProfileRepository(
 
     override suspend fun deleteProfile(userId: String, username: String): Result<Unit> {
         return try {
+            userProfileCache.remove(userId)
             val batch = db.batch()
             batch.delete(db.collection("users").document(userId))
 

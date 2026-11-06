@@ -55,9 +55,9 @@ class FirestoreCapriceRepository : CapriceRepository {
         return try {
             val query = db.collection(collectionName).whereEqualTo("userId", userId)
             val snapshot = try {
-                query.get(Source.SERVER).await()
-            } catch (_: Exception) {
                 query.get().await()
+            } catch (_: Exception) {
+                query.get(Source.SERVER).await()
             }
             snapshot.documents
         } catch (e: Exception) {
