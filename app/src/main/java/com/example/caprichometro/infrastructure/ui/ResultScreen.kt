@@ -1,5 +1,6 @@
 package com.example.caprichometro.infrastructure.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -9,19 +10,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
-import com.example.caprichometro.infrastructure.util.ImageModelHelper
+import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.PollState
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
 
 private val DarkBackground = Color(0xFF0F0F0F)
 private val LimeGreen = Color(0xFFD4FF00)
@@ -30,12 +35,22 @@ private val TextGray = Color(0xFFAAAAAA)
 @Composable
 fun ResultScreen(
     caprice: Caprice?,
+    viewModel: ActivePollViewModel? = null,
     onGoHome: () -> Unit
 ) {
     val imageModel = remember(caprice?.imageUrl) {
         ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
     }
     val authorInitial = caprice?.userId?.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+
+    val vmState by viewModel?.state?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(null)
+
+    val verdict = remember(vmState?.votes, vmState?.pollState, caprice) {
+        if (caprice != null) {
+            val expiredVerdict = (vmState?.pollState as? PollState.Expired)?.verdictResult
+            expiredVerdict ?: CalculateVerdictUseCase().execute(caprice, vmState?.votes.orEmpty())
+        } else null
+    }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -112,24 +127,25 @@ fun ResultScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = "Tus amigos\nhan opinado.",
+                text = verdict?.headline ?: "Tus amigos\nhan opinado.",
                 color = Color.White,
-                fontSize = 36.sp,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                lineHeight = 40.sp
+                lineHeight = 36.sp
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Votación cerrada. Consulta el veredicto final.",
+                text = verdict?.subtitle ?: "Votación cerrada. Consulta el veredicto final.",
                 color = TextGray,
-                fontSize = 14.sp
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             Box(
                 modifier = Modifier
@@ -163,16 +179,20 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            val opt1Pct = verdict?.option1Percentage?.toInt() ?: 0
+            val opt2Pct = verdict?.option2Percentage?.toInt() ?: 0
+            val winner = verdict?.winningOption
+
             ResultBar(
                 answerText = caprice?.answer1 ?: "Opción A",
-                percentage = 73,
-                isWinner = true
+                percentage = opt1Pct,
+                isWinner = winner == 1
             )
             Spacer(modifier = Modifier.height(12.dp))
             ResultBar(
                 answerText = caprice?.answer2 ?: "Opción B",
-                percentage = 27,
-                isWinner = false
+                percentage = opt2Pct,
+                isWinner = winner == 2
             )
         }
     }
@@ -184,6 +204,11 @@ fun ResultBar(
     percentage: Int,
     isWinner: Boolean
 ) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = (percentage / 100f).coerceIn(0f, 1f),
+        label = "result_bar_progress"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,15 +222,14 @@ fun ResultBar(
             )
     ) {
         // Barra de progreso interior
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(percentage / 100f)
-                .background(
-                    if (isWinner) LimeGreen.copy(alpha = 0.25f)
-                    else Color(0xFF2C2C30).copy(alpha = 0.4f)
-                )
-        )
+        if (animatedProgress > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedProgress)
+                    .background(if (isWinner) LimeGreen.copy(alpha = 0.28f) else Color(0xFF242428))
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -217,15 +241,15 @@ fun ResultBar(
             Text(
                 text = answerText,
                 color = Color.White,
-                fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
+                fontWeight = if (isWinner) FontWeight.Bold else FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "$percentage%",
-                color = if (isWinner) LimeGreen else TextGray,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                color = if (isWinner) LimeGreen else Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }

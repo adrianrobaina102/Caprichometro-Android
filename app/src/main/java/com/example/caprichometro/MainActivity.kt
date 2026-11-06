@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
         val authViewModel = viewModelFactory.createAuthViewModel()
         val friendshipViewModel = viewModelFactory.createFriendshipViewModel()
         val profileViewModel = viewModelFactory.createProfileViewModel()
+        val activePollViewModel = viewModelFactory.createActivePollViewModel()
         val observeFriendCapricesUseCase = viewModelFactory.createObserveFriendCapricesUseCase()
         val notifyFriendCapriceUseCase = viewModelFactory.createNotifyFriendCapriceUseCase()
         val getNotificationCapriceUseCase = viewModelFactory.createGetNotificationCapriceUseCase()
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
                 capriceViewModel = capriceViewModel,
                 friendshipViewModel = friendshipViewModel,
                 profileViewModel = profileViewModel,
+                activePollViewModel = activePollViewModel,
                 observeFriendCapricesUseCase = observeFriendCapricesUseCase,
                 notifyFriendCapriceUseCase = notifyFriendCapriceUseCase,
                 getNotificationCapriceUseCase = getNotificationCapriceUseCase,
@@ -105,6 +107,7 @@ fun CapriceApp(
     capriceViewModel: CapriceViewModel,
     friendshipViewModel: FriendshipViewModel,
     profileViewModel: ProfileViewModel,
+    activePollViewModel: ActivePollViewModel,
     observeFriendCapricesUseCase: ObserveFriendCapricesUseCase,
     notifyFriendCapriceUseCase: NotifyFriendCapriceUseCase,
     getNotificationCapriceUseCase: GetNotificationCapriceUseCase,
@@ -244,6 +247,8 @@ fun CapriceApp(
                                 ActivePollScreen(
                                     caprice = item?.caprice,
                                     authorUsername = item?.author?.username,
+                                    viewModel = activePollViewModel,
+                                    currentUserId = currentUserId,
                                     onNavigateBack = { currentScreen = "home" },
                                     onTimerFinished = {}
                                 )
@@ -261,6 +266,8 @@ fun CapriceApp(
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
                                 ActivePollScreen(
                                     caprice = capriceToShow,
+                                    viewModel = activePollViewModel,
+                                    currentUserId = currentUserId,
                                     onNavigateBack = {
                                         if (selectedProfileCaprice != null) {
                                             selectedProfileCaprice = null
@@ -276,6 +283,7 @@ fun CapriceApp(
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
                                 ResultScreen(
                                     caprice = capriceToShow,
+                                    viewModel = activePollViewModel,
                                     onGoHome = {
                                         selectedProfileCaprice = null
                                         currentScreen = "home"
