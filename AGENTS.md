@@ -44,7 +44,9 @@ Antes de realizar cambios en la arquitectura, datos o modelos, consulta la docum
    - **Prohibido agrupar múltiples tareas o funcionalidades independientes en un único commit grande.**
    - Cada commit debe representar un cambio lógico único, pequeño e indivisible (por ejemplo: una tarea específica del roadmap, un componente visual concreto o una refactorización aislada).
    - El árbol de trabajo debe quedar compilable y con pruebas pasando tras cada commit individual.
-6. **Actualización obligatoria de Documentación, Diagramas y Roadmap:**
+6. **Explicación y muestra obligatoria del código implementado:**
+   - Cada vez que el agente implemente o modifique código, **DEBE mostrar los fragmentos de código clave** que ha creado o modificado en su respuesta al usuario y **explicar por encima cómo funciona** y qué hace cada parte antes de dar por cerrada la tarea.
+7. **Actualización obligatoria de Documentación, Diagramas y Roadmap:**
    - Al completar cualquier funcionalidad o sincronizar avances con el repositorio del compañero de iOS (`https://github.com/DanielLuzardo/caprichometro_ios`), el agente **DEBE OBLIGATORIAMENTE**:
      1. Actualizar [`shared-docs/roadmaps/ROADMAP.md`](shared-docs/roadmaps/ROADMAP.md) contrastando el código real de ambos repositorios para tachar lo completado y mantener al día la lista de tareas pendientes de Android e iOS.
      2. Actualizar [`shared-docs/agent-guides/android.md`](shared-docs/agent-guides/android.md) y los esquemas de flujo en [`shared-docs/architecture/modules/`](shared-docs/architecture/modules/) (incluyendo el nombre de la clase y una breve descripción de su función en cada nodo del diagrama).
