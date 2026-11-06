@@ -5,10 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.caprichometro.R
+import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.infrastructure.ui.MainActivity
 
 object PollNotificationHelper {
@@ -20,6 +22,7 @@ object PollNotificationHelper {
     const val EXTRA_NAVIGATE_TO = "EXTRA_NAVIGATE_TO"
     const val EXTRA_CAPRICE_ID = "EXTRA_CAPRICE_ID"
     const val EXTRA_CAPRICE_QUESTION = "EXTRA_CAPRICE_QUESTION"
+    const val EXTRA_RECIPIENT_USER_ID = "EXTRA_RECIPIENT_USER_ID"
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -28,7 +31,7 @@ object PollNotificationHelper {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notificaciones de votaciones finalizadas en Caprichómetro"
+                description = "Notificaciones de votaciones y caprichos de amigos en Caprichómetro"
                 enableVibration(true)
             }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -38,14 +41,21 @@ object PollNotificationHelper {
 
     fun showCapriceCreatedNotification(
         context: Context,
-        capriceQuestion: String
+        capriceQuestion: String,
+        capriceId: String = "",
+        recipientUserId: String = ""
     ) {
         createNotificationChannel(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_NAVIGATE_TO, "active")
+            putExtra(EXTRA_CAPRICE_ID, capriceId)
             putExtra(EXTRA_CAPRICE_QUESTION, capriceQuestion)
+            putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
+            if (capriceId.isNotBlank()) {
+                data = Uri.parse("caprichometro://caprice/$capriceId")
+            }
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -82,7 +92,8 @@ object PollNotificationHelper {
     fun showPollClosedNotification(
         context: Context,
         capriceQuestion: String,
-        capriceId: String = ""
+        capriceId: String = "",
+        recipientUserId: String = ""
     ) {
         createNotificationChannel(context)
 
@@ -91,6 +102,10 @@ object PollNotificationHelper {
             putExtra(EXTRA_NAVIGATE_TO, "result")
             putExtra(EXTRA_CAPRICE_ID, capriceId)
             putExtra(EXTRA_CAPRICE_QUESTION, capriceQuestion)
+            putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
+            if (capriceId.isNotBlank()) {
+                data = Uri.parse("caprichometro://caprice/$capriceId")
+            }
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -125,7 +140,61 @@ object PollNotificationHelper {
                 notification
             )
         } catch (_: SecurityException) {
-            // Manejo seguro ante restricciones de permisos en Android 13+
+        }
+    }
+
+    fun showFriendCapriceNotification(
+        context: Context,
+        recipientUserId: String,
+        authorUsername: String,
+        caprice: Caprice
+    ) {
+        createNotificationChannel(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NAVIGATE_TO, "friend_poll")
+            putExtra(EXTRA_CAPRICE_ID, caprice.id)
+            putExtra(EXTRA_CAPRICE_QUESTION, caprice.question)
+            putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
+            if (caprice.id.isNotBlank()) {
+                data = Uri.parse("caprichometro://caprice/${caprice.id}")
+            }
+        }
+
+        val requestCode = if (caprice.id.isNotBlank()) caprice.id.hashCode() else System.currentTimeMillis().toInt()
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = "@$authorUsername ha subido un capricho"
+        val body = if (caprice.question.isNotBlank()) "\"${caprice.question}\"" else "¡Entra a opinar y votar!"
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_caprichometro_logo)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "$title:\n$body\n¡Tus 5 minutos para opinar acaban de empezar!"
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(
+                requestCode,
+                notification
+            )
+        } catch (_: SecurityException) {
         }
     }
 }

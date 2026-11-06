@@ -22,18 +22,19 @@ object PollNotificationScheduler {
         return (caprice.timestamp xor caprice.question.hashCode().toLong()).toInt()
     }
 
-    fun schedulePollExpiration(context: Context, caprice: Caprice) {
+    fun schedulePollExpiration(context: Context, caprice: Caprice, recipientUserId: String = "") {
         val triggerAtMillis = calculateTriggerTime(caprice.timestamp)
         val remainingMillis = triggerAtMillis - System.currentTimeMillis()
 
         if (remainingMillis <= 0) {
-            PollNotificationHelper.showPollClosedNotification(context, caprice.question, caprice.id)
+            PollNotificationHelper.showPollClosedNotification(context, caprice.question, caprice.id, recipientUserId)
             return
         }
 
         val intent = Intent(context, PollExpiredReceiver::class.java).apply {
             putExtra(PollNotificationHelper.EXTRA_CAPRICE_QUESTION, caprice.question)
             putExtra(PollNotificationHelper.EXTRA_CAPRICE_ID, caprice.id)
+            putExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID, recipientUserId)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

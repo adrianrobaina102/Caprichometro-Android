@@ -8,6 +8,7 @@ class PollExpiredReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val question = intent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_QUESTION) ?: ""
         val capriceId = intent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_ID) ?: ""
-        PollNotificationHelper.showPollClosedNotification(context, question, capriceId)
+        val recipientUserId = intent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID) ?: ""
+        PollNotificationHelper.showPollClosedNotification(context, question, capriceId, recipientUserId)
     }
 }
