@@ -51,7 +51,7 @@ fun HomeScreen(
         viewModel.loadFriendsFeed()
     }
 
-    // Reloj de refresco cada 60s para recalcular "Ahora / Xm / Xh / Xd" y el estado Activa/Cerrada sin consultar Firestore
+    // Reloj de refresco cada 60s para recalcular "Ahora / Xm / Xh / Xd" y el estado temporal sin consultar Firestore
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000L)
@@ -279,6 +279,9 @@ private fun CapriceFeedCard(
     val relativeTime = remember(caprice.timestamp, nowMillis) {
         formatRelativeTime(caprice.timestamp, nowMillis)
     }
+    val statusText = remember(caprice.timestamp, nowMillis) {
+        formatPollStatus(caprice.timestamp, nowMillis)
+    }
     val imageModel = remember(caprice.imageUrl) {
         ImageModelHelper.parseImageModel(caprice.imageUrl)
     }
@@ -294,7 +297,7 @@ private fun CapriceFeedCard(
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        // Cabecera: Avatar + @username + tipo + tiempo relativo + insignia Activa/Cerrada
+        // Cabecera: Avatar + @username + tipo + tiempo relativo + insignia explícita (Quedan X min / Cerró hace X min)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -344,7 +347,7 @@ private fun CapriceFeedCard(
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = if (isActive) "Activa" else "Cerrada",
+                    text = statusText,
                     color = if (isActive) LimeAccent else TextSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -364,7 +367,7 @@ private fun CapriceFeedCard(
         )
 
         // Foto opcional debajo de la pregunta y antes de las opciones
-        if (caprice.imageUrl.isNotBlank() && imageModel != null) {
+        if (caprice.imageUrl.isNotBlank()) {
             Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
@@ -440,5 +443,28 @@ internal fun formatRelativeTime(timestampMillis: Long, nowMillis: Long): String 
         minutes < 60L -> "${minutes}m"
         hours < 24L -> "${hours}h"
         else -> "${days}d"
+    }
+}
+
+internal fun formatPollStatus(timestampMillis: Long, nowMillis: Long): String {
+    val totalDuration = PollNotificationScheduler.POLL_DURATION_MILLIS
+    val closeTimestamp = timestampMillis + totalDuration
+    val remainingMillis = closeTimestamp - nowMillis
+
+    return if (remainingMillis > 0) {
+        val remainingMin = kotlin.math.ceil(remainingMillis / 60_000.0).toLong().coerceAtLeast(1L)
+        if (remainingMin == 1L) "Queda 1 min" else "Quedan $remainingMin min"
+    } else {
+        val closedSinceMillis = (nowMillis - closeTimestamp).coerceAtLeast(0L)
+        val closedMinutes = closedSinceMillis / 60_000L
+        val closedHours = closedMinutes / 60L
+        val closedDays = closedHours / 24L
+
+        when {
+            closedMinutes < 1L -> "Cerró ahora"
+            closedMinutes < 60L -> "Cerró hace ${closedMinutes} min"
+            closedHours < 24L -> "Cerró hace ${closedHours}h"
+            else -> "Cerró hace ${closedDays}d"
+        }
     }
 }
