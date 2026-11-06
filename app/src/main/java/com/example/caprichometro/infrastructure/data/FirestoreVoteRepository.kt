@@ -27,6 +27,7 @@ class FirestoreVoteRepository(
             )
 
             voteDoc.set(data).await()
+            Log.d("FirestoreVoteRepo", "Voto guardado exitosamente: capriceId=${vote.capriceId}, voter=${vote.voterId}, option=${vote.option}")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("FirestoreVoteRepo", "Error al emitir voto para capricho ${vote.capriceId}: ${e.message}", e)
@@ -48,11 +49,10 @@ class FirestoreVoteRepository(
                 if (error != null) {
                     val isLoggedOut = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
                     if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED && isLoggedOut) {
-                        close()
+                        Log.d("FirestoreVoteRepo", "Usuario desconectado, manteniendo canal abierto para reconexión")
                         return@addSnapshotListener
                     }
-                    Log.e("FirestoreVoteRepo", "Error escuchando votos de $capriceId: ${error.message}", error)
-                    close(error)
+                    Log.w("FirestoreVoteRepo", "Aviso temporal escuchando votos de $capriceId: ${error.message}")
                     return@addSnapshotListener
                 }
 
@@ -69,6 +69,7 @@ class FirestoreVoteRepository(
                     )
                 }.orEmpty()
 
+                Log.d("FirestoreVoteRepo", "observeVotes($capriceId) emitió ${votes.size} votos en tiempo real")
                 trySend(votes).isSuccess
             }
 
