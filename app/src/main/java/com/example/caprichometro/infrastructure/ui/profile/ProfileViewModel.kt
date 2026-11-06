@@ -12,6 +12,8 @@ import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCa
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,13 @@ data class ProfileState(
     val isOwnProfile: Boolean = true,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
+)
+
+private data class ProfileLoadResult(
+    val profile: UserProfile?,
+    val caprices: List<Caprice>,
+    val blockedUsers: List<UserProfile>,
+    val friends: List<UserProfile>
 )
 
 class ProfileViewModel(
@@ -67,33 +76,42 @@ class ProfileViewModel(
         }
 
         viewModelScope.launch {
-            val profileResult = userProfileRepository.getUserById(targetUserId)
-            val capricesResult = getCapricesUseCase.execute(targetUserId, limit = 50)
+            // Ejecutamos las 4 consultas en paralelo con coroutineScope + async para eliminar el tiempo de espera
+            val result = coroutineScope {
+                val profileDeferred = async { userProfileRepository.getUserById(targetUserId).getOrNull() }
+                val capricesDeferred = async { getCapricesUseCase.execute(targetUserId, limit = 50).getOrDefault(emptyList()) }
+                val blockedDeferred = async {
+                    if (isOwn) {
+                        getBlockedUsersUseCase.execute(targetUserId).getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
+                }
+                val friendsDeferred = async {
+                    try {
+                        getAcceptedFriendsUseCase.execute(targetUserId)
+                            .catch { emit(emptyList()) }
+                            .first()
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
 
-            val blockedUsers = if (isOwn) {
-                getBlockedUsersUseCase.execute(targetUserId).getOrDefault(emptyList())
-            } else {
-                emptyList()
+                ProfileLoadResult(
+                    profile = profileDeferred.await(),
+                    caprices = capricesDeferred.await(),
+                    blockedUsers = blockedDeferred.await(),
+                    friends = friendsDeferred.await()
+                )
             }
-
-            val friendsList = try {
-                getAcceptedFriendsUseCase.execute(targetUserId)
-                    .catch { emit(emptyList()) }
-                    .first()
-            } catch (_: Exception) {
-                emptyList()
-            }
-
-            val profile = profileResult.getOrNull()
-            val caprices = capricesResult.getOrDefault(emptyList())
 
             _state.update {
                 it.copy(
                     isLoading = false,
-                    profile = profile,
-                    caprices = caprices,
-                    friends = friendsList,
-                    blockedUsers = blockedUsers
+                    profile = result.profile,
+                    caprices = result.caprices,
+                    friends = result.friends,
+                    blockedUsers = result.blockedUsers
                 )
             }
         }
@@ -121,21 +139,29 @@ class ProfileViewModel(
 
     fun signOut() {
         viewModelScope.launch {
-            signOutUseCase.execute()
-            _state.update { it.copy(isSignedOut = true) }
+            val result = signOutUseCase.execute()
+            result.fold(
+                onSuccess = {
+                    _state.update { it.copy(isSignedOut = true) }
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(errorMessage = error.message ?: "Error al cerrar sesión") }
+                }
+            )
         }
     }
 
-    fun deleteAccount(userId: String, username: String) {
+    fun deleteAccount(currentUserId: String, username: String) {
+        if (currentUserId.isBlank()) return
+
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
-            val result = deleteAccountUseCase.execute(userId, username)
+            val result = deleteAccountUseCase.execute(currentUserId, username)
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isLoading = false, isSignedOut = true) }
+                    _state.update { it.copy(isSignedOut = true) }
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "Error al eliminar la cuenta") }
+                    _state.update { it.copy(errorMessage = error.message ?: "Error al eliminar la cuenta") }
                 }
             )
         }

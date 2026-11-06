@@ -477,9 +477,21 @@ fun ProfileScreen(
         }
     }
 
+    if (state.isLoading && state.profile == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DarkBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = LimeGreen)
+        }
+        return
+    }
+
     // Pantalla Principal de Perfil (Perfil · Recuerdos y Perfil · Estadísticas)
     val rawUsername = state.profile?.username?.removePrefix("@")
-        ?: if (state.isOwnProfile) "Dani" else "Usuario"
+        ?: if (state.isOwnProfile) "Mi Perfil" else "Usuario"
     val displayName = rawUsername.replaceFirstChar { it.uppercaseChar() }
 
     val totalDudas = state.caprices.size

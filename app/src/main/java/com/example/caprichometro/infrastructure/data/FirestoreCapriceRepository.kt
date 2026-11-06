@@ -6,7 +6,6 @@ import com.example.caprichometro.domain.model.CapriceRepository
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 
@@ -44,7 +43,6 @@ class FirestoreCapriceRepository : CapriceRepository {
                 .sortedByDescending { it.timestamp }
                 .take(limit)
 
-            Log.d("FirestoreCapriceRepo", "getCaprices(userId=$userId, limit=$limit) -> ${caprices.size} caprichos")
             Result.success(caprices)
         } catch (e: Exception) {
             Log.e("FirestoreCapriceRepo", "Error obteniendo caprichos para $userId: ${e.message}", e)
@@ -53,34 +51,18 @@ class FirestoreCapriceRepository : CapriceRepository {
     }
 
     private suspend fun fetchCapriceDocuments(userId: String, limit: Int): List<DocumentSnapshot> {
-        // 1. Intenta consulta indexada desde el servidor (userId + orderBy timestamp DESC)
-        try {
-            val indexedQuery = db.collection(collectionName)
-                .whereEqualTo("userId", userId)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .limit(limit.toLong())
-
+        // Consulta directa por userId utilizando el índice automático de Firebase sin penalización de timeout
+        return try {
+            val query = db.collection(collectionName).whereEqualTo("userId", userId)
             val snapshot = try {
-                indexedQuery.get(Source.SERVER).await()
+                query.get(Source.SERVER).await()
             } catch (_: Exception) {
-                indexedQuery.get().await()
+                query.get().await()
             }
-            return snapshot.documents
-        } catch (indexedError: Exception) {
-            // 2. Fallback sin índice compuesto (usa índice simple automático por userId y ordena en memoria)
-            Log.w(
-                "FirestoreCapriceRepo",
-                "Consulta con orderBy requirió índice compuesto o falló (${indexedError.message}); usando fallback por userId."
-            )
-            val fallbackQuery = db.collection(collectionName)
-                .whereEqualTo("userId", userId)
-
-            val snapshot = try {
-                fallbackQuery.get(Source.SERVER).await()
-            } catch (_: Exception) {
-                fallbackQuery.get().await()
-            }
-            return snapshot.documents
+            snapshot.documents
+        } catch (e: Exception) {
+            Log.w("FirestoreCapriceRepo", "Error en fetchCapriceDocuments para $userId: ${e.message}")
+            emptyList()
         }
     }
 
