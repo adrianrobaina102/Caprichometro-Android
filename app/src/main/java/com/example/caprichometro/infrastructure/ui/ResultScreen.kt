@@ -35,6 +35,8 @@ fun ResultScreen(
     val imageModel = remember(caprice?.imageUrl) {
         ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
     }
+    val authorInitial = caprice?.userId?.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+
     Scaffold(
         containerColor = DarkBackground,
         topBar = {
@@ -65,7 +67,7 @@ fun ResultScreen(
                         .background(LimeGreen, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("D", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(authorInitial, color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -113,7 +115,7 @@ fun ResultScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Tus amigos\nhan dicho sí.",
+                text = "Tus amigos\nhan opinado.",
                 color = Color.White,
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
@@ -122,7 +124,7 @@ fun ResultScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "8 de 11 votos. Ya no se puede votar.",
+                text = "Votación cerrada. Consulta el veredicto final.",
                 color = TextGray,
                 fontSize = 14.sp
             )
@@ -139,7 +141,7 @@ fun ResultScreen(
                 if (!caprice?.imageUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = imageModel,
-                        contentDescription = caprice.question,
+                        contentDescription = caprice?.question.orEmpty(),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
@@ -151,7 +153,7 @@ fun ResultScreen(
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "Lucía · ${caprice?.type ?: "Compra"}",
+                        text = caprice?.type ?: "Duda",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -162,47 +164,47 @@ fun ResultScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             ResultBar(
-                answerText = caprice?.answer1 ?: "Sí, de una",
+                answerText = caprice?.answer1 ?: "Opción A",
                 percentage = 73,
                 isWinner = true
             )
             Spacer(modifier = Modifier.height(12.dp))
             ResultBar(
-                answerText = caprice?.answer2 ?: "Hoy no",
+                answerText = caprice?.answer2 ?: "Opción B",
                 percentage = 27,
                 isWinner = false
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "Tú opinaste. Lucía tiene la última palabra.",
-                color = TextGray,
-                fontSize = 12.sp
             )
         }
     }
 }
 
 @Composable
-fun ResultBar(answerText: String, percentage: Int, isWinner: Boolean) {
+fun ResultBar(
+    answerText: String,
+    percentage: Int,
+    isWinner: Boolean
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .background(Color(0xFF1C1C1C), RoundedCornerShape(12.dp))
+            .height(58.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF1A1A1D))
             .border(
-                width = 1.dp,
-                color = if (isWinner) Color(0xFF4A5500) else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                1.dp,
+                if (isWinner) LimeGreen else Color(0xFF2C2C30),
+                RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
     ) {
+        // Barra de progreso interior
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(percentage / 100f)
-                .background(if (isWinner) Color(0xFF333C14) else Color(0xFF2A2A2A))
+                .background(
+                    if (isWinner) LimeGreen.copy(alpha = 0.25f)
+                    else Color(0xFF2C2C30).copy(alpha = 0.4f)
+                )
         )
 
         Row(
@@ -214,13 +216,14 @@ fun ResultBar(answerText: String, percentage: Int, isWinner: Boolean) {
         ) {
             Text(
                 text = answerText,
-                color = if (isWinner) LimeGreen else Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                color = Color.White,
+                fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 15.sp,
+                modifier = Modifier.weight(1f)
             )
             Text(
-                text = "$percentage %",
-                color = Color.White,
+                text = "$percentage%",
+                color = if (isWinner) LimeGreen else TextGray,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
