@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.ui
+﻿package com.example.caprichometro.infrastructure.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,7 +40,8 @@ private val ClosedBadgeBg = Color(0xFF2A2A2E)
 fun HomeScreen(
     viewModel: CapriceViewModel,
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
-    onNavigateToFriends: () -> Unit = {}
+    onNavigateToFriends: () -> Unit = {},
+    onNavigateToUserProfile: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -259,7 +260,8 @@ fun HomeScreen(
                             CapriceFeedCard(
                                 item = item,
                                 nowMillis = nowMillis,
-                                onClick = { onSelectFeedItem(item) }
+                                onClick = { onSelectFeedItem(item) },
+                                onNavigateToUserProfile = onNavigateToUserProfile
                             )
                         }
                     }
@@ -273,7 +275,8 @@ fun HomeScreen(
 private fun CapriceFeedCard(
     item: CapriceFeedItem,
     nowMillis: Long,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onNavigateToUserProfile: (String) -> Unit = {}
 ) {
     val caprice = item.caprice
     val author = item.author
@@ -299,44 +302,53 @@ private fun CapriceFeedCard(
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        // Cabecera: Avatar + @username + tipo + tiempo relativo + insignia explícita (Quedan X min / Cerró hace X min)
+        // Cabecera: Avatar + @username clicables para ver perfil en modo visitante
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(LimeAccent),
-                contentAlignment = Alignment.Center
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onNavigateToUserProfile(author.uid) },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = initial,
-                    color = Color.Black,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 16.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(LimeAccent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = initial,
+                        color = Color.Black,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column {
+                    Text(
+                        text = "@${author.username}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "$typeEmoji ${caprice.type} • $relativeTime",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "@${author.username}",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "$typeEmoji ${caprice.type} · $relativeTime",
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
-            }
-
+            Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))

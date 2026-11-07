@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.ui
+﻿package com.example.caprichometro.infrastructure.ui
 
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -138,6 +138,7 @@ fun CapriceApp(
 
     var currentScreen by remember { mutableStateOf("home") }
     var viewingProfileUserId by remember { mutableStateOf("") }
+    var previousScreenBeforeProfile by remember { mutableStateOf("home") }
     var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
     var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
 
@@ -241,6 +242,11 @@ fun CapriceApp(
                                     },
                                     onNavigateToFriends = {
                                         currentScreen = "add_friend"
+                                    },
+                                    onNavigateToUserProfile = { authorId ->
+                                        viewingProfileUserId = authorId
+                                        previousScreenBeforeProfile = "home"
+                                        currentScreen = "profile"
                                     }
                                 )
                             }
@@ -252,7 +258,15 @@ fun CapriceApp(
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     onNavigateBack = { currentScreen = "home" },
-                                    onTimerFinished = {}
+                                    onTimerFinished = {
+                                        selectedProfileCaprice = item?.caprice
+                                        currentScreen = "result"
+                                    },
+                                    onNavigateToAuthorProfile = { authorId ->
+                                        viewingProfileUserId = authorId
+                                        previousScreenBeforeProfile = "friend_poll"
+                                        currentScreen = "profile"
+                                    }
                                 )
                             }
                             "create" -> {
@@ -303,6 +317,7 @@ fun CapriceApp(
                                     },
                                     onViewProfile = { friendUserId ->
                                         viewingProfileUserId = friendUserId
+                                        previousScreenBeforeProfile = "add_friend"
                                         currentScreen = "profile"
                                     }
                                 )
@@ -322,7 +337,7 @@ fun CapriceApp(
                                     onBack = {
                                         if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank()) {
                                             viewingProfileUserId = currentUserId
-                                             currentScreen = "add_friend"
+                                            currentScreen = previousScreenBeforeProfile
                                         } else {
                                             currentScreen = "home"
                                         }

@@ -55,7 +55,8 @@ fun ActivePollScreen(
     viewModel: ActivePollViewModel? = null,
     currentUserId: String = "",
     onNavigateBack: () -> Unit = {},
-    onTimerFinished: () -> Unit = {}
+    onTimerFinished: () -> Unit = {},
+    onNavigateToAuthorProfile: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isFriendPoll = !authorUsername.isNullOrBlank()
@@ -119,6 +120,14 @@ fun ActivePollScreen(
         else -> false
     }
 
+    // Auto-transición suave al expirar el temporizador
+    LaunchedEffect(isPollExpired) {
+        if (isPollExpired) {
+            delay(1200L)
+            onTimerFinished()
+        }
+    }
+
     val timeDisplay = when (currentPollState) {
         is PollState.Active -> {
             val mins = (currentPollState.remainingMillis / 1000) / 60
@@ -160,18 +169,31 @@ fun ActivePollScreen(
                         tint = Color.White
                     )
                 }
+                val canOpenAuthorProfile = isFriendPoll && !caprice?.userId.isNullOrBlank() && onNavigateToAuthorProfile != null
+
                 Text(
                     text = headerTitle,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (canOpenAuthorProfile) {
+                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                            } else Modifier
+                        ),
                     textAlign = TextAlign.Center
                 )
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .background(LimeGreen, CircleShape),
+                        .background(LimeGreen, CircleShape)
+                        .then(
+                            if (canOpenAuthorProfile) {
+                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                            } else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(avatarInitial, color = Color.Black, fontWeight = FontWeight.Bold)
