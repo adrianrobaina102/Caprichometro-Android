@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -322,9 +322,9 @@ private fun CapriceFeedCard(
         ) {
             Row(
                 modifier = Modifier
-                    .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable { onNavigateToUserProfile(author.uid) },
+                    .clickable { onNavigateToUserProfile(author.uid) }
+                    .padding(vertical = 2.dp, horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -361,6 +361,7 @@ private fun CapriceFeedCard(
                 }
             }
 
+            Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
