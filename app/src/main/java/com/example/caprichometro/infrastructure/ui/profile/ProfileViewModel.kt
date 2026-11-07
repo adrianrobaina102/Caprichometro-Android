@@ -9,6 +9,7 @@ import com.example.caprichometro.application.usecase.auth.SignOutUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetBlockedUsersUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
+import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
@@ -33,7 +34,7 @@ data class ProfileState(
     val caprices: List<Caprice> = emptyList(),
     val friends: List<UserProfile> = emptyList(),
     val blockedUsers: List<UserProfile> = emptyList(),
-    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opción 1 ganadora), false (opción 2 ganadora), null (empate/sin votos/activa)
+    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opcion 1 ganadora), false (opcion 2 ganadora), null (empate/sin votos/activa)
     val isOwnProfile: Boolean = true,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
@@ -56,13 +57,14 @@ class ProfileViewModel(
     private val deleteAccountUseCase: DeleteAccountUseCase,
     private val getCapricesUseCase: GetCapricesUseCase,
     private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase,
-    private val voteRepository: VoteRepository? = null
+    private val voteRepository: VoteRepository? = null,
+    private val updateBioUseCase: UpdateBioUseCase = UpdateBioUseCase(userProfileRepository)
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
-    // Caché en memoria thread-safe para veredictos de dudas cerradas (inmutables)
+    // Cache en memoria thread-safe para veredictos de dudas cerradas (inmutables)
     private val verdictCache = ConcurrentHashMap<String, Boolean?>()
 
     fun reset() {
@@ -110,7 +112,7 @@ class ProfileViewModel(
 
                 val loadedCaprices = capricesDeferred.await()
 
-                // Paralelismo masivo para veredictos con caché en memoria:
+                // Paralelismo masivo para veredictos con cache en memoria:
                 val verdictsDeferred = async {
                     if (voteRepository != null && loadedCaprices.isNotEmpty()) {
                         coroutineScope {
@@ -118,9 +120,9 @@ class ProfileViewModel(
                                 async {
                                     val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
                                     if (!isExpired) {
-                                        caprice.id to null // Duda aún activa en directo
+                                        caprice.id to null // Duda aun activa en directo
                                     } else {
-                                        // 1. Verificamos la caché en memoria primero (0 ms latencia)
+                                        // 1. Verificamos la cache en memoria primero (0 ms latencia)
                                         if (verdictCache.containsKey(caprice.id)) {
                                             caprice.id to verdictCache[caprice.id]
                                         } else {
@@ -133,7 +135,7 @@ class ProfileViewModel(
                                                 opt2Votes > opt1Votes -> false
                                                 else -> null
                                             }
-                                            // Guardamos en caché porque el resultado de una duda cerrada nunca cambiará
+                                            // Guardamos en cache porque el resultado de una duda cerrada nunca cambiara
                                             verdictCache[caprice.id] = accepted
                                             caprice.id to accepted
                                         }
@@ -163,6 +165,26 @@ class ProfileViewModel(
                     verdicts = result.verdicts
                 )
             }
+        }
+    }
+
+    fun updateBio(userId: String, newBio: String) {
+        if (userId.isBlank()) return
+        viewModelScope.launch {
+            val result = updateBioUseCase.execute(userId, newBio)
+            result.fold(
+                onSuccess = {
+                    val trimmed = newBio.trim()
+                    _state.update { current ->
+                        current.copy(
+                            profile = current.profile?.copy(bio = trimmed)
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(errorMessage = error.message ?: "No se pudo actualizar la biografia") }
+                }
+            )
         }
     }
 

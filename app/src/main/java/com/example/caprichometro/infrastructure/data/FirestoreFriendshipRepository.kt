@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.data
+﻿package com.example.caprichometro.infrastructure.data
 
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository

@@ -1,4 +1,4 @@
-package com.example.caprichometro.profile
+﻿package com.example.caprichometro.profile
 
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
@@ -164,5 +164,29 @@ class ProfileViewModelTest {
 
         viewModel.reset()
         assertThat(viewModel.state.value.isSignedOut).isFalse()
+    }
+
+    @Test
+    fun `updateBio actualiza la biografia en el perfil correctamente`() = runTest {
+        val myUid = "user_me"
+        val myUser = User(id = myUid, email = "me@test.com", name = "Adrian")
+        val initialProfile = UserProfile(uid = myUid, username = "adrian", bio = "Vieja bio")
+
+        every { getCurrentUserUseCase.execute() } returns myUser
+        coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(initialProfile)
+        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
+        coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
+        coEvery { userProfileRepository.updateBio(myUid, "Nueva bio genial") } returns Result.success(Unit)
+
+        viewModel.loadProfile(myUid, myUid)
+        advanceUntilIdle()
+        assertThat(viewModel.state.value.profile?.bio).isEqualTo("Vieja bio")
+
+        viewModel.updateBio(myUid, "Nueva bio genial")
+        advanceUntilIdle()
+
+        assertThat(viewModel.state.value.profile?.bio).isEqualTo("Nueva bio genial")
+        coVerify(exactly = 1) { userProfileRepository.updateBio(myUid, "Nueva bio genial") }
     }
 }

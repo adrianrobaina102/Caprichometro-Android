@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.ui.profile
+﻿package com.example.caprichometro.infrastructure.ui.profile
 
 import android.content.Intent
 import android.provider.Settings
@@ -140,7 +140,7 @@ fun ProfileScreen(
     var showPrivacySubSheet by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var userBio by remember { mutableStateOf("Decisiones, caprichos y planes\ncon mis amigos") }
+
 
     LaunchedEffect(targetUserId, currentUserId) {
         if (targetUserId.isNotBlank()) {
@@ -194,7 +194,7 @@ fun ProfileScreen(
     }
 
     if (showEditBioDialog) {
-        var tempBio by remember { mutableStateOf(userBio) }
+        var tempBio by remember(state.profile?.bio) { mutableStateOf(state.profile?.bio.orEmpty()) }
         AlertDialog(
             onDismissRequest = { showEditBioDialog = false },
             title = { Text("Editar perfil", color = Color.White, fontWeight = FontWeight.Bold) },
@@ -202,7 +202,8 @@ fun ProfileScreen(
                 OutlinedTextField(
                     value = tempBio,
                     onValueChange = { tempBio = it },
-                    label = { Text("Descripción", color = SubtleGray) },
+                    label = { Text("Biografía", color = SubtleGray) },
+                    placeholder = { Text("Escribe algo sobre ti...", color = SubtleGray.copy(alpha = 0.5f)) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
@@ -215,7 +216,7 @@ fun ProfileScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (tempBio.isNotBlank()) userBio = tempBio
+                        viewModel.updateBio(currentUserId, tempBio)
                         showEditBioDialog = false
                     }
                 ) {
@@ -224,13 +225,12 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showEditBioDialog = false }) {
-                    Text("Cancelar", color = SubtleGray)
+                    Text("Cancelar", color = Color.White)
                 }
             },
             containerColor = SheetBackground
         )
     }
-
     // Bottom Sheet de Ajustes (Perfil · Ajustes)
     if (showSettingsSheet) {
         ModalBottomSheet(
@@ -678,8 +678,11 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         // Descripción / Bio
+
+        val displayBio = state.profile?.bio?.ifBlank { null }
+            ?: if (state.isOwnProfile) "Decisiones, caprichos y planes\ncon mis amigos" else "Sin biografia todavia."
         Text(
-            text = userBio,
+            text = displayBio,
             color = SubtleGray,
             fontSize = 13.sp,
             lineHeight = 18.sp,

@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.factory
+﻿package com.example.caprichometro.infrastructure.factory
 
 import android.content.Context
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
@@ -23,6 +23,7 @@ import com.example.caprichometro.application.usecase.friendship.RespondToFriendR
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
+import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase

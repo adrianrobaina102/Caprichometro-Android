@@ -11,7 +11,7 @@ class FirestoreUserProfileRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) : UserProfileRepository {
 
-    // Cach√© en memoria para evitar llamadas redundantes de red a users/{uid}
+    // CachÈ en memoria para evitar llamadas redundantes de red a users/{uid}
     private val userProfileCache = ConcurrentHashMap<String, UserProfile>()
 
     override suspend fun isUsernameAvailable(username: String): Result<Boolean> {
@@ -31,13 +31,17 @@ class FirestoreUserProfileRepository(
             db.runTransaction { transaction ->
                 val usernameSnap = transaction.get(usernameRef)
                 if (usernameSnap.exists() && usernameSnap.getString("uid") != profile.uid) {
-                    throw IllegalStateException("El nombre de usuario @${profile.username} ya est√° en uso.")
+                    throw IllegalStateException("El nombre de usuario @${profile.username} ya est· en uso.")
                 }
 
-                val userData = mapOf(
+                val userData = mutableMapOf<String, Any>(
                     "username" to profile.username,
                     "createdAt" to profile.createdAt
                 )
+                if (profile.bio.isNotBlank()) {
+                    userData["bio"] = profile.bio
+                }
+
                 val usernameData = mapOf(
                     "uid" to profile.uid
                 )
@@ -71,6 +75,8 @@ class FirestoreUserProfileRepository(
                 return Result.success(null)
             }
 
+            val bio = userDoc.getString("bio")?.trim().orEmpty()
+
             val createdAt = try {
                 userDoc.getTimestamp("createdAt")?.toDate()
                     ?: userDoc.getDate("createdAt")
@@ -83,10 +89,28 @@ class FirestoreUserProfileRepository(
             val profile = UserProfile(
                 uid = userId,
                 username = username,
-                createdAt = createdAt
+                createdAt = createdAt,
+                bio = bio
             )
             userProfileCache[userId] = profile
             Result.success(profile)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateBio(userId: String, bio: String): Result<Unit> {
+        if (userId.isBlank()) return Result.failure(IllegalArgumentException("El userId no puede estar vacÌo."))
+        return try {
+            val trimmedBio = bio.trim()
+            db.collection("users").document(userId)
+                .update("bio", trimmedBio)
+                .await()
+
+            userProfileCache[userId]?.let { current ->
+                userProfileCache[userId] = current.copy(bio = trimmedBio)
+            }
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
