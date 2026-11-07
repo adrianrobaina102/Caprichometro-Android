@@ -304,6 +304,11 @@ fun CapriceApp(
                                         val wasFromProfile = selectedProfileCaprice != null
                                         selectedProfileCaprice = null
                                         currentScreen = if (wasFromProfile) "profile" else "home"
+                                    },
+                                    onNavigateToAuthorProfile = { authorId ->
+                                        viewingProfileUserId = authorId
+                                        previousScreenBeforeProfile = "result"
+                                        currentScreen = "profile"
                                     }
                                 )
                             }

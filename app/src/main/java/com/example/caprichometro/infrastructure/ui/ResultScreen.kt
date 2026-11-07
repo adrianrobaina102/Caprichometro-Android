@@ -42,7 +42,8 @@ private val TextGray = Color(0xFFAAAAAA)
 fun ResultScreen(
     caprice: Caprice?,
     viewModel: ActivePollViewModel? = null,
-    onGoHome: () -> Unit
+    onGoHome: () -> Unit,
+    onNavigateToAuthorProfile: ((String) -> Unit)? = null
 ) {
     var isImageExpanded by remember { mutableStateOf(false) }
     val imageModel = remember(caprice?.imageUrl) {
@@ -81,18 +82,30 @@ fun ResultScreen(
                         tint = Color.White
                     )
                 }
+                val canOpenAuthorProfile = !caprice?.userId.isNullOrBlank() && onNavigateToAuthorProfile != null
                 Text(
                     text = "El veredicto",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (canOpenAuthorProfile) {
+                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                            } else Modifier
+                        ),
                     textAlign = TextAlign.Center
                 )
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .background(LimeGreen, CircleShape),
+                        .background(LimeGreen, CircleShape)
+                        .then(
+                            if (canOpenAuthorProfile) {
+                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                            } else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(authorInitial, color = Color.Black, fontWeight = FontWeight.Bold)
