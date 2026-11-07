@@ -68,6 +68,7 @@ private data class MemoryItem(
     val imageUrl: String = "",
     val gradientColors: List<Color>,
     val accepted: Boolean?,
+    val isActive: Boolean = false,
     val extraCount: Int = 0
 )
 
@@ -85,13 +86,17 @@ private fun avatarColorFor(username: String): Color {
     return PastelAvatarColors[index]
 }
 
-private fun capriceToMemory(caprice: Caprice): MemoryItem {
+private fun capriceToMemory(
+    caprice: Caprice,
+    accepted: Boolean?,
+    isActive: Boolean
+): MemoryItem {
     val emoji = when (caprice.type.lowercase()) {
-        "compra", "compras" -> "🛍️"
-        "comida", "cena", "almuerzo" -> "🍕"
-        "ropa" -> "👗"
-        "plan", "planes", "viaje", "fiesta" -> "🎉"
-        else -> "💭"
+        "compra", "compras" -> "\uD83D\uDECD\uFE0F"
+        "comida", "cena", "almuerzo" -> "\uD83C\uDF55"
+        "ropa" -> "\uD83D\uDC55"
+        "plan", "planes", "viaje", "fiesta" -> "\uD83C\uDF89"
+        else -> "\u2728"
     }
 
     val hash = abs(caprice.question.hashCode() + caprice.id.hashCode())
@@ -111,10 +116,10 @@ private fun capriceToMemory(caprice: Caprice): MemoryItem {
         emoji = emoji,
         imageUrl = caprice.imageUrl,
         gradientColors = colors,
-        accepted = (hash % 2 == 0)
+        accepted = accepted,
+        isActive = isActive
     )
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -496,14 +501,11 @@ fun ProfileScreen(
     val displayName = rawUsername.replaceFirstChar { it.uppercaseChar() }
 
     val totalDudas = state.caprices.size
-    val totalResueltas = if (totalDudas > 0) {
-        val count = state.caprices.count { System.currentTimeMillis() - it.timestamp >= 5 * 60 * 1000L }
-        if (count > 0) count else (totalDudas * 2 / 3).coerceAtLeast(1)
-    } else {
-        0
-    }
-    val hiceCasoPercent = if (totalDudas > 0) {
-        ((totalResueltas.toFloat() / totalDudas) * 100).toInt().coerceIn(0, 100)
+    val expiredCaprices = state.caprices.filter { (System.currentTimeMillis() - it.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS }
+    val totalResueltas = expiredCaprices.size
+    val positiveVerdicts = expiredCaprices.count { state.verdicts[it.id] == true }
+    val hiceCasoPercent = if (totalResueltas > 0) {
+        ((positiveVerdicts.toFloat() / totalResueltas) * 100).toInt().coerceIn(0, 100)
     } else {
         0
     }
@@ -750,7 +752,14 @@ fun ProfileScreen(
         if (selectedTab == 0) {
             // Grid de Caprichos / Recuerdos reales
             val displayMemories = if (state.caprices.isNotEmpty()) {
-                state.caprices.map { capriceToMemory(it) }
+                state.caprices.map { caprice ->
+                    val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                    capriceToMemory(
+                        caprice = caprice,
+                        accepted = state.verdicts[caprice.id],
+                        isActive = !isExpired
+                    )
+                }
             } else {
                 emptyList()
             }
@@ -1027,7 +1036,19 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             }
         }
 
-        if (item.accepted != null) {
+        if (item.isActive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF2E3D18)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "\u23F1\uFE0F", fontSize = 12.sp)
+            }
+        } else if (item.accepted != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
