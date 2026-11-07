@@ -12,7 +12,10 @@ import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCa
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.VoteRepository
+import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +32,7 @@ data class ProfileState(
     val caprices: List<Caprice> = emptyList(),
     val friends: List<UserProfile> = emptyList(),
     val blockedUsers: List<UserProfile> = emptyList(),
+    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opción 1 ganadora), false (opción 2 ganadora), null (empate/sin votos/activa)
     val isOwnProfile: Boolean = true,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
@@ -38,7 +42,8 @@ private data class ProfileLoadResult(
     val profile: UserProfile?,
     val caprices: List<Caprice>,
     val blockedUsers: List<UserProfile>,
-    val friends: List<UserProfile>
+    val friends: List<UserProfile>,
+    val verdicts: Map<String, Boolean?>
 )
 
 class ProfileViewModel(
@@ -49,7 +54,8 @@ class ProfileViewModel(
     private val signOutUseCase: SignOutUseCase,
     private val deleteAccountUseCase: DeleteAccountUseCase,
     private val getCapricesUseCase: GetCapricesUseCase,
-    private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase
+    private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase,
+    private val voteRepository: VoteRepository? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
@@ -76,7 +82,7 @@ class ProfileViewModel(
         }
 
         viewModelScope.launch {
-            // Ejecutamos las 4 consultas en paralelo con coroutineScope + async para eliminar el tiempo de espera
+            // Ejecutamos las consultas en paralelo con coroutineScope + async para eliminar tiempos muertos
             val result = coroutineScope {
                 val profileDeferred = async { userProfileRepository.getUserById(targetUserId).getOrNull() }
                 val capricesDeferred = async { getCapricesUseCase.execute(targetUserId, limit = 50).getOrDefault(emptyList()) }
@@ -97,11 +103,42 @@ class ProfileViewModel(
                     }
                 }
 
+                val loadedCaprices = capricesDeferred.await()
+                val verdictsDeferred = async {
+                    if (voteRepository != null && loadedCaprices.isNotEmpty()) {
+                        coroutineScope {
+                            loadedCaprices.map { caprice ->
+                                async {
+                                    val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                                    if (!isExpired) {
+                                        caprice.id to null
+                                    } else {
+                                        try {
+                                            val votes = voteRepository.observeVotes(caprice.id).first()
+                                            val opt1Votes = votes.count { it.option == 1 }
+                                            val opt2Votes = votes.count { it.option == 2 }
+                                            val accepted = when {
+                                                opt1Votes > opt2Votes -> true
+                                                opt2Votes > opt1Votes -> false
+                                                else -> null
+                                            }
+                                            caprice.id to accepted
+                                        } catch (_: Exception) {
+                                            caprice.id to null
+                                        }
+                                    }
+                                }
+                            }.awaitAll().toMap()
+                        }
+                    } else emptyMap()
+                }
+
                 ProfileLoadResult(
                     profile = profileDeferred.await(),
-                    caprices = capricesDeferred.await(),
+                    caprices = loadedCaprices,
                     blockedUsers = blockedDeferred.await(),
-                    friends = friendsDeferred.await()
+                    friends = friendsDeferred.await(),
+                    verdicts = verdictsDeferred.await()
                 )
             }
 
@@ -111,7 +148,8 @@ class ProfileViewModel(
                     profile = result.profile,
                     caprices = result.caprices,
                     friends = result.friends,
-                    blockedUsers = result.blockedUsers
+                    blockedUsers = result.blockedUsers,
+                    verdicts = result.verdicts
                 )
             }
         }
@@ -139,15 +177,8 @@ class ProfileViewModel(
 
     fun signOut() {
         viewModelScope.launch {
-            val result = signOutUseCase.execute()
-            result.fold(
-                onSuccess = {
-                    _state.update { it.copy(isSignedOut = true) }
-                },
-                onFailure = { error ->
-                    _state.update { it.copy(errorMessage = error.message ?: "Error al cerrar sesión") }
-                }
-            )
+            signOutUseCase.execute()
+            _state.update { ProfileState(isSignedOut = true) }
         }
     }
 
@@ -155,13 +186,19 @@ class ProfileViewModel(
         if (currentUserId.isBlank()) return
 
         viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
             val result = deleteAccountUseCase.execute(currentUserId, username)
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isSignedOut = true) }
+                    _state.update { ProfileState(isSignedOut = true) }
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(errorMessage = error.message ?: "Error al eliminar la cuenta") }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Error al eliminar la cuenta"
+                        )
+                    }
                 }
             )
         }

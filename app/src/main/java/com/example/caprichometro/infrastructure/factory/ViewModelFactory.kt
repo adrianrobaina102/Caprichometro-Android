@@ -99,7 +99,8 @@ class ViewModelFactory(private val context: Context? = null) {
             SignOutUseCase(authRepository),
             DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
             GetCapricesUseCase(capriceRepository),
-            acceptedFriendsUseCase
+            acceptedFriendsUseCase,
+            voteRepository
         )
     }
 

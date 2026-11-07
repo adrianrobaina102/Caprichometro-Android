@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
+import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.domain.model.Caprice
 import kotlin.math.abs
 
