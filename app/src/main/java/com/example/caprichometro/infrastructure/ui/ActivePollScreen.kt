@@ -47,7 +47,6 @@ private val LimeGreen = Color(0xFFD4FF00)
 private val TextGray = Color(0xFFAAAAAA)
 private val OptionCardBg = Color(0xFF1A1A1D)
 private val OptionCardBorder = Color(0xFF2C2C30)
-private val VotedBarBg = Color(0xFF28282D)
 
 @Composable
 fun ActivePollScreen(
@@ -439,6 +438,7 @@ private fun PollOptionCard(
 
     val borderColor = when {
         isWinner || isSelectedByUser -> LimeGreen
+        showPercentage && percentage > 0f -> LimeGreen.copy(alpha = 0.45f)
         else -> OptionCardBorder
     }
     val borderWidth = if (isWinner || isSelectedByUser) 2.dp else 1.dp
@@ -455,14 +455,25 @@ private fun PollOptionCard(
             )
             .clickable(enabled = clickable, onClick = onClick)
     ) {
-        // Barra animada de porcentaje en el fondo
+        // Barra animada de porcentaje en el fondo (anclada a la izquierda y con altura coincidente con la tarjeta)
         if (showPercentage && animatedPercentage > 0f) {
             Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(animatedPercentage)
-                    .background(if (isWinner || isSelectedByUser) LimeGreen.copy(alpha = 0.28f) else VotedBarBg)
-            )
+                modifier = Modifier.matchParentSize(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedPercentage)
+                        .background(
+                            when {
+                                isWinner || isSelectedByUser -> LimeGreen.copy(alpha = 0.32f)
+                                percentage > 0f -> LimeGreen.copy(alpha = 0.22f)
+                                else -> Color.Transparent
+                            }
+                        )
+                )
+            }
         }
 
         Row(
@@ -517,7 +528,7 @@ private fun PollOptionCard(
             if (showPercentage) {
                 Text(
                     text = "${percentage.toInt()}%",
-                    color = if (isWinner || isSelectedByUser) LimeGreen else Color.White,
+                    color = if (isWinner || isSelectedByUser || percentage > 0f) LimeGreen else Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

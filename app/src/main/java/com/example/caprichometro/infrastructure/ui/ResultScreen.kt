@@ -244,14 +244,25 @@ fun ResultBar(
                 shape = RoundedCornerShape(14.dp)
             )
     ) {
-        // Barra de progreso interior
+        // Barra de progreso interior (anclada a la izquierda y ocupando la altura completa del contenedor)
         if (animatedProgress > 0f) {
             Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(animatedProgress)
-                    .background(if (isWinner) LimeGreen.copy(alpha = 0.28f) else Color(0xFF242428))
-            )
+                modifier = Modifier.matchParentSize(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedProgress)
+                        .background(
+                            when {
+                                isWinner -> LimeGreen.copy(alpha = 0.32f)
+                                percentage > 0 -> LimeGreen.copy(alpha = 0.20f)
+                                else -> Color.Transparent
+                            }
+                        )
+                )
+            }
         }
 
         Row(
@@ -300,7 +311,7 @@ fun ResultBar(
 
             Text(
                 text = "$percentage%",
-                color = if (isWinner) LimeGreen else Color.White,
+                color = if (isWinner || percentage > 0) LimeGreen else Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
