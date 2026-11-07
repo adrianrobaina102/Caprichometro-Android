@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 
 data class ProfileState(
     val isLoading: Boolean = false,
@@ -32,7 +33,7 @@ data class ProfileState(
     val caprices: List<Caprice> = emptyList(),
     val friends: List<UserProfile> = emptyList(),
     val blockedUsers: List<UserProfile> = emptyList(),
-    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opciÃ³n 1 ganadora), false (opciÃ³n 2 ganadora), null (empate/sin votos/activa)
+    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opción 1 ganadora), false (opción 2 ganadora), null (empate/sin votos/activa)
     val isOwnProfile: Boolean = true,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
@@ -61,8 +62,12 @@ class ProfileViewModel(
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
+    // Caché en memoria thread-safe para veredictos de dudas cerradas (inmutables)
+    private val verdictCache = ConcurrentHashMap<String, Boolean?>()
+
     fun reset() {
         _state.value = ProfileState()
+        verdictCache.clear()
     }
 
     fun loadProfile(targetUserId: String, currentUserId: String = targetUserId) {
@@ -82,7 +87,7 @@ class ProfileViewModel(
         }
 
         viewModelScope.launch {
-            // Ejecutamos las consultas en paralelo con coroutineScope + async para eliminar tiempos muertos
+            // Concurrencia y paralelismo: lanzamos todas las consultas independientes al mismo tiempo
             val result = coroutineScope {
                 val profileDeferred = async { userProfileRepository.getUserById(targetUserId).getOrNull() }
                 val capricesDeferred = async { getCapricesUseCase.execute(targetUserId, limit = 50).getOrDefault(emptyList()) }
@@ -104,6 +109,8 @@ class ProfileViewModel(
                 }
 
                 val loadedCaprices = capricesDeferred.await()
+
+                // Paralelismo masivo para veredictos con caché en memoria:
                 val verdictsDeferred = async {
                     if (voteRepository != null && loadedCaprices.isNotEmpty()) {
                         coroutineScope {
@@ -111,20 +118,24 @@ class ProfileViewModel(
                                 async {
                                     val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
                                     if (!isExpired) {
-                                        caprice.id to null
+                                        caprice.id to null // Duda aún activa en directo
                                     } else {
-                                        try {
-                                            val votes = voteRepository.observeVotes(caprice.id).first()
+                                        // 1. Verificamos la caché en memoria primero (0 ms latencia)
+                                        if (verdictCache.containsKey(caprice.id)) {
+                                            caprice.id to verdictCache[caprice.id]
+                                        } else {
+                                            // 2. Consulta directa 'one-shot' (getVotes) sin sobrecarga de snapshot listeners
+                                            val votes = voteRepository.getVotes(caprice.id).getOrDefault(emptyList())
                                             val opt1Votes = votes.count { it.option == 1 }
                                             val opt2Votes = votes.count { it.option == 2 }
-                                            val accepted = when {
+                                            val accepted: Boolean? = when {
                                                 opt1Votes > opt2Votes -> true
                                                 opt2Votes > opt1Votes -> false
                                                 else -> null
                                             }
+                                            // Guardamos en caché porque el resultado de una duda cerrada nunca cambiará
+                                            verdictCache[caprice.id] = accepted
                                             caprice.id to accepted
-                                        } catch (_: Exception) {
-                                            caprice.id to null
                                         }
                                     }
                                 }
@@ -178,7 +189,8 @@ class ProfileViewModel(
     fun signOut() {
         viewModelScope.launch {
             signOutUseCase.execute()
-            _state.update { ProfileState(isSignedOut = true) }
+            reset()
+            _state.update { it.copy(isSignedOut = true) }
         }
     }
 
@@ -190,7 +202,8 @@ class ProfileViewModel(
             val result = deleteAccountUseCase.execute(currentUserId, username)
             result.fold(
                 onSuccess = {
-                    _state.update { ProfileState(isSignedOut = true) }
+                    reset()
+                    _state.update { it.copy(isSignedOut = true) }
                 },
                 onFailure = { error ->
                     _state.update {

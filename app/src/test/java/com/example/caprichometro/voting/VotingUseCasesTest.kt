@@ -29,6 +29,10 @@ class FakeVoteRepository : VoteRepository {
         return flowOf(votes.filter { it.capriceId == capriceId })
     }
 
+    override suspend fun getVotes(capriceId: String): Result<List<Vote>> {
+        return Result.success(votes.filter { it.capriceId == capriceId })
+    }
+
     override suspend fun getUserVote(capriceId: String, voterId: String): Result<Vote?> {
         return Result.success(votes.firstOrNull { it.capriceId == capriceId && it.voterId == voterId })
     }
@@ -45,9 +49,9 @@ class VotingUseCasesTest {
         id = "caprice_1",
         userId = "author_123",
         type = "Compra",
-        question = "Â¿Me compro esta chaqueta?",
-        answer1 = "SÃ­, cÃ³mpratela",
-        answer2 = "No, es carÃ­sima",
+        question = "¿Me compro esta chaqueta?",
+        answer1 = "Sí, cómpratela",
+        answer2 = "No, es carísima",
         imageUrl = "",
         timestamp = System.currentTimeMillis() // Activo ahora mismo
     )

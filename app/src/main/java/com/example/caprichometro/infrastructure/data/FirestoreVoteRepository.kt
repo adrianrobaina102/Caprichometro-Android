@@ -49,7 +49,7 @@ class FirestoreVoteRepository(
                 if (error != null) {
                     val isLoggedOut = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
                     if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED && isLoggedOut) {
-                        Log.d("FirestoreVoteRepo", "Usuario desconectado, manteniendo canal abierto para reconexión")
+                        Log.d("FirestoreVoteRepo", "Usuario desconectado, manteniendo canal abierto para reconexion")
                         return@addSnapshotListener
                     }
                     Log.w("FirestoreVoteRepo", "Aviso temporal escuchando votos de $capriceId: ${error.message}")
@@ -69,11 +69,40 @@ class FirestoreVoteRepository(
                     )
                 }.orEmpty()
 
-                Log.d("FirestoreVoteRepo", "observeVotes($capriceId) emitió ${votes.size} votos en tiempo real")
+                Log.d("FirestoreVoteRepo", "observeVotes($capriceId) emitio ${votes.size} votos en tiempo real")
                 trySend(votes).isSuccess
             }
 
         awaitClose { listener.remove() }
+    }
+
+    override suspend fun getVotes(capriceId: String): Result<List<Vote>> {
+        if (capriceId.isBlank()) return Result.success(emptyList())
+
+        return try {
+            val snapshot = db.collection("caprices")
+                .document(capriceId)
+                .collection("votes")
+                .get()
+                .await()
+
+            val votes = snapshot.documents.mapNotNull { doc ->
+                val option = doc.getLong("option")?.toInt() ?: return@mapNotNull null
+                val voterId = doc.getString("voterId") ?: doc.id
+                val timestamp = doc.getLong("timestamp") ?: 0L
+
+                Vote(
+                    capriceId = capriceId,
+                    voterId = voterId,
+                    option = option,
+                    timestamp = timestamp
+                )
+            }
+            Result.success(votes)
+        } catch (e: Exception) {
+            Log.e("FirestoreVoteRepo", "Error al obtener votos de $capriceId: ${e.message}", e)
+            Result.failure(e)
+        }
     }
 
     override suspend fun getUserVote(capriceId: String, voterId: String): Result<Vote?> {
