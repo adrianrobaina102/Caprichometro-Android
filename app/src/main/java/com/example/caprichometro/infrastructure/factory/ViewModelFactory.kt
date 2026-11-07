@@ -73,7 +73,7 @@ class ViewModelFactory(private val context: Context? = null) {
             RegisterUseCase(authRepository, userProfileRepository),
             SignInWithGoogleUseCase(authRepository, userProfileRepository),
             SignOutUseCase(authRepository),
-            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
+            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepository),
             GetCurrentUserUseCase(authRepository)
         )
     }
@@ -98,7 +98,7 @@ class ViewModelFactory(private val context: Context? = null) {
             GetBlockedUsersUseCase(friendshipRepository, userProfileRepository),
             UnblockUserUseCase(friendshipRepository),
             SignOutUseCase(authRepository),
-            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository),
+            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepository),
             GetCapricesUseCase(capriceRepository),
             acceptedFriendsUseCase,
             voteRepository
