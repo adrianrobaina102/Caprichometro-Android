@@ -7,6 +7,8 @@ import com.example.caprichometro.application.usecase.auth.SignOutUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetBlockedUsersUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
+import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
+import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
@@ -25,6 +27,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -188,5 +191,55 @@ class ProfileViewModelTest {
 
         assertThat(viewModel.state.value.profile?.bio).isEqualTo("Nueva bio genial")
         coVerify(exactly = 1) { userProfileRepository.updateBio(myUid, "Nueva bio genial") }
+    }
+
+    @Test
+    fun `removeFriend llama al caso de uso e invoca callback de exito`() = runTest {
+        val removeFriendUseCase = mockk<RemoveFriendUseCase>()
+        coEvery { removeFriendUseCase.execute("my_id", "friend_id") } returns Result.success(Unit)
+
+        val vm = ProfileViewModel(
+            getCurrentUserUseCase,
+            userProfileRepository,
+            getBlockedUsersUseCase,
+            unblockUserUseCase,
+            signOutUseCase,
+            deleteAccountUseCase,
+            getCapricesUseCase,
+            getAcceptedFriendsUseCase,
+            removeFriendUseCase = removeFriendUseCase
+        )
+
+        var successCalled = false
+        vm.removeFriend("my_id", "friend_id") { successCalled = true }
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(successCalled)
+        coVerify(exactly = 1) { removeFriendUseCase.execute("my_id", "friend_id") }
+    }
+
+    @Test
+    fun `blockUser llama al caso de uso e invoca callback de exito`() = runTest {
+        val blockUserUseCase = mockk<BlockUserUseCase>()
+        coEvery { blockUserUseCase.execute("my_id", "target_id") } returns Result.success(Unit)
+
+        val vm = ProfileViewModel(
+            getCurrentUserUseCase,
+            userProfileRepository,
+            getBlockedUsersUseCase,
+            unblockUserUseCase,
+            signOutUseCase,
+            deleteAccountUseCase,
+            getCapricesUseCase,
+            getAcceptedFriendsUseCase,
+            blockUserUseCase = blockUserUseCase
+        )
+
+        var successCalled = false
+        vm.blockUser("my_id", "target_id") { successCalled = true }
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(successCalled)
+        coVerify(exactly = 1) { blockUserUseCase.execute("my_id", "target_id") }
     }
 }

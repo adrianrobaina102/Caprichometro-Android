@@ -101,7 +101,10 @@ class ViewModelFactory(private val context: Context? = null) {
             DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepository),
             GetCapricesUseCase(capriceRepository),
             acceptedFriendsUseCase,
-            voteRepository
+            voteRepository,
+            UpdateBioUseCase(userProfileRepository),
+            RemoveFriendUseCase(friendshipRepository),
+            BlockUserUseCase(friendshipRepository)
         )
     }
 

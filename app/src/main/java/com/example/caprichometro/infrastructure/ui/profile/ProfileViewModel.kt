@@ -9,6 +9,8 @@ import com.example.caprichometro.application.usecase.auth.SignOutUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.application.usecase.friendship.GetBlockedUsersUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
+import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
+import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.UserProfile
@@ -60,7 +62,9 @@ class ProfileViewModel(
     private val getCapricesUseCase: GetCapricesUseCase,
     private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase,
     private val voteRepository: VoteRepository? = null,
-    private val updateBioUseCase: UpdateBioUseCase = UpdateBioUseCase(userProfileRepository)
+    private val updateBioUseCase: UpdateBioUseCase = UpdateBioUseCase(userProfileRepository),
+    private val removeFriendUseCase: RemoveFriendUseCase? = null,
+    private val blockUserUseCase: BlockUserUseCase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
@@ -246,6 +250,40 @@ class ProfileViewModel(
                             errorMessage = error.message ?: "Error al eliminar la cuenta"
                         )
                     }
+                }
+            )
+        }
+    }
+
+    fun removeFriend(currentUserId: String, friendUserId: String, onSuccess: () -> Unit = {}) {
+        if (currentUserId.isBlank() || friendUserId.isBlank()) return
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            val result = removeFriendUseCase?.execute(currentUserId, friendUserId) ?: Result.success(Unit)
+            result.fold(
+                onSuccess = {
+                    _state.update { it.copy(isLoading = false) }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "Error al eliminar amigo") }
+                }
+            )
+        }
+    }
+
+    fun blockUser(currentUserId: String, targetUserId: String, onSuccess: () -> Unit = {}) {
+        if (currentUserId.isBlank() || targetUserId.isBlank()) return
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            val result = blockUserUseCase?.execute(currentUserId, targetUserId) ?: Result.success(Unit)
+            result.fold(
+                onSuccess = {
+                    _state.update { it.copy(isLoading = false) }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "Error al bloquear usuario") }
                 }
             )
         }
