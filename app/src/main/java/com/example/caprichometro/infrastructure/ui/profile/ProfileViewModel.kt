@@ -17,6 +17,7 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -84,9 +85,14 @@ class ProfileViewModel(
         val isOwn = targetUserId == currentUserId
         val email = if (isOwn) getCurrentUserUseCase.execute()?.email.orEmpty() else ""
 
+        val isDifferentUser = _state.value.profile?.uid != targetUserId
         _state.update {
             it.copy(
                 isLoading = true,
+                profile = if (isDifferentUser) null else it.profile,
+                caprices = if (isDifferentUser) emptyList() else it.caprices,
+                friends = if (isDifferentUser || !isOwn) emptyList() else it.friends,
+                blockedUsers = if (isDifferentUser || !isOwn) emptyList() else it.blockedUsers,
                 email = email,
                 isOwnProfile = isOwn,
                 isSignedOut = false,
@@ -107,11 +113,15 @@ class ProfileViewModel(
                     }
                 }
                 val friendsDeferred = async {
-                    try {
-                        getAcceptedFriendsUseCase.execute(targetUserId)
-                            .catch { emit(emptyList()) }
-                            .first()
-                    } catch (_: Exception) {
+                    if (isOwn) {
+                        try {
+                            getAcceptedFriendsUseCase.execute(targetUserId)
+                                .catch { emit(emptyList()) }
+                                .first()
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                    } else {
                         emptyList()
                     }
                 }

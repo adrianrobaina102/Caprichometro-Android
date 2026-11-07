@@ -1,9 +1,11 @@
-package com.example.caprichometro.infrastructure.data
+ï»¿package com.example.caprichometro.infrastructure.data
 
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 
@@ -11,11 +13,11 @@ class FirestoreUserProfileRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) : UserProfileRepository {
 
-    // Caché en memoria para evitar llamadas redundantes de red a users/{uid}
+    // Cache en memoria para evitar llamadas redundantes de red a users/{uid}
     private val userProfileCache = ConcurrentHashMap<String, UserProfile>()
 
-    override suspend fun isUsernameAvailable(username: String): Result<Boolean> {
-        return try {
+    override suspend fun isUsernameAvailable(username: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
             val document = db.collection("usernames").document(username).get().await()
             Result.success(!document.exists())
         } catch (e: Exception) {
@@ -23,15 +25,15 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun saveProfile(profile: UserProfile): Result<Unit> {
-        return try {
+    override suspend fun saveProfile(profile: UserProfile): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
             val userRef = db.collection("users").document(profile.uid)
             val usernameRef = db.collection("usernames").document(profile.username)
 
             db.runTransaction { transaction ->
                 val usernameSnap = transaction.get(usernameRef)
                 if (usernameSnap.exists() && usernameSnap.getString("uid") != profile.uid) {
-                    throw IllegalStateException("El nombre de usuario @${profile.username} ya está en uso.")
+                    throw IllegalStateException("El nombre de usuario @${profile.username} ya estÃ¡ en uso.")
                 }
 
                 val userData = mutableMapOf<String, Any>(
@@ -57,22 +59,22 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun getUserById(userId: String): Result<UserProfile?> {
-        if (userId.isBlank()) return Result.success(null)
+    override suspend fun getUserById(userId: String): Result<UserProfile?> = withContext(Dispatchers.IO) {
+        if (userId.isBlank()) return@withContext Result.success(null)
 
         userProfileCache[userId]?.let { cached ->
-            return Result.success(cached)
+            return@withContext Result.success(cached)
         }
 
-        return try {
+        try {
             val userDoc = db.collection("users").document(userId).get().await()
             if (!userDoc.exists()) {
-                return Result.success(null)
+                return@withContext Result.success(null)
             }
 
             val username = userDoc.getString("username")?.trim()
             if (username.isNullOrBlank()) {
-                return Result.success(null)
+                return@withContext Result.success(null)
             }
 
             val bio = userDoc.getString("bio")?.trim().orEmpty()
@@ -99,9 +101,9 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun updateBio(userId: String, bio: String): Result<Unit> {
-        if (userId.isBlank()) return Result.failure(IllegalArgumentException("El userId no puede estar vacío."))
-        return try {
+    override suspend fun updateBio(userId: String, bio: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (userId.isBlank()) return@withContext Result.failure(IllegalArgumentException("El userId no puede estar vacÃ­o."))
+        try {
             val trimmedBio = bio.trim()
             db.collection("users").document(userId)
                 .update("bio", trimmedBio)
@@ -116,8 +118,8 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun deleteProfile(userId: String, username: String): Result<Unit> {
-        return try {
+    override suspend fun deleteProfile(userId: String, username: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
             userProfileCache.remove(userId)
             val batch = db.batch()
             batch.delete(db.collection("users").document(userId))
