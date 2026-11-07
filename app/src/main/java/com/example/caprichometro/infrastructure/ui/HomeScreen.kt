@@ -26,6 +26,8 @@ import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
+import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
 
 private val FeedBg = Color(0xFF0D0D0D)
@@ -45,6 +47,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
 
     // Carga inicial al entrar en la pestaña de Inicio solo si no hay datos en memoria
     LaunchedEffect(Unit) {
@@ -261,13 +264,22 @@ fun HomeScreen(
                                 item = item,
                                 nowMillis = nowMillis,
                                 onClick = { onSelectFeedItem(item) },
-                                onNavigateToUserProfile = onNavigateToUserProfile
+                                onNavigateToUserProfile = onNavigateToUserProfile,
+                                onImageClick = { fullScreenImageUrl = it }
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    fullScreenImageUrl?.let { url ->
+        FullScreenImageViewer(
+            imageUrl = url,
+            contentDescription = "Foto de la duda",
+            onDismiss = { fullScreenImageUrl = null }
+        )
     }
 }
 
@@ -276,7 +288,8 @@ private fun CapriceFeedCard(
     item: CapriceFeedItem,
     nowMillis: Long,
     onClick: () -> Unit,
-    onNavigateToUserProfile: (String) -> Unit = {}
+    onNavigateToUserProfile: (String) -> Unit = {},
+    onImageClick: (String) -> Unit = {}
 ) {
     val caprice = item.caprice
     val author = item.author
@@ -389,6 +402,7 @@ private fun CapriceFeedCard(
                     .height(200.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF121214))
+                    .clickable { onImageClick(caprice.imageUrl) }
             ) {
                 AsyncImage(
                     model = imageModel,
@@ -396,6 +410,20 @@ private fun CapriceFeedCard(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                        .padding(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Ampliar foto",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 

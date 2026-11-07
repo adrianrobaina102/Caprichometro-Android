@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.ui
+﻿package com.example.caprichometro.infrastructure.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -37,6 +37,8 @@ import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
+import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -62,6 +64,7 @@ fun ActivePollScreen(
     val isFriendPoll = !authorUsername.isNullOrBlank()
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
 
+    var isImageExpanded by remember { mutableStateOf(false) }
     val imageModel = remember(caprice?.imageUrl) {
         ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
     }
@@ -322,6 +325,7 @@ fun ActivePollScreen(
                         .height(220.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFF1C1C1E))
+                        .clickable { isImageExpanded = true }
                 ) {
                     AsyncImage(
                         model = imageModel,
@@ -340,6 +344,20 @@ fun ActivePollScreen(
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(10.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            .padding(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Ampliar foto",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -439,6 +457,14 @@ fun ActivePollScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (isImageExpanded && !caprice?.imageUrl.isNullOrBlank()) {
+        FullScreenImageViewer(
+            imageUrl = caprice!!.imageUrl,
+            contentDescription = questionText,
+            onDismiss = { isImageExpanded = false }
+        )
     }
 }
 

@@ -1,8 +1,11 @@
-package com.example.caprichometro.infrastructure.ui
+﻿package com.example.caprichometro.infrastructure.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +31,8 @@ import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseC
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
+import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import androidx.compose.material.icons.filled.Search
 
 private val DarkBackground = Color(0xFF0F0F0F)
 private val LimeGreen = Color(0xFFD4FF00)
@@ -39,6 +44,7 @@ fun ResultScreen(
     viewModel: ActivePollViewModel? = null,
     onGoHome: () -> Unit
 ) {
+    var isImageExpanded by remember { mutableStateOf(false) }
     val imageModel = remember(caprice?.imageUrl) {
         ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
     }
@@ -154,20 +160,38 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            val hasImage = !caprice?.imageUrl.isNullOrBlank()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF1C1C1E))
+                    .then(
+                        if (hasImage) Modifier.clickable { isImageExpanded = true } else Modifier
+                    )
             ) {
-                if (!caprice?.imageUrl.isNullOrBlank()) {
+                if (hasImage) {
                     AsyncImage(
                         model = imageModel,
                         contentDescription = caprice?.question.orEmpty(),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(10.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            .padding(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Ampliar foto",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -217,6 +241,14 @@ fun ResultScreen(
                 fontWeight = FontWeight.Medium
             )
         }
+    }
+
+    if (isImageExpanded && !caprice?.imageUrl.isNullOrBlank()) {
+        FullScreenImageViewer(
+            imageUrl = caprice!!.imageUrl,
+            contentDescription = caprice?.question.orEmpty(),
+            onDismiss = { isImageExpanded = false }
+        )
     }
 }
 
