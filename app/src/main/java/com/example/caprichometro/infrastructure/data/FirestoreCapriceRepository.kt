@@ -6,16 +6,17 @@ import com.example.caprichometro.domain.model.CapriceRepository
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Source
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class FirestoreCapriceRepository : CapriceRepository {
 
     private val db = FirebaseFirestore.getInstance()
     private val collectionName = "caprices"
 
-    override suspend fun save(caprice: Caprice): Result<String> {
-        return try {
+    override suspend fun save(caprice: Caprice): Result<String> = withContext(Dispatchers.IO) {
+        try {
             val data = mutableMapOf<String, Any>(
                 "userId" to caprice.userId,
                 "type" to caprice.type,
@@ -35,59 +36,54 @@ class FirestoreCapriceRepository : CapriceRepository {
         }
     }
 
-    override suspend fun getCaprices(userId: String, limit: Int): Result<List<Caprice>> {
-        return try {
-            val documents = fetchCapriceDocuments(userId, limit)
-            val caprices = documents
-                .mapNotNull { doc -> parseCapriceDocument(doc) }
-                .sortedByDescending { it.timestamp }
-                .take(limit)
+    override suspend fun getCaprices(userId: String, limit: Int): Result<List<Caprice>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val documents = fetchCapriceDocuments(userId, limit)
+                val caprices = documents
+                    .mapNotNull { doc -> parseCapriceDocument(doc) }
+                    .sortedByDescending { it.timestamp }
+                    .take(limit)
 
-            Result.success(caprices)
-        } catch (e: Exception) {
-            Log.e("FirestoreCapriceRepo", "Error obteniendo caprichos para $userId: ${e.message}", e)
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun deleteCapricesForUser(userId: String): Result<Unit> {
-        if (userId.isBlank()) return Result.success(Unit)
-        return try {
-            val snapshot = db.collection(collectionName)
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-
-            for (doc in snapshot.documents) {
-                // Borrar subcolección votes de cada capricho
-                val votesSnapshot = doc.reference.collection("votes").get().await()
-                if (!votesSnapshot.isEmpty) {
-                    val batch = db.batch()
-                    votesSnapshot.documents.forEach { voteDoc ->
-                        batch.delete(voteDoc.reference)
-                    }
-                    batch.commit().await()
-                }
-                // Borrar documento del capricho
-                doc.reference.delete().await()
+                Result.success(caprices)
+            } catch (e: Exception) {
+                Log.e("FirestoreCapriceRepo", "Error obteniendo caprichos para $userId: ${e.message}", e)
+                Result.failure(e)
             }
-            Log.d("FirestoreCapriceRepo", "Eliminados ${snapshot.size()} caprichos del usuario $userId")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e("FirestoreCapriceRepo", "Error eliminando caprichos del usuario $userId: ${e.message}", e)
-            Result.failure(e)
         }
-    }
+
+    override suspend fun deleteCapricesForUser(userId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            if (userId.isBlank()) return@withContext Result.success(Unit)
+            try {
+                val snapshot = db.collection(collectionName)
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .await()
+
+                for (doc in snapshot.documents) {
+                    val votesSnapshot = doc.reference.collection("votes").get().await()
+                    if (!votesSnapshot.isEmpty) {
+                        val batch = db.batch()
+                        votesSnapshot.documents.forEach { voteDoc ->
+                            batch.delete(voteDoc.reference)
+                        }
+                        batch.commit().await()
+                    }
+                    doc.reference.delete().await()
+                }
+                Log.d("FirestoreCapriceRepo", "Eliminados ${snapshot.size()} caprichos del usuario $userId")
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Log.e("FirestoreCapriceRepo", "Error eliminando caprichos del usuario $userId: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
 
     private suspend fun fetchCapriceDocuments(userId: String, limit: Int): List<DocumentSnapshot> {
-        // Consulta directa por userId utilizando el índice automático de Firebase sin penalización de timeout
         return try {
             val query = db.collection(collectionName).whereEqualTo("userId", userId)
-            val snapshot = try {
-                query.get().await()
-            } catch (_: Exception) {
-                query.get(Source.SERVER).await()
-            }
+            val snapshot = query.get().await()
             snapshot.documents
         } catch (e: Exception) {
             Log.w("FirestoreCapriceRepo", "Error en fetchCapriceDocuments para $userId: ${e.message}")

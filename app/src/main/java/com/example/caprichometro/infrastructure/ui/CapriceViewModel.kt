@@ -11,6 +11,7 @@ import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -121,7 +122,7 @@ class CapriceViewModel(
         if (uid.isBlank()) return
 
         feedLoadJob?.cancel()
-        feedLoadJob = viewModelScope.launch {
+        feedLoadJob = viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isFeedLoading = true, feedError = null) }
 
             val result = useCase.execute(uid, perFriendLimit = 20, totalLimit = 20)
