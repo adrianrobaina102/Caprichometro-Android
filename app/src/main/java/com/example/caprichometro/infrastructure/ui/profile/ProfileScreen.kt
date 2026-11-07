@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.infrastructure.ui.profile
+package com.example.caprichometro.infrastructure.ui.profile
 
 import android.content.Intent
 import android.provider.Settings
@@ -140,6 +140,9 @@ fun ProfileScreen(
     var showPrivacySubSheet by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showFriendMenu by remember { mutableStateOf(false) }
+    var showRemoveFriendDialog by remember { mutableStateOf(false) }
+    var showBlockFriendDialog by remember { mutableStateOf(false) }
 
 
     LaunchedEffect(targetUserId, currentUserId) {
@@ -186,6 +189,70 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancelar", color = Color.White)
+                }
+            },
+            containerColor = SheetBackground
+        )
+    }
+
+    if (showRemoveFriendDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveFriendDialog = false },
+            title = { Text("Â¿Eliminar amigo?", color = Color.White) },
+            text = {
+                Text(
+                    "Ya no verÃ¡s los caprichos de @${state.profile?.username.orEmpty()} ni podrÃ¡ ver los tuyos.",
+                    color = SubtleGray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRemoveFriendDialog = false
+                        viewModel.removeFriend(currentUserId, targetUserId) {
+                            Toast.makeText(context, "Amigo eliminado", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        }
+                    }
+                ) {
+                    Text("Eliminar", color = BadgeRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveFriendDialog = false }) {
+                    Text("Cancelar", color = Color.White)
+                }
+            },
+            containerColor = SheetBackground
+        )
+    }
+
+    if (showBlockFriendDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockFriendDialog = false },
+            title = { Text("Â¿Bloquear usuario?", color = Color.White) },
+            text = {
+                Text(
+                    "Se eliminarÃ¡ la amistad y no podrÃ©is interactuar ni encontraros en la app.",
+                    color = SubtleGray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBlockFriendDialog = false
+                        viewModel.blockUser(currentUserId, targetUserId) {
+                            Toast.makeText(context, "Usuario bloqueado", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        }
+                    }
+                ) {
+                    Text("Bloquear", color = BadgeRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBlockFriendDialog = false }) {
                     Text("Cancelar", color = Color.White)
                 }
             },
@@ -549,20 +616,39 @@ fun ProfileScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                IconButton(
-                    onClick = {
-                        Toast.makeText(context, "Opciones de usuario", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Más opciones",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    IconButton(
+                        onClick = { showFriendMenu = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Opciones",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showFriendMenu,
+                        onDismissRequest = { showFriendMenu = false },
+                        modifier = Modifier.background(SheetBackground)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Eliminar amigo", color = Color.White) },
+                            onClick = {
+                                showFriendMenu = false
+                                showRemoveFriendDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Bloquear usuario", color = BadgeRed) },
+                            onClick = {
+                                showFriendMenu = false
+                                showBlockFriendDialog = true
+                            }
+                        )
+                    }
                 }
             } else {
                 if (selectedTab == 1) {
