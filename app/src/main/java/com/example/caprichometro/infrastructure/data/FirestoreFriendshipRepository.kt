@@ -264,6 +264,28 @@ class FirestoreFriendshipRepository(
         }
     }
 
+    override suspend fun deleteBlocksForUser(userId: String): Result<Unit> {
+        if (userId.isBlank()) return Result.success(Unit)
+        return try {
+            val snapshot = db.collection("userBlocks")
+                .document(userId)
+                .collection("blockedUsers")
+                .get()
+                .await()
+
+            if (!snapshot.isEmpty) {
+                val batch = db.batch()
+                snapshot.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override fun getFriendships(userId: String): Flow<List<Friendship>> = callbackFlow {
         val subscription = db.collection("friendships")
             .whereArrayContains("memberIDs", userId)
