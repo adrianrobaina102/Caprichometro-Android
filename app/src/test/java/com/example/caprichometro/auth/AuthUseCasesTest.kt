@@ -8,6 +8,7 @@ import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCas
 import com.example.caprichometro.application.usecase.auth.UsernameTakenException
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.model.AuthRepository
+import com.example.caprichometro.domain.model.CapriceRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
@@ -112,9 +113,14 @@ class AuthUseCasesTest {
 
     @Nested
     inner class DeleteAccountTests {
+        @BeforeEach
+        fun setUp() {
+            coEvery { friendshipRepository.deleteBlocksForUser(any()) } returns Result.success(Unit)
+            coEvery { friendshipRepository.deleteFriendshipsForUser(any()) } returns Result.success(Unit)
+        }
+
         @Test
         fun `borra amistades, perfil de Firestore y cuenta de Firebase Auth`() = runTest {
-            coEvery { friendshipRepository.deleteFriendshipsForUser("uid1") } returns Result.success(Unit)
             coEvery { userProfileRepository.deleteProfile("uid1", "user1") } returns Result.success(Unit)
             coEvery { authRepository.deleteAccount() } returns Result.success(Unit)
 
@@ -122,6 +128,25 @@ class AuthUseCasesTest {
             val result = useCase.execute("uid1", "user1")
 
             assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { friendshipRepository.deleteBlocksForUser("uid1") }
+            coVerify(exactly = 1) { friendshipRepository.deleteFriendshipsForUser("uid1") }
+            coVerify(exactly = 1) { userProfileRepository.deleteProfile("uid1", "user1") }
+            coVerify(exactly = 1) { authRepository.deleteAccount() }
+        }
+
+        @Test
+        fun `realiza borrado en cascada de caprichos, bloqueos, amistades, perfil y auth`() = runTest {
+            val capriceRepo = mockk<CapriceRepository>()
+            coEvery { capriceRepo.deleteCapricesForUser("uid1") } returns Result.success(Unit)
+            coEvery { userProfileRepository.deleteProfile("uid1", "user1") } returns Result.success(Unit)
+            coEvery { authRepository.deleteAccount() } returns Result.success(Unit)
+
+            val useCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepo)
+            val result = useCase.execute("uid1", "user1")
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { capriceRepo.deleteCapricesForUser("uid1") }
+            coVerify(exactly = 1) { friendshipRepository.deleteBlocksForUser("uid1") }
             coVerify(exactly = 1) { friendshipRepository.deleteFriendshipsForUser("uid1") }
             coVerify(exactly = 1) { userProfileRepository.deleteProfile("uid1", "user1") }
             coVerify(exactly = 1) { authRepository.deleteAccount() }
@@ -129,7 +154,6 @@ class AuthUseCasesTest {
 
         @Test
         fun `propaga error si falla el borrado de perfil en Firestore`() = runTest {
-            coEvery { friendshipRepository.deleteFriendshipsForUser("uid1") } returns Result.success(Unit)
             coEvery { userProfileRepository.deleteProfile("uid1", "user1") } returns Result.failure(Exception("Error Firestore"))
 
             val useCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
