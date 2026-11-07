@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.ui.profile
+﻿package com.example.caprichometro.infrastructure.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+
+private enum class CachedVerdict { ACCEPTED, REJECTED, TIE_OR_NONE }
 
 data class ProfileState(
     val isLoading: Boolean = false,
@@ -65,7 +67,7 @@ class ProfileViewModel(
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
     // Cache en memoria thread-safe para veredictos de dudas cerradas (inmutables)
-    private val verdictCache = ConcurrentHashMap<String, Boolean?>()
+    private val verdictCache = ConcurrentHashMap<String, CachedVerdict>()
 
     fun reset() {
         _state.value = ProfileState()
@@ -122,21 +124,31 @@ class ProfileViewModel(
                                     if (!isExpired) {
                                         caprice.id to null // Duda aun activa en directo
                                     } else {
-                                        // 1. Verificamos la cache en memoria primero (0 ms latencia)
-                                        if (verdictCache.containsKey(caprice.id)) {
-                                            caprice.id to verdictCache[caprice.id]
+                                        val cached = verdictCache[caprice.id]
+                                        if (cached != null) {
+                                            val accepted = when (cached) {
+                                                CachedVerdict.ACCEPTED -> true
+                                                CachedVerdict.REJECTED -> false
+                                                CachedVerdict.TIE_OR_NONE -> null
+                                            }
+                                            caprice.id to accepted
                                         } else {
                                             // 2. Consulta directa 'one-shot' (getVotes) sin sobrecarga de snapshot listeners
                                             val votes = voteRepository.getVotes(caprice.id).getOrDefault(emptyList())
                                             val opt1Votes = votes.count { it.option == 1 }
                                             val opt2Votes = votes.count { it.option == 2 }
-                                            val accepted: Boolean? = when {
-                                                opt1Votes > opt2Votes -> true
-                                                opt2Votes > opt1Votes -> false
-                                                else -> null
+                                            val cachedVerdict = when {
+                                                opt1Votes > opt2Votes -> CachedVerdict.ACCEPTED
+                                                opt2Votes > opt1Votes -> CachedVerdict.REJECTED
+                                                else -> CachedVerdict.TIE_OR_NONE
                                             }
-                                            // Guardamos en cache porque el resultado de una duda cerrada nunca cambiara
-                                            verdictCache[caprice.id] = accepted
+                                            // Guardamos en cache thread-safe (sin riesgo de NPE con nulos)
+                                            verdictCache[caprice.id] = cachedVerdict
+                                            val accepted = when (cachedVerdict) {
+                                                CachedVerdict.ACCEPTED -> true
+                                                CachedVerdict.REJECTED -> false
+                                                CachedVerdict.TIE_OR_NONE -> null
+                                            }
                                             caprice.id to accepted
                                         }
                                     }
