@@ -140,7 +140,7 @@ fun ProfileScreen(
     var showPrivacySubSheet by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var showFriendMenu by remember { mutableStateOf(false) }
+    var showFriendOptionsSheet by remember { mutableStateOf(false) }
     var showRemoveFriendDialog by remember { mutableStateOf(false) }
     var showBlockFriendDialog by remember { mutableStateOf(false) }
 
@@ -299,6 +299,91 @@ fun ProfileScreen(
         )
     }
     // Bottom Sheet de Ajustes (Perfil · Ajustes)
+    if (showFriendOptionsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFriendOptionsSheet = false },
+            containerColor = SheetBackground,
+            scrimColor = Color.Black.copy(alpha = 0.65f),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 8.dp)
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF5A5A5E))
+                )
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = "@${state.profile?.username.orEmpty()}",
+                    color = SubtleGray,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showFriendOptionsSheet = false
+                            showRemoveFriendDialog = true
+                        }
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Eliminar amigo",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showFriendOptionsSheet = false
+                            showBlockFriendDialog = true
+                        }
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = BadgeRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Bloquear usuario",
+                        color = BadgeRed,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
     if (showSettingsSheet) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -616,39 +701,18 @@ fun ProfileScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                    IconButton(
-                        onClick = { showFriendMenu = true },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Opciones",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showFriendMenu,
-                        onDismissRequest = { showFriendMenu = false },
-                        modifier = Modifier.background(SheetBackground)
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Eliminar amigo", color = Color.White) },
-                            onClick = {
-                                showFriendMenu = false
-                                showRemoveFriendDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Bloquear usuario", color = BadgeRed) },
-                            onClick = {
-                                showFriendMenu = false
-                                showBlockFriendDialog = true
-                            }
-                        )
-                    }
+                IconButton(
+                    onClick = { showFriendOptionsSheet = true },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Opciones",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             } else {
                 if (selectedTab == 1) {
