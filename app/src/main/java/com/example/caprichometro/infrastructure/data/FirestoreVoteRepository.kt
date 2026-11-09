@@ -4,17 +4,22 @@ import android.util.Log
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class FirestoreVoteRepository(
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : VoteRepository {
 
-    override suspend fun castVote(vote: Vote): Result<Unit> {
-        return try {
+    override suspend fun castVote(vote: Vote): Result<Unit> = withContext(ioDispatcher) {
+        try {
             val voteDoc = db.collection("caprices")
                 .document(vote.capriceId)
                 .collection("votes")
@@ -74,12 +79,12 @@ class FirestoreVoteRepository(
             }
 
         awaitClose { listener.remove() }
-    }
+    }.flowOn(ioDispatcher)
 
-    override suspend fun getVotes(capriceId: String): Result<List<Vote>> {
-        if (capriceId.isBlank()) return Result.success(emptyList())
+    override suspend fun getVotes(capriceId: String): Result<List<Vote>> = withContext(ioDispatcher) {
+        if (capriceId.isBlank()) return@withContext Result.success(emptyList())
 
-        return try {
+        try {
             val snapshot = db.collection("caprices")
                 .document(capriceId)
                 .collection("votes")
@@ -105,10 +110,10 @@ class FirestoreVoteRepository(
         }
     }
 
-    override suspend fun getUserVote(capriceId: String, voterId: String): Result<Vote?> {
-        if (capriceId.isBlank() || voterId.isBlank()) return Result.success(null)
+    override suspend fun getUserVote(capriceId: String, voterId: String): Result<Vote?> = withContext(ioDispatcher) {
+        if (capriceId.isBlank() || voterId.isBlank()) return@withContext Result.success(null)
 
-        return try {
+        try {
             val doc = db.collection("caprices")
                 .document(capriceId)
                 .collection("votes")

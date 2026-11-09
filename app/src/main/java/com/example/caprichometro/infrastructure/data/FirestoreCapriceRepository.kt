@@ -6,16 +6,19 @@ import com.example.caprichometro.domain.model.CapriceRepository
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-class FirestoreCapriceRepository : CapriceRepository {
+class FirestoreCapriceRepository(
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : CapriceRepository {
 
-    private val db = FirebaseFirestore.getInstance()
     private val collectionName = "caprices"
 
-    override suspend fun save(caprice: Caprice): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun save(caprice: Caprice): Result<String> = withContext(ioDispatcher) {
         try {
             val data = mutableMapOf<String, Any>(
                 "userId" to caprice.userId,
@@ -37,7 +40,7 @@ class FirestoreCapriceRepository : CapriceRepository {
     }
 
     override suspend fun getCaprices(userId: String, limit: Int): Result<List<Caprice>> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             try {
                 val documents = fetchCapriceDocuments(userId, limit)
                 val caprices = documents
@@ -53,7 +56,7 @@ class FirestoreCapriceRepository : CapriceRepository {
         }
 
     override suspend fun deleteCapricesForUser(userId: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (userId.isBlank()) return@withContext Result.success(Unit)
             try {
                 val snapshot = db.collection(collectionName)
@@ -64,11 +67,13 @@ class FirestoreCapriceRepository : CapriceRepository {
                 for (doc in snapshot.documents) {
                     val votesSnapshot = doc.reference.collection("votes").get().await()
                     if (!votesSnapshot.isEmpty) {
-                        val batch = db.batch()
-                        votesSnapshot.documents.forEach { voteDoc ->
-                            batch.delete(voteDoc.reference)
+                        votesSnapshot.documents.chunked(450).forEach { chunk ->
+                            val batch = db.batch()
+                            chunk.forEach { voteDoc ->
+                                batch.delete(voteDoc.reference)
+                            }
+                            batch.commit().await()
                         }
-                        batch.commit().await()
                     }
                     doc.reference.delete().await()
                 }

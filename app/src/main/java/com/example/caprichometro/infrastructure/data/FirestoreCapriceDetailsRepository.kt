@@ -7,17 +7,22 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
-class FirestoreCapriceDetailsRepository : CapriceDetailsRepository {
+class FirestoreCapriceDetailsRepository(
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : CapriceDetailsRepository {
 
-    private val db = FirebaseFirestore.getInstance()
     private val collectionName = "caprices"
 
-    override suspend fun getCapriceById(capriceId: String): Result<Caprice?> {
-        if (capriceId.isBlank()) return Result.success(null)
+    override suspend fun getCapriceById(capriceId: String): Result<Caprice?> = withContext(ioDispatcher) {
+        if (capriceId.isBlank()) return@withContext Result.success(null)
 
-        return try {
+        try {
             val docRef = db.collection(collectionName).document(capriceId)
             val snapshot = try {
                 docRef.get(Source.SERVER).await()

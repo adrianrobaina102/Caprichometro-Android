@@ -1,8 +1,10 @@
-﻿package com.example.caprichometro.infrastructure.data
+package com.example.caprichometro.infrastructure.data
 
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -10,13 +12,14 @@ import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 
 class FirestoreUserProfileRepository(
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : UserProfileRepository {
 
     // Cache en memoria para evitar llamadas redundantes de red a users/{uid}
     private val userProfileCache = ConcurrentHashMap<String, UserProfile>()
 
-    override suspend fun isUsernameAvailable(username: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    override suspend fun isUsernameAvailable(username: String): Result<Boolean> = withContext(ioDispatcher) {
         try {
             val document = db.collection("usernames").document(username).get().await()
             Result.success(!document.exists())
@@ -25,7 +28,7 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun saveProfile(profile: UserProfile): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun saveProfile(profile: UserProfile): Result<Unit> = withContext(ioDispatcher) {
         try {
             val userRef = db.collection("users").document(profile.uid)
             val usernameRef = db.collection("usernames").document(profile.username)
@@ -48,8 +51,8 @@ class FirestoreUserProfileRepository(
                     "uid" to profile.uid
                 )
 
-                transaction.set(userRef, userData)
-                transaction.set(usernameRef, usernameData)
+                transaction.set(userRef, userData, SetOptions.merge())
+                transaction.set(usernameRef, usernameData, SetOptions.merge())
             }.await()
 
             userProfileCache[profile.uid] = profile
@@ -59,7 +62,7 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun getUserById(userId: String): Result<UserProfile?> = withContext(Dispatchers.IO) {
+    override suspend fun getUserById(userId: String): Result<UserProfile?> = withContext(ioDispatcher) {
         if (userId.isBlank()) return@withContext Result.success(null)
 
         userProfileCache[userId]?.let { cached ->
@@ -77,7 +80,7 @@ class FirestoreUserProfileRepository(
                 return@withContext Result.success(null)
             }
 
-            val bio = userDoc.getString("bio")?.trim().orEmpty()
+            val bio = (userDoc.get("bio") as? String)?.trim().orEmpty()
 
             val createdAt = try {
                 userDoc.getTimestamp("createdAt")?.toDate()
@@ -101,7 +104,7 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun updateBio(userId: String, bio: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun updateBio(userId: String, bio: String): Result<Unit> = withContext(ioDispatcher) {
         if (userId.isBlank()) return@withContext Result.failure(IllegalArgumentException("El userId no puede estar vacío."))
         try {
             val trimmedBio = bio.trim()
@@ -118,7 +121,7 @@ class FirestoreUserProfileRepository(
         }
     }
 
-    override suspend fun deleteProfile(userId: String, username: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun deleteProfile(userId: String, username: String): Result<Unit> = withContext(ioDispatcher) {
         try {
             userProfileCache.remove(userId)
             val batch = db.batch()

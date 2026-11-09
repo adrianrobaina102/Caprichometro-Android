@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.infrastructure.data
+package com.example.caprichometro.infrastructure.data
 
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
@@ -8,14 +8,19 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Transaction
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.util.Date
 
 class FirestoreFriendshipRepository(
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : FriendshipRepository {
 
     private fun blockReference(blockerId: String, blockedUserId: String): DocumentReference {
@@ -35,21 +40,21 @@ class FirestoreFriendshipRepository(
         return outgoing.exists() || incoming.exists()
     }
 
-    override suspend fun searchUserByUsername(username: String): Result<UserProfile?> {
-        return try {
+    override suspend fun searchUserByUsername(username: String): Result<UserProfile?> = withContext(ioDispatcher) {
+        try {
             val usernameDoc = db.collection("usernames").document(username).get().await()
             if (!usernameDoc.exists()) {
-                return Result.success(null)
+                return@withContext Result.success(null)
             }
-            val uid = usernameDoc.getString("uid") ?: return Result.failure(Exception("UID no encontrado"))
+            val uid = usernameDoc.getString("uid") ?: return@withContext Result.failure(Exception("UID no encontrado"))
             val userDoc = db.collection("users").document(uid).get().await()
             if (!userDoc.exists()) {
-                return Result.success(null)
+                return@withContext Result.success(null)
             }
 
             val resolvedUsername = userDoc.getString("username")?.trim()
             if (resolvedUsername.isNullOrBlank()) {
-                return Result.success(null)
+                return@withContext Result.success(null)
             }
 
             val createdAt = try {
@@ -69,13 +74,13 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun sendFriendRequest(friendship: Friendship): Result<Unit> {
-        return try {
+    override suspend fun sendFriendRequest(friendship: Friendship): Result<Unit> = withContext(ioDispatcher) {
+        try {
             val sortedMembers = friendship.memberIDs.sorted()
             val friendshipId = sortedMembers.joinToString("_")
             val requesterId = friendship.requestedBy
             val recipientId = sortedMembers.firstOrNull { it != requesterId }
-                ?: return Result.failure(IllegalArgumentException("Destinatario inválido"))
+                ?: return@withContext Result.failure(IllegalArgumentException("Destinatario inválido"))
 
             val friendshipRef = db.collection("friendships").document(friendshipId)
 
@@ -113,8 +118,8 @@ class FirestoreFriendshipRepository(
     override suspend fun updateFriendshipStatus(
         friendshipId: String,
         status: FriendshipStatus
-    ): Result<Unit> {
-        return try {
+    ): Result<Unit> = withContext(ioDispatcher) {
+        try {
             val friendshipRef = db.collection("friendships").document(friendshipId)
 
             db.runTransaction { transaction ->
@@ -144,8 +149,8 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun removeFriendship(userId: String, friendId: String): Result<Unit> {
-        return try {
+    override suspend fun removeFriendship(userId: String, friendId: String): Result<Unit> = withContext(ioDispatcher) {
+        try {
             val friendshipId = listOf(userId, friendId).sorted().joinToString("_")
             val friendshipRef = db.collection("friendships").document(friendshipId)
 
@@ -173,8 +178,8 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun blockUser(blockerId: String, blockedUserId: String): Result<Unit> {
-        return try {
+    override suspend fun blockUser(blockerId: String, blockedUserId: String): Result<Unit> = withContext(ioDispatcher) {
+        try {
             val friendshipId = listOf(blockerId, blockedUserId).sorted().joinToString("_")
             val friendshipRef = db.collection("friendships").document(friendshipId)
             val blockRef = blockReference(blockerId, blockedUserId)
@@ -210,8 +215,8 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun unblockUser(blockerId: String, blockedUserId: String): Result<Unit> {
-        return try {
+    override suspend fun unblockUser(blockerId: String, blockedUserId: String): Result<Unit> = withContext(ioDispatcher) {
+        try {
             blockReference(blockerId, blockedUserId).delete().await()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -219,8 +224,8 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun getBlockedUserIds(userId: String): Result<List<String>> {
-        return try {
+    override suspend fun getBlockedUserIds(userId: String): Result<List<String>> = withContext(ioDispatcher) {
+        try {
             val snapshot = db.collection("userBlocks")
                 .document(userId)
                 .collection("blockedUsers")
@@ -233,10 +238,10 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun isBlocked(userId: String, otherUserId: String): Result<Boolean> {
-        return try {
+    override suspend fun isBlocked(userId: String, otherUserId: String): Result<Boolean> = withContext(ioDispatcher) {
+        try {
             val outgoing = blockReference(userId, otherUserId).get().await()
-            if (outgoing.exists()) return Result.success(true)
+            if (outgoing.exists()) return@withContext Result.success(true)
             val incoming = blockReference(otherUserId, userId).get().await()
             Result.success(incoming.exists())
         } catch (e: Exception) {
@@ -244,19 +249,21 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun deleteFriendshipsForUser(userId: String): Result<Unit> {
-        return try {
+    override suspend fun deleteFriendshipsForUser(userId: String): Result<Unit> = withContext(ioDispatcher) {
+        try {
             val snapshot = db.collection("friendships")
                 .whereArrayContains("memberIDs", userId)
                 .get()
                 .await()
 
             if (!snapshot.isEmpty) {
-                val batch = db.batch()
-                snapshot.documents.forEach { doc ->
-                    batch.delete(doc.reference)
+                snapshot.documents.chunked(450).forEach { chunk ->
+                    val batch = db.batch()
+                    chunk.forEach { doc ->
+                        batch.delete(doc.reference)
+                    }
+                    batch.commit().await()
                 }
-                batch.commit().await()
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -264,9 +271,9 @@ class FirestoreFriendshipRepository(
         }
     }
 
-    override suspend fun deleteBlocksForUser(userId: String): Result<Unit> {
-        if (userId.isBlank()) return Result.success(Unit)
-        return try {
+    override suspend fun deleteBlocksForUser(userId: String): Result<Unit> = withContext(ioDispatcher) {
+        if (userId.isBlank()) return@withContext Result.success(Unit)
+        try {
             val snapshot = db.collection("userBlocks")
                 .document(userId)
                 .collection("blockedUsers")
@@ -274,11 +281,13 @@ class FirestoreFriendshipRepository(
                 .await()
 
             if (!snapshot.isEmpty) {
-                val batch = db.batch()
-                snapshot.documents.forEach { doc ->
-                    batch.delete(doc.reference)
+                snapshot.documents.chunked(450).forEach { chunk ->
+                    val batch = db.batch()
+                    chunk.forEach { doc ->
+                        batch.delete(doc.reference)
+                    }
+                    batch.commit().await()
                 }
-                batch.commit().await()
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -352,5 +361,5 @@ class FirestoreFriendshipRepository(
                 }
             }
         awaitClose { subscription.remove() }
-    }
+    }.flowOn(ioDispatcher)
 }
