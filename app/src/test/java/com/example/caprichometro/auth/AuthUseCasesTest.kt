@@ -163,5 +163,47 @@ class AuthUseCasesTest {
             assertEquals("Error Firestore", result.exceptionOrNull()?.message)
             coVerify(exactly = 0) { authRepository.deleteAccount() }
         }
+
+        @Test
+        fun `propaga error si falla el borrado de caprichos`() = runTest {
+            val capriceRepo = mockk<CapriceRepository>()
+            coEvery { capriceRepo.deleteCapricesForUser("uid1") } returns Result.failure(Exception("Error Caprichos"))
+
+            val useCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepo)
+            val result = useCase.execute("uid1", "user1")
+
+            assertTrue(result.isFailure)
+            assertEquals("Error Caprichos", result.exceptionOrNull()?.message)
+            coVerify(exactly = 0) { friendshipRepository.deleteBlocksForUser("uid1") }
+            coVerify(exactly = 0) { userProfileRepository.deleteProfile(any(), any()) }
+            coVerify(exactly = 0) { authRepository.deleteAccount() }
+        }
+
+        @Test
+        fun `propaga error si falla el borrado de bloqueos`() = runTest {
+            coEvery { friendshipRepository.deleteBlocksForUser("uid1") } returns Result.failure(Exception("Error Bloqueos"))
+
+            val useCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
+            val result = useCase.execute("uid1", "user1")
+
+            assertTrue(result.isFailure)
+            assertEquals("Error Bloqueos", result.exceptionOrNull()?.message)
+            coVerify(exactly = 0) { friendshipRepository.deleteFriendshipsForUser("uid1") }
+            coVerify(exactly = 0) { userProfileRepository.deleteProfile(any(), any()) }
+            coVerify(exactly = 0) { authRepository.deleteAccount() }
+        }
+
+        @Test
+        fun `propaga error si falla el borrado de amistades`() = runTest {
+            coEvery { friendshipRepository.deleteFriendshipsForUser("uid1") } returns Result.failure(Exception("Error Amistades"))
+
+            val useCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository)
+            val result = useCase.execute("uid1", "user1")
+
+            assertTrue(result.isFailure)
+            assertEquals("Error Amistades", result.exceptionOrNull()?.message)
+            coVerify(exactly = 0) { userProfileRepository.deleteProfile(any(), any()) }
+            coVerify(exactly = 0) { authRepository.deleteAccount() }
+        }
     }
 }
