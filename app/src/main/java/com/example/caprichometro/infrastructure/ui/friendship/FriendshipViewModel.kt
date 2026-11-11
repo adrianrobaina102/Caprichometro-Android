@@ -10,8 +10,10 @@ import com.example.caprichometro.application.usecase.friendship.RespondToFriendR
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.domain.model.IncomingFriendRequest
+import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.model.UsernameRules
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -96,15 +98,36 @@ class FriendshipViewModel(
     }
 
     fun updateSearchQuery(query: String) {
+        val extracted = InviteDeepLink.extractUsername(query)
         _state.update {
             it.copy(
-                searchQuery = query,
+                searchQuery = extracted ?: query,
                 errorMessage = null,
                 userFound = null,
                 isFriendRequestBlocked = false,
                 requestSentSuccess = false
             )
         }
+        // Si el usuario acaba de pegar un enlace o mensaje de invitación, lanzamos la búsqueda al instante
+        if (extracted != null) {
+            searchUser()
+        }
+    }
+
+    fun openInviteForUsername(rawInviteOrUsername: String) {
+        val clean = InviteDeepLink.extractUsername(rawInviteOrUsername)
+            ?: UsernameRules.normalize(rawInviteOrUsername)
+        if (clean.isBlank()) return
+        _state.update {
+            it.copy(
+                searchQuery = clean,
+                errorMessage = null,
+                userFound = null,
+                isFriendRequestBlocked = false,
+                requestSentSuccess = false
+            )
+        }
+        searchUser()
     }
 
     fun clearError() {
@@ -112,11 +135,13 @@ class FriendshipViewModel(
     }
 
     fun searchUser() {
-        val query = _state.value.searchQuery
-        if (query.isBlank()) return
+        val rawQuery = _state.value.searchQuery
+        if (rawQuery.isBlank()) return
+        val query = InviteDeepLink.extractUsername(rawQuery) ?: rawQuery
 
         _state.update {
             it.copy(
+                searchQuery = query,
                 isLoading = true,
                 errorMessage = null,
                 userFound = null,

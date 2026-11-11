@@ -40,6 +40,7 @@ import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
 import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
+import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
@@ -142,10 +143,18 @@ fun CapriceApp(
     var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
     var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
 
-    // Intercepta notificaciones pulsadas (apertura exacta por capriceId)
+    // Intercepta enlaces de invitación (Deep Links) y notificaciones pulsadas
     LaunchedEffect(pendingIntent, authState.isAuthSuccessful, currentUserId) {
         val targetIntent = pendingIntent
         if (targetIntent != null && authState.isAuthSuccessful && currentUserId.isNotBlank()) {
+            val invitedUsername = InviteDeepLink.extractUsername(targetIntent.dataString)
+            if (invitedUsername != null) {
+                currentScreen = "add_friend"
+                friendshipViewModel.openInviteForUsername(invitedUsername)
+                onClearPendingIntent()
+                return@LaunchedEffect
+            }
+
             val capriceId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_ID)
                 ?: targetIntent.data?.lastPathSegment
             val navigateTo = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO)

@@ -12,6 +12,7 @@ import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCa
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import io.mockk.coEvery
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -46,6 +48,28 @@ class FriendshipUseCasesTest {
             assertTrue(result.isSuccess)
             assertEquals("adrian_dev", result.getOrNull()?.username)
             coVerify(exactly = 1) { friendshipRepository.searchUserByUsername("adrian_dev") }
+        }
+
+        @Test
+        fun `extrae el username automaticamente si el usuario pega un enlace o mensaje de invitacion`() = runTest {
+            val expectedProfile = UserProfile(uid = "uid_2", username = "dani_ios")
+            coEvery { friendshipRepository.searchUserByUsername("dani_ios") } returns Result.success(expectedProfile)
+
+            val fullShareMessage = InviteDeepLink.buildShareMessage("@Dani_iOS")
+            val result = useCase.execute(fullShareMessage)
+
+            assertTrue(result.isSuccess)
+            assertEquals("dani_ios", result.getOrNull()?.username)
+            coVerify(exactly = 1) { friendshipRepository.searchUserByUsername("dani_ios") }
+        }
+
+        @Test
+        fun `extrae el username desde deep link personalizado caprichometro o https`() {
+            assertEquals("adri_99", InviteDeepLink.extractUsername("caprichometro://invite/Adri_99"))
+            assertEquals("adri_99", InviteDeepLink.extractUsername("caprichometro://invite?username=Adri_99"))
+            assertEquals("adri_99", InviteDeepLink.extractUsername("https://caprichometro.app/invite/Adri_99"))
+            assertNull(InviteDeepLink.extractUsername("https://otraweb.com/invite/adri_99"))
+            assertNull(InviteDeepLink.extractUsername("texto normal sin enlace"))
         }
 
         @Test
