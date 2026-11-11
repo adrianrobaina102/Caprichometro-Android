@@ -27,7 +27,10 @@
       var params = new URLSearchParams(window.location.search);
       var rawUser = params.get("u") || params.get("username") || params.get("user") || window.location.hash.replace("#", "") || "";
       var user = rawUser.replace(/^@/, "").trim().toLowerCase();
-      var deepLink = user ? ("caprichometro://invite/" + encodeURIComponent(user)) : "caprichometro://invite";
+      var encoded = encodeURIComponent(user);
+      var deepLink = user
+        ? ("caprichometro://invite/" + encoded + "?username=" + encoded + "&user=" + encoded + "&u=" + encoded)
+        : "caprichometro://invite";
       if (user) {
         document.getElementById("avatar").textContent = user.charAt(0).toUpperCase();
         document.getElementById("title").textContent = "@" + user;
