@@ -55,6 +55,10 @@
                     android:scheme="https"
                     android:host="caprichometro.app"
                     android:pathPrefix="/invite" />
+                <data
+                    android:scheme="https"
+                    android:host="adrianrobaina102.github.io"
+                    android:pathPrefix="/Caprichometro-Android/invite" />
             </intent-filter>
         </activity>
 

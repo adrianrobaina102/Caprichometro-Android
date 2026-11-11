@@ -597,7 +597,7 @@ fun AddFriendScreen(
             },
             onCopyDirectLink = {
                 val linkToCopy = if (!usernameToShare.isNullOrBlank()) {
-                    InviteDeepLink.buildCustomUri(usernameToShare)
+                    InviteDeepLink.buildWebUrl(usernameToShare)
                 } else {
                     InviteDeepLink.buildShareMessage(null)
                 }
@@ -620,9 +620,9 @@ private fun InviteFriendBottomSheet(
     val cleanUsername = username?.removePrefix("@")?.trim().orEmpty()
     val displayUsername = if (cleanUsername.isNotEmpty()) "@$cleanUsername" else "Tu círculo"
     val directUri = if (cleanUsername.isNotEmpty()) {
-        InviteDeepLink.buildCustomUri(cleanUsername)
+        InviteDeepLink.buildWebUrl(cleanUsername)
     } else {
-        "caprichometro://invite"
+        "https://adrianrobaina102.github.io/Caprichometro-Android/invite"
     }
 
     ModalBottomSheet(

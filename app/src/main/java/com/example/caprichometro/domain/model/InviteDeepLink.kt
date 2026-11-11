@@ -9,15 +9,16 @@ object InviteDeepLink {
 
     const val SCHEME = "caprichometro"
     const val HOST_INVITE = "invite"
-    const val WEB_HOST = "caprichometro.app"
+    const val WEB_HOST = "adrianrobaina102.github.io"
+    const val WEB_PATH = "/Caprichometro-Android/invite"
 
     private val customUriRegex = Regex(
-        pattern = """caprichometro://invite(?:/([a-zA-Z0-9_]{3,20})|\?(?:[^#\s]*&)?(?:username|user)=@?([a-zA-Z0-9_]{3,20}))""",
+        pattern = """caprichometro://invite(?:/([a-zA-Z0-9_]{3,20})|/?\?(?:[^#\s]*&)?(?:u|username|user)=@?([a-zA-Z0-9_]{3,20}))""",
         option = RegexOption.IGNORE_CASE
     )
 
     private val webUrlRegex = Regex(
-        pattern = """https?://(?:www\.)?caprichometro\.app/invite(?:/@?([a-zA-Z0-9_]{3,20})|\?(?:[^#\s]*&)?(?:username|user)=@?([a-zA-Z0-9_]{3,20}))""",
+        pattern = """https?://(?:(?:www\.)?caprichometro\.app|adrianrobaina102\.github\.io/Caprichometro-Android)/invite(?:/@?([a-zA-Z0-9_]{3,20})|/?\?(?:[^#\s]*&)?(?:u|username|user)=@?([a-zA-Z0-9_]{3,20}))""",
         option = RegexOption.IGNORE_CASE
     )
 
@@ -33,7 +34,7 @@ object InviteDeepLink {
 
     fun buildWebUrl(username: String): String {
         val clean = UsernameRules.normalize(username)
-        return "https://$WEB_HOST/$HOST_INVITE/$clean"
+        return "https://$WEB_HOST$WEB_PATH/?u=$clean"
     }
 
     fun buildShareMessage(username: String?): String {
