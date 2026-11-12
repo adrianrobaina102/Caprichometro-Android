@@ -117,6 +117,7 @@ fun CapriceApp(
 ) {
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
+    val friendshipState by friendshipViewModel.state.collectAsState()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
     // Solicitud del permiso de notificaciones en tiempo de ejecución (Android 13+ / API 33+)
@@ -281,6 +282,7 @@ fun CapriceApp(
                             "create" -> {
                                 CapriceScreen(
                                     viewModel = capriceViewModel,
+                                    friends = friendshipState.friends,
                                     onNavigateToActivePoll = {
                                         selectedProfileCaprice = null
                                         currentScreen = "active"

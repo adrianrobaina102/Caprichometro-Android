@@ -11,12 +11,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
 import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
@@ -57,6 +61,7 @@ private val TextGray = Color(0xFFAAAAAA)
 @Composable
 fun CapriceScreen(
     viewModel: CapriceViewModel,
+    friends: List<UserProfile> = emptyList(),
     onNavigateToActivePoll: () -> Unit
 ) {
     val context = LocalContext.current
@@ -69,7 +74,23 @@ fun CapriceScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoSourceSheet by remember { mutableStateOf(false) }
+    var showAudienceSheet by remember { mutableStateOf(false) }
+    var selectAllFriends by remember { mutableStateOf(true) }
+    var customSelectedFriendIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isSubmitting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(friends) {
+        val validIds = friends.map { it.uid }.toSet()
+        customSelectedFriendIds = customSelectedFriendIds.intersect(validIds)
+    }
+
+    val effectiveSelectedFriendIds = remember(selectAllFriends, customSelectedFriendIds, friends) {
+        if (selectAllFriends) {
+            friends.map { it.uid }.toSet()
+        } else {
+            customSelectedFriendIds
+        }
+    }
 
     // Launcher de la galería nativa (PickVisualMedia)
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -188,11 +209,14 @@ fun CapriceScreen(
                             questionText = questionText.trim(),
                             answer1 = answer1.trim(),
                             answer2 = answer2.trim(),
-                            imageBytes = imageBytes
+                            imageBytes = imageBytes,
+                            visibleToUserIds = effectiveSelectedFriendIds.toList()
                         )
 
                         isSubmitting = false
                         if (saveResult.isSuccess) {
+                            selectAllFriends = true
+                            customSelectedFriendIds = emptySet()
                             PollNotificationHelper.showCapriceCreatedNotification(context, questionText.trim())
                             onNavigateToActivePoll()
                         } else {
@@ -456,19 +480,38 @@ fun CapriceScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            val audienceTitle = when {
+                friends.isEmpty() -> "Visible solo para ti (sin amigos aún)"
+                selectAllFriends || effectiveSelectedFriendIds.size == friends.size ->
+                    "Visible para todos tus amigos (${friends.size})"
+                effectiveSelectedFriendIds.isEmpty() -> "Visible solo para ti (0 amigos)"
+                else -> "Visible para ${effectiveSelectedFriendIds.size} de ${friends.size} amigos"
+            }
+            val audienceSubtitle = when {
+                friends.isEmpty() -> "Añade amigos para enviarles tus votaciones."
+                else -> "Toca para elegir quién recibe este capricho."
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(DarkSurface, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurface)
+                    .clickable { showAudienceSheet = true }
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Default.Group, contentDescription = null, tint = LimeGreen)
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(text = "Visible solo para tus amigos", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text(text = "Tus amigos recibirán la votación en tiempo real.", color = TextGray, fontSize = 12.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = audienceTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(text = audienceSubtitle, color = TextGray, fontSize = 12.sp)
                 }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Elegir amigos",
+                    tint = TextGray
+                )
             }
 
             Spacer(modifier = Modifier.height(30.dp))
@@ -582,6 +625,137 @@ fun CapriceScreen(
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
+                }
+            }
+        }
+
+        if (showAudienceSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showAudienceSheet = false },
+                containerColor = Color(0xFF1A1A1E),
+                contentColor = Color.White
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "¿A qué amigos enviarlo?",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        if (friends.isNotEmpty()) {
+                            val allSelected = selectAllFriends || effectiveSelectedFriendIds.size == friends.size
+                            TextButton(
+                                onClick = {
+                                    if (allSelected) {
+                                        selectAllFriends = false
+                                        customSelectedFriendIds = emptySet()
+                                    } else {
+                                        selectAllFriends = true
+                                        customSelectedFriendIds = emptySet()
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = if (allSelected) "Ninguno" else "Todos",
+                                    color = LimeGreen,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (friends.isEmpty()) {
+                        Text(
+                            text = "Todavía no tienes amigos aceptados en tu lista.",
+                            color = TextGray,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(vertical = 20.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                        ) {
+                            val toggleFriendSelection = { friendUid: String ->
+                                val updated = if (friendUid in effectiveSelectedFriendIds) {
+                                    effectiveSelectedFriendIds - friendUid
+                                } else {
+                                    effectiveSelectedFriendIds + friendUid
+                                }
+                                if (updated.size == friends.size) {
+                                    selectAllFriends = true
+                                    customSelectedFriendIds = emptySet()
+                                } else {
+                                    selectAllFriends = false
+                                    customSelectedFriendIds = updated
+                                }
+                            }
+                            items(friends, key = { it.uid }) { friend ->
+                                val isChecked = friend.uid in effectiveSelectedFriendIds
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { toggleFriendSelection(friend.uid) }
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { toggleFriendSelection(friend.uid) },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = LimeGreen,
+                                            checkmarkColor = Color.Black,
+                                            uncheckedColor = TextGray
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "@${friend.username}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = { showAudienceSheet = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = LimeGreen,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text(
+                            text = "Listo",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }

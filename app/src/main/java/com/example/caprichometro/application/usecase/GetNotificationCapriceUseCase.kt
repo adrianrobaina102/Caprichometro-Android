@@ -40,10 +40,10 @@ class GetNotificationCapriceUseCase(
         val acceptedFriends = getAcceptedFriendsUseCase.execute(recipientUserId).first()
         val authorFriend = acceptedFriends.find { it.uid == caprice.userId }
 
-        if (authorFriend != null) {
+        if (authorFriend != null && caprice.isVisibleTo(recipientUserId)) {
             CapriceFeedItem(caprice = caprice, author = authorFriend)
         } else {
-            // Acceso denegado: el autor no es un amigo aceptado
+            // Acceso denegado: el autor no es amigo aceptado o el capricho no incluye al receptor
             null
         }
     }

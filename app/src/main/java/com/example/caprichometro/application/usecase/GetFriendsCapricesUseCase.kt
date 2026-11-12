@@ -40,6 +40,7 @@ class GetFriendsCapricesUseCase(
                         semaphore.withPermit {
                             val caprices = capriceRepository.getCaprices(friend.uid, perFriendLimit)
                                 .getOrDefault(emptyList())
+                                .filter { it.isVisibleTo(currentUserId) }
                             caprices.map { caprice ->
                                 CapriceFeedItem(caprice = caprice, author = friend)
                             }

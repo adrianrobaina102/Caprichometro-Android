@@ -17,7 +17,8 @@ class NotifyFriendCapriceUseCase(
     private val historyRepository: CapriceNotificationHistoryRepository
 ) {
     /**
-     * Consulta el último capricho (limit = 1) de cada amigo aceptado en Firestore de forma concurrente.
+     * Consulta los caprichos recientes de cada amigo aceptado en Firestore de forma concurrente
+     * y toma el más reciente visible para [recipientUserId].
      * Si no se había notificado previamente para esta cuenta receptora, invoca [onNotify]
      * y actualiza el checkpoint en el historial local para no repetirlo.
      */
@@ -34,8 +35,10 @@ class NotifyFriendCapriceUseCase(
             coroutineScope {
                 acceptedFriends.map { friend ->
                     async {
-                        val capricesResult = capriceRepository.getCaprices(friend.uid, limit = 1)
-                        val latestCaprice = capricesResult.getOrNull()?.firstOrNull() ?: return@async null
+                        val capricesResult = capriceRepository.getCaprices(friend.uid, limit = 20)
+                        val latestCaprice = capricesResult.getOrNull()
+                            ?.firstOrNull { it.isVisibleTo(recipientUserId) }
+                            ?: return@async null
 
                         val lastId = historyRepository.getLastNotifiedCapriceId(recipientUserId, friend.uid)
                         val lastTs = historyRepository.getLastNotifiedTimestamp(recipientUserId, friend.uid)

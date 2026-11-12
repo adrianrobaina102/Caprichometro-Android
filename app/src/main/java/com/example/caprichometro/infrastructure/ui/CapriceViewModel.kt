@@ -55,7 +55,8 @@ class CapriceViewModel(
         questionText: String,
         answer1: String,
         answer2: String,
-        imageBytes: ByteArray? = null
+        imageBytes: ByteArray? = null,
+        visibleToUserIds: List<String>? = null
     ): Result<Caprice> {
         val uid = currentUserId
         if (uid.isBlank()) return Result.failure(IllegalStateException("No hay sesión activa"))
@@ -65,6 +66,10 @@ class CapriceViewModel(
             .setType(type)
             .setQuestion(questionText)
             .setOptions(answer1, answer2)
+
+        if (visibleToUserIds != null) {
+            capriceBuilder.setVisibleToUserIds(listOf(uid) + visibleToUserIds)
+        }
 
         val preliminaryCaprice = capriceBuilder.build()
         _state.update { it.copy(isLoading = true, error = null) }

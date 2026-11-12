@@ -31,6 +31,11 @@ class FirestoreCapriceRepository(
             if (caprice.imageUrl.isNotBlank()) {
                 data["imageUrl"] = caprice.imageUrl
             }
+            if (caprice.visibleToUserIds.isNotEmpty()) {
+                data["visibleToUserIds"] = (listOf(caprice.userId) + caprice.visibleToUserIds)
+                    .filter { it.isNotBlank() }
+                    .distinct()
+            }
             val document = db.collection(collectionName).add(data).await()
             Result.success(document.id)
         } catch (e: Exception) {
@@ -44,7 +49,7 @@ class FirestoreCapriceRepository(
             try {
                 val documents = fetchCapriceDocuments(userId, limit)
                 val caprices = documents
-                    .mapNotNull { doc -> parseCapriceDocument(doc) }
+                    .mapNotNull { doc -> doc.toCapriceOrNull("FirestoreCapriceRepo") }
                     .sortedByDescending { it.timestamp }
                     .take(limit)
 
@@ -93,39 +98,6 @@ class FirestoreCapriceRepository(
         } catch (e: Exception) {
             Log.w("FirestoreCapriceRepo", "Error en fetchCapriceDocuments para $userId: ${e.message}")
             emptyList()
-        }
-    }
-
-    private fun parseCapriceDocument(doc: DocumentSnapshot): Caprice? {
-        return try {
-            val rawTimestamp = doc.get("timestamp")
-            val parsedTimestamp = when (rawTimestamp) {
-                is Number -> rawTimestamp.toLong()
-                is Timestamp -> rawTimestamp.toDate().time
-                is String -> rawTimestamp.toLongOrNull() ?: 0L
-                else -> 0L
-            }
-
-            val question = doc.getString("question")?.trim().orEmpty()
-            val answer1 = doc.getString("answer1")?.trim().orEmpty()
-            val answer2 = doc.getString("answer2")?.trim().orEmpty()
-            if (question.isEmpty() || answer1.isEmpty() || answer2.isEmpty()) {
-                return null
-            }
-
-            Caprice(
-                id = doc.id,
-                userId = doc.getString("userId") ?: "",
-                type = doc.getString("type") ?: "Compra",
-                question = question,
-                answer1 = answer1,
-                answer2 = answer2,
-                imageUrl = doc.getString("imageUrl").orEmpty(),
-                timestamp = parsedTimestamp
-            )
-        } catch (e: Exception) {
-            Log.e("FirestoreCapriceRepo", "Documento caprice inválido ${doc.id}: ${e.message}", e)
-            null
         }
     }
 }

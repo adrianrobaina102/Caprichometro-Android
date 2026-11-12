@@ -133,7 +133,7 @@ class FriendNotificationsUseCasesTest {
         )
 
         coEvery { getAcceptedFriendsUseCase.execute("user_me") } returns flowOf(listOf(friend))
-        coEvery { capriceRepository.getCaprices("friend_1", limit = 1) } returns Result.success(listOf(caprice))
+        coEvery { capriceRepository.getCaprices("friend_1", limit = 20) } returns Result.success(listOf(caprice))
         every { historyRepository.getLastNotifiedCapriceId("user_me", "friend_1") } returns null
         every { historyRepository.getLastNotifiedTimestamp("user_me", "friend_1") } returns 0L
         every { historyRepository.setLastNotified("user_me", "friend_1", "cap_new", 5000L) } returns Unit
@@ -164,7 +164,7 @@ class FriendNotificationsUseCasesTest {
         )
 
         coEvery { getAcceptedFriendsUseCase.execute("user_me") } returns flowOf(listOf(friend))
-        coEvery { capriceRepository.getCaprices("friend_1", limit = 1) } returns Result.success(listOf(caprice))
+        coEvery { capriceRepository.getCaprices("friend_1", limit = 20) } returns Result.success(listOf(caprice))
         // Ya figura en el historial local
         every { historyRepository.getLastNotifiedCapriceId("user_me", "friend_1") } returns "cap_old"
         every { historyRepository.getLastNotifiedTimestamp("user_me", "friend_1") } returns 5000L

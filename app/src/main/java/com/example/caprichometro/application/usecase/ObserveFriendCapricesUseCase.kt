@@ -27,7 +27,9 @@ class ObserveFriendCapricesUseCase(
                         launch {
                             observationRepository.observeFriendCaprices(friend.uid, sinceTimestamp)
                                 .collect { caprice ->
-                                    send(CapriceFeedItem(caprice = caprice, author = friend))
+                                    if (caprice.isVisibleTo(currentUserId)) {
+                                        send(CapriceFeedItem(caprice = caprice, author = friend))
+                                    }
                                 }
                         }
                     }

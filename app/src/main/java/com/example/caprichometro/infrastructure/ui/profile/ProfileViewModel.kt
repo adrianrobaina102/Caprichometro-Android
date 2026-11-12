@@ -154,7 +154,12 @@ class ProfileViewModel(
                     }
                 }
 
-                val loadedCaprices = capricesDeferred.await()
+                val rawCaprices = capricesDeferred.await()
+                val loadedCaprices = if (isOwn) {
+                    rawCaprices
+                } else {
+                    rawCaprices.filter { it.isVisibleTo(currentUserId) }
+                }
                 val cachedVerdicts = loadedCaprices.mapNotNull { caprice ->
                     verdictCache[caprice.id]?.let { caprice.id to it.toAcceptedOrNull() }
                 }.toMap()
