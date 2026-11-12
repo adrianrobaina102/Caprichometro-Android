@@ -261,38 +261,73 @@ fun ProfileScreen(
     }
 
     if (showEditBioDialog) {
-        var tempBio by remember(state.profile?.bio) { mutableStateOf(state.profile?.bio.orEmpty()) }
+        var tempBio by remember(showEditBioDialog, state.profile?.uid) {
+            mutableStateOf(state.profile?.bio.orEmpty())
+        }
         AlertDialog(
-            onDismissRequest = { showEditBioDialog = false },
+            onDismissRequest = {
+                if (!state.isSavingBio) {
+                    viewModel.clearBioError()
+                    showEditBioDialog = false
+                }
+            },
             title = { Text("Editar perfil", color = Color.White, fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(
-                    value = tempBio,
-                    onValueChange = { tempBio = it },
-                    label = { Text("Biografía", color = SubtleGray) },
-                    placeholder = { Text("Escribe algo sobre ti...", color = SubtleGray.copy(alpha = 0.5f)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = LimeGreen,
-                        unfocusedBorderColor = DividerDark
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = tempBio,
+                        onValueChange = { tempBio = it },
+                        enabled = !state.isSavingBio,
+                        label = { Text("Biografía", color = SubtleGray) },
+                        placeholder = { Text("Escribe algo sobre ti...", color = SubtleGray.copy(alpha = 0.5f)) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            disabledTextColor = SubtleGray,
+                            focusedBorderColor = LimeGreen,
+                            unfocusedBorderColor = DividerDark,
+                            disabledBorderColor = DividerDark
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    state.bioErrorMessage?.let { bioError ->
+                        Text(
+                            text = bioError,
+                            color = BadgeRed,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
+                    enabled = !state.isSavingBio,
                     onClick = {
-                        viewModel.updateBio(currentUserId, tempBio)
-                        showEditBioDialog = false
+                        viewModel.updateBio(currentUserId, tempBio) {
+                            showEditBioDialog = false
+                        }
                     }
                 ) {
-                    Text("Guardar", color = LimeGreen, fontWeight = FontWeight.Bold)
+                    if (state.isSavingBio) {
+                        CircularProgressIndicator(
+                            color = LimeGreen,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    } else {
+                        Text("Guardar", color = LimeGreen, fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditBioDialog = false }) {
-                    Text("Cancelar", color = Color.White)
+                TextButton(
+                    enabled = !state.isSavingBio,
+                    onClick = {
+                        viewModel.clearBioError()
+                        showEditBioDialog = false
+                    }
+                ) {
+                    Text("Cancelar", color = if (state.isSavingBio) SubtleGray else Color.White)
                 }
             },
             containerColor = SheetBackground
@@ -416,6 +451,7 @@ fun ProfileScreen(
                         title = "Editar perfil",
                         onClick = {
                             showSettingsSheet = false
+                            viewModel.clearBioError()
                             showEditBioDialog = true
                         }
                     )
@@ -799,6 +835,7 @@ fun ProfileScreen(
                         .background(LimeGreen)
                         .border(2.5.dp, DarkBackground, CircleShape)
                         .clickable {
+                            viewModel.clearBioError()
                             showEditBioDialog = true
                         },
                     contentAlignment = Alignment.Center

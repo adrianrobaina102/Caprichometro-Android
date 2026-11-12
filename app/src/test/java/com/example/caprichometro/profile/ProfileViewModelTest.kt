@@ -186,11 +186,70 @@ class ProfileViewModelTest {
         advanceUntilIdle()
         assertThat(viewModel.state.value.profile?.bio).isEqualTo("Vieja bio")
 
-        viewModel.updateBio(myUid, "Nueva bio genial")
+        var onSuccessCalled = false
+        viewModel.updateBio(myUid, "Nueva bio genial") { onSuccessCalled = true }
         advanceUntilIdle()
 
+        assertTrue(onSuccessCalled)
+        assertThat(viewModel.state.value.isSavingBio).isFalse()
+        assertThat(viewModel.state.value.bioErrorMessage).isNull()
         assertThat(viewModel.state.value.profile?.bio).isEqualTo("Nueva bio genial")
         coVerify(exactly = 1) { userProfileRepository.updateBio(myUid, "Nueva bio genial") }
+    }
+
+    @Test
+    fun `updateBio mantiene el dialogo abierto y muestra bioErrorMessage si falla`() = runTest {
+        val myUid = "user_me"
+        val myUser = User(id = myUid, email = "me@test.com", name = "Adrian")
+        val initialProfile = UserProfile(uid = myUid, username = "adrian", bio = "Vieja bio")
+
+        every { getCurrentUserUseCase.execute() } returns myUser
+        coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(initialProfile)
+        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
+        coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
+        coEvery { userProfileRepository.updateBio(myUid, "Borrador sin guardar") } returns Result.failure(RuntimeException("Sin conexión"))
+
+        viewModel.loadProfile(myUid, myUid)
+        advanceUntilIdle()
+
+        var onSuccessCalled = false
+        viewModel.updateBio(myUid, "Borrador sin guardar") { onSuccessCalled = true }
+        advanceUntilIdle()
+
+        assertThat(onSuccessCalled).isFalse()
+        assertThat(viewModel.state.value.isSavingBio).isFalse()
+        assertThat(viewModel.state.value.bioErrorMessage).isEqualTo("Sin conexión")
+        assertThat(viewModel.state.value.profile?.bio).isEqualTo("Vieja bio")
+    }
+
+    @Test
+    fun `updateBio descarta la respuesta tardia si la sesion se reinicia antes de completar`() = runTest {
+        val myUid = "user_me"
+        val myUser = User(id = myUid, email = "me@test.com", name = "Adrian")
+        val initialProfile = UserProfile(uid = myUid, username = "adrian", bio = "Vieja bio")
+
+        every { getCurrentUserUseCase.execute() } returns myUser
+        coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(initialProfile)
+        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
+        coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
+        coEvery { userProfileRepository.updateBio(myUid, "Bio tardía") } coAnswers {
+            kotlinx.coroutines.delay(500)
+            Result.success(Unit)
+        }
+
+        viewModel.loadProfile(myUid, myUid)
+        advanceUntilIdle()
+
+        var onSuccessCalled = false
+        viewModel.updateBio(myUid, "Bio tardía") { onSuccessCalled = true }
+        viewModel.reset()
+        advanceUntilIdle()
+
+        assertThat(onSuccessCalled).isFalse()
+        assertThat(viewModel.state.value.isSavingBio).isFalse()
+        assertThat(viewModel.state.value.profile).isNull()
     }
 
     @Test

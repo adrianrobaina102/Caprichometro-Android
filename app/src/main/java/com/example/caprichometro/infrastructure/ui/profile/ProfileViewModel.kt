@@ -41,6 +41,8 @@ data class ProfileState(
     val blockedUsers: List<UserProfile> = emptyList(),
     val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opcion 1 ganadora), false (opcion 2 ganadora), null (empate/sin votos/activa)
     val isOwnProfile: Boolean = true,
+    val isSavingBio: Boolean = false,
+    val bioErrorMessage: String? = null,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
 )
@@ -73,8 +75,10 @@ class ProfileViewModel(
 
     // Cache en memoria thread-safe para veredictos de dudas cerradas (inmutables)
     private val verdictCache = ConcurrentHashMap<String, CachedVerdict>()
+    private var sessionGeneration = 0L
 
     fun reset() {
+        sessionGeneration++
         _state.value = ProfileState()
         verdictCache.clear()
     }
@@ -86,6 +90,9 @@ class ProfileViewModel(
         val email = if (isOwn) getCurrentUserUseCase.execute()?.email.orEmpty() else ""
 
         val isDifferentUser = _state.value.profile?.uid != targetUserId
+        if (isDifferentUser) {
+            sessionGeneration++
+        }
         _state.update {
             it.copy(
                 isLoading = true,
@@ -194,21 +201,41 @@ class ProfileViewModel(
         }
     }
 
-    fun updateBio(userId: String, newBio: String) {
-        if (userId.isBlank()) return
+    fun clearBioError() {
+        _state.update { it.copy(bioErrorMessage = null) }
+    }
+
+    fun updateBio(userId: String, newBio: String, onSuccess: () -> Unit = {}) {
+        if (userId.isBlank() || _state.value.isSavingBio) return
+        val requestSession = sessionGeneration
+        _state.update { it.copy(isSavingBio = true, bioErrorMessage = null) }
+
         viewModelScope.launch {
             val result = updateBioUseCase.execute(userId, newBio)
+            // Descartar respuestas tardías si se cerró sesión o cambió la cuenta activa
+            val currentLoadedUid = _state.value.profile?.uid
+            if (requestSession != sessionGeneration || (currentLoadedUid != null && currentLoadedUid != userId)) {
+                return@launch
+            }
             result.fold(
                 onSuccess = {
                     val trimmed = newBio.trim()
                     _state.update { current ->
                         current.copy(
+                            isSavingBio = false,
+                            bioErrorMessage = null,
                             profile = current.profile?.copy(bio = trimmed)
                         )
                     }
+                    onSuccess()
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(errorMessage = error.message ?: "No se pudo actualizar la biografia") }
+                    _state.update {
+                        it.copy(
+                            isSavingBio = false,
+                            bioErrorMessage = error.message ?: "No se pudo actualizar la biografía."
+                        )
+                    }
                 }
             )
         }
