@@ -49,12 +49,10 @@ fun HomeScreen(
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
 
-    // Carga inicial al entrar en la pestaña de Inicio solo si no hay datos en memoria
+    // Carga inicial al entrar en la pestaña de Inicio solo si no se ha cargado aún en esta sesión
     LaunchedEffect(Unit) {
         nowMillis = System.currentTimeMillis()
-        if (state.feedItems.isEmpty()) {
-            viewModel.loadFriendsFeed()
-        }
+        viewModel.loadFriendsFeedIfNeeded()
     }
 
     // Reloj de refresco cada 60s para recalcular "Ahora / Xm / Xh / Xd" y el estado temporal sin consultar Firestore

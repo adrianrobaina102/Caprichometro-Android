@@ -330,6 +330,43 @@ class FriendshipUseCasesTest {
             assertTrue(friends.isEmpty())
             coVerify(exactly = 0) { userProfileRepository.getUserById(blockedFriendId) }
         }
+
+        @Test
+        fun `descarta en lote amigos bloqueados por el usuario actual sin llamar a isBlocked ni getUserById`() = runTest {
+            val myId = "user_me"
+            val blockedId = "user_blocked_batch"
+            val activeId = "user_active"
+            val f1 = Friendship(
+                id = "${myId}_${blockedId}",
+                memberIDs = listOf(myId, blockedId),
+                requestedBy = myId,
+                status = FriendshipStatus.ACCEPTED,
+                createdAt = Date(),
+                updatedAt = Date()
+            )
+            val f2 = Friendship(
+                id = "${myId}_${activeId}",
+                memberIDs = listOf(myId, activeId),
+                requestedBy = myId,
+                status = FriendshipStatus.ACCEPTED,
+                createdAt = Date(),
+                updatedAt = Date()
+            )
+            val activeProfile = UserProfile(uid = activeId, username = "activo")
+
+            coEvery { friendshipRepository.getFriendships(myId) } returns flowOf(listOf(f1, f2))
+            coEvery { friendshipRepository.getBlockedUserIds(myId) } returns Result.success(listOf(blockedId))
+            coEvery { friendshipRepository.isBlocked(myId, activeId) } returns Result.success(false)
+            coEvery { userProfileRepository.getUserById(activeId) } returns Result.success(activeProfile)
+
+            val friends = useCase.execute(myId).first()
+
+            assertEquals(1, friends.size)
+            assertEquals("activo", friends[0].username)
+            coVerify(exactly = 1) { friendshipRepository.getBlockedUserIds(myId) }
+            coVerify(exactly = 0) { friendshipRepository.isBlocked(myId, blockedId) }
+            coVerify(exactly = 0) { userProfileRepository.getUserById(blockedId) }
+        }
     }
 
     @Nested

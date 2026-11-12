@@ -25,7 +25,8 @@ data class CapriceState(
     val error: String? = null,
     val feedItems: List<CapriceFeedItem> = emptyList(),
     val isFeedLoading: Boolean = false,
-    val feedError: String? = null
+    val feedError: String? = null,
+    val hasLoadedFeed: Boolean = false
 )
 
 class CapriceViewModel(
@@ -116,6 +117,12 @@ class CapriceViewModel(
         }
     }
 
+    fun loadFriendsFeedIfNeeded() {
+        if (!_state.value.hasLoadedFeed && !_state.value.isFeedLoading) {
+            loadFriendsFeed()
+        }
+    }
+
     fun loadFriendsFeed() {
         val uid = currentUserId
         val useCase = getFriendsCapricesUseCase ?: return
@@ -129,7 +136,14 @@ class CapriceViewModel(
             result.fold(
                 onSuccess = { items ->
                     Log.d("CapriceViewModel", "loadFriendsFeed(uid=$uid) -> ${items.size} items en el feed")
-                    _state.update { it.copy(isFeedLoading = false, feedItems = items, feedError = null) }
+                    _state.update {
+                        it.copy(
+                            isFeedLoading = false,
+                            feedItems = items,
+                            feedError = null,
+                            hasLoadedFeed = true
+                        )
+                    }
                 },
                 onFailure = { e ->
                     if (e is CancellationException) return@fold

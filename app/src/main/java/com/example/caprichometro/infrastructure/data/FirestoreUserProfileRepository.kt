@@ -13,11 +13,21 @@ import java.util.concurrent.ConcurrentHashMap
 
 class FirestoreUserProfileRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val clockMillis: () -> Long = { System.currentTimeMillis() }
 ) : UserProfileRepository {
 
-    // Cache en memoria para evitar llamadas redundantes de red a users/{uid}
-    private val userProfileCache = ConcurrentHashMap<String, UserProfile>()
+    private data class CachedProfileEntry(
+        val profile: UserProfile,
+        val cachedAtMillis: Long
+    )
+
+    companion object {
+        internal const val PROFILE_CACHE_TTL_MS = 60_000L
+    }
+
+    // Cache en memoria con TTL de 60s para evitar llamadas redundantes y refrescar cambios recientes
+    private val userProfileCache = ConcurrentHashMap<String, CachedProfileEntry>()
 
     override suspend fun isUsernameAvailable(username: String): Result<Boolean> = withContext(ioDispatcher) {
         try {
@@ -55,7 +65,7 @@ class FirestoreUserProfileRepository(
                 transaction.set(usernameRef, usernameData, SetOptions.merge())
             }.await()
 
-            userProfileCache[profile.uid] = profile
+            userProfileCache[profile.uid] = CachedProfileEntry(profile, clockMillis())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -65,8 +75,12 @@ class FirestoreUserProfileRepository(
     override suspend fun getUserById(userId: String): Result<UserProfile?> = withContext(ioDispatcher) {
         if (userId.isBlank()) return@withContext Result.success(null)
 
-        userProfileCache[userId]?.let { cached ->
-            return@withContext Result.success(cached)
+        userProfileCache[userId]?.let { entry ->
+            if ((clockMillis() - entry.cachedAtMillis) < PROFILE_CACHE_TTL_MS) {
+                return@withContext Result.success(entry.profile)
+            } else {
+                userProfileCache.remove(userId, entry)
+            }
         }
 
         try {
@@ -97,7 +111,7 @@ class FirestoreUserProfileRepository(
                 createdAt = createdAt,
                 bio = bio
             )
-            userProfileCache[userId] = profile
+            userProfileCache[userId] = CachedProfileEntry(profile, clockMillis())
             Result.success(profile)
         } catch (e: Exception) {
             Result.failure(e)
@@ -112,8 +126,11 @@ class FirestoreUserProfileRepository(
                 .update("bio", trimmedBio)
                 .await()
 
-            userProfileCache[userId]?.let { current ->
-                userProfileCache[userId] = current.copy(bio = trimmedBio)
+            userProfileCache[userId]?.let { entry ->
+                userProfileCache[userId] = CachedProfileEntry(
+                    profile = entry.profile.copy(bio = trimmedBio),
+                    cachedAtMillis = clockMillis()
+                )
             }
             Result.success(Unit)
         } catch (e: Exception) {

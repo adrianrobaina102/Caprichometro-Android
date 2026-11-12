@@ -18,6 +18,7 @@ import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -28,6 +29,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 
 private enum class CachedVerdict { ACCEPTED, REJECTED, TIE_OR_NONE }
@@ -76,15 +79,30 @@ class ProfileViewModel(
     // Cache en memoria thread-safe para veredictos de dudas cerradas (inmutables)
     private val verdictCache = ConcurrentHashMap<String, CachedVerdict>()
     private var sessionGeneration = 0L
+    private var profileLoadJob: Job? = null
+    private var verdictsJob: Job? = null
 
     fun reset() {
         sessionGeneration++
+        profileLoadJob?.cancel()
+        profileLoadJob = null
+        verdictsJob?.cancel()
+        verdictsJob = null
         _state.value = ProfileState()
         verdictCache.clear()
     }
 
+    private fun CachedVerdict.toAcceptedOrNull(): Boolean? = when (this) {
+        CachedVerdict.ACCEPTED -> true
+        CachedVerdict.REJECTED -> false
+        CachedVerdict.TIE_OR_NONE -> null
+    }
+
     fun loadProfile(targetUserId: String, currentUserId: String = targetUserId) {
         if (targetUserId.isBlank()) return
+
+        profileLoadJob?.cancel()
+        verdictsJob?.cancel()
 
         val isOwn = targetUserId == currentUserId
         val email = if (isOwn) getCurrentUserUseCase.execute()?.email.orEmpty() else ""
@@ -93,6 +111,8 @@ class ProfileViewModel(
         if (isDifferentUser) {
             sessionGeneration++
         }
+        val requestSession = sessionGeneration
+
         _state.update {
             it.copy(
                 isLoading = true,
@@ -100,6 +120,7 @@ class ProfileViewModel(
                 caprices = if (isDifferentUser) emptyList() else it.caprices,
                 friends = if (isDifferentUser || !isOwn) emptyList() else it.friends,
                 blockedUsers = if (isDifferentUser || !isOwn) emptyList() else it.blockedUsers,
+                verdicts = if (isDifferentUser) emptyMap() else it.verdicts,
                 email = email,
                 isOwnProfile = isOwn,
                 isSignedOut = false,
@@ -107,8 +128,8 @@ class ProfileViewModel(
             )
         }
 
-        viewModelScope.launch {
-            // Concurrencia y paralelismo: lanzamos todas las consultas independientes al mismo tiempo
+        profileLoadJob = viewModelScope.launch {
+            // Fase 1: Cargar datos principales en paralelo (~200ms) sin bloquear por subcolecciones de votos
             val result = coroutineScope {
                 val profileDeferred = async { userProfileRepository.getUserById(targetUserId).getOrNull() }
                 val capricesDeferred = async { getCapricesUseCase.execute(targetUserId, limit = 50).getOrDefault(emptyList()) }
@@ -134,59 +155,20 @@ class ProfileViewModel(
                 }
 
                 val loadedCaprices = capricesDeferred.await()
-
-                // Paralelismo masivo para veredictos con cache en memoria:
-                val verdictsDeferred = async {
-                    if (voteRepository != null && loadedCaprices.isNotEmpty()) {
-                        coroutineScope {
-                            loadedCaprices.map { caprice ->
-                                async {
-                                    val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
-                                    if (!isExpired) {
-                                        caprice.id to null // Duda aun activa en directo
-                                    } else {
-                                        val cached = verdictCache[caprice.id]
-                                        if (cached != null) {
-                                            val accepted = when (cached) {
-                                                CachedVerdict.ACCEPTED -> true
-                                                CachedVerdict.REJECTED -> false
-                                                CachedVerdict.TIE_OR_NONE -> null
-                                            }
-                                            caprice.id to accepted
-                                        } else {
-                                            // 2. Consulta directa 'one-shot' (getVotes) sin sobrecarga de snapshot listeners
-                                            val votes = voteRepository.getVotes(caprice.id).getOrDefault(emptyList())
-                                            val opt1Votes = votes.count { it.option == 1 }
-                                            val opt2Votes = votes.count { it.option == 2 }
-                                            val cachedVerdict = when {
-                                                opt1Votes > opt2Votes -> CachedVerdict.ACCEPTED
-                                                opt2Votes > opt1Votes -> CachedVerdict.REJECTED
-                                                else -> CachedVerdict.TIE_OR_NONE
-                                            }
-                                            // Guardamos en cache thread-safe (sin riesgo de NPE con nulos)
-                                            verdictCache[caprice.id] = cachedVerdict
-                                            val accepted = when (cachedVerdict) {
-                                                CachedVerdict.ACCEPTED -> true
-                                                CachedVerdict.REJECTED -> false
-                                                CachedVerdict.TIE_OR_NONE -> null
-                                            }
-                                            caprice.id to accepted
-                                        }
-                                    }
-                                }
-                            }.awaitAll().toMap()
-                        }
-                    } else emptyMap()
-                }
+                val cachedVerdicts = loadedCaprices.mapNotNull { caprice ->
+                    verdictCache[caprice.id]?.let { caprice.id to it.toAcceptedOrNull() }
+                }.toMap()
 
                 ProfileLoadResult(
                     profile = profileDeferred.await(),
                     caprices = loadedCaprices,
                     blockedUsers = blockedDeferred.await(),
                     friends = friendsDeferred.await(),
-                    verdicts = verdictsDeferred.await()
+                    verdicts = cachedVerdicts
                 )
             }
+
+            if (requestSession != sessionGeneration) return@launch
 
             _state.update {
                 it.copy(
@@ -197,6 +179,42 @@ class ProfileViewModel(
                     blockedUsers = result.blockedUsers,
                     verdicts = result.verdicts
                 )
+            }
+
+            // Fase 2: Cargar en segundo plano solo los veredictos cerrados no cacheados (pool de 4)
+            val repo = voteRepository ?: return@launch
+            val pendingCaprices = result.caprices.filter { caprice ->
+                val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                isExpired && !verdictCache.containsKey(caprice.id)
+            }
+            if (pendingCaprices.isEmpty()) return@launch
+
+            verdictsJob = launch {
+                val semaphore = Semaphore(4)
+                val computedVerdicts = coroutineScope {
+                    pendingCaprices.map { caprice ->
+                        async {
+                            semaphore.withPermit {
+                                val votes = repo.getVotes(caprice.id).getOrDefault(emptyList())
+                                val opt1Votes = votes.count { it.option == 1 }
+                                val opt2Votes = votes.count { it.option == 2 }
+                                val cachedVerdict = when {
+                                    opt1Votes > opt2Votes -> CachedVerdict.ACCEPTED
+                                    opt2Votes > opt1Votes -> CachedVerdict.REJECTED
+                                    else -> CachedVerdict.TIE_OR_NONE
+                                }
+                                verdictCache[caprice.id] = cachedVerdict
+                                caprice.id to cachedVerdict.toAcceptedOrNull()
+                            }
+                        }
+                    }.awaitAll().toMap()
+                }
+
+                if (requestSession != sessionGeneration) return@launch
+
+                _state.update { current ->
+                    current.copy(verdicts = current.verdicts + computedVerdicts)
+                }
             }
         }
     }
