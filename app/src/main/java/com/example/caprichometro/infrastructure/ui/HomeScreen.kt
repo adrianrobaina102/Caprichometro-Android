@@ -27,6 +27,7 @@ import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
 
@@ -325,20 +326,13 @@ private fun CapriceFeedCard(
                     .padding(vertical = 2.dp, horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(LimeAccent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initial,
-                        color = Color.Black,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 16.sp
-                    )
-                }
+                UserAvatar(
+                    photoUrl = author.photoUrl,
+                    username = author.username,
+                    size = 38.dp,
+                    backgroundColor = LimeAccent,
+                    fontSize = 16.sp
+                )
 
                 Spacer(modifier = Modifier.width(10.dp))
 

@@ -1,8 +1,17 @@
 package com.example.caprichometro.infrastructure.ui.profile
 
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.provider.Settings
+import android.util.Base64
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Notifications
@@ -47,9 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.util.ImageCompressor
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.domain.model.Caprice
+import kotlinx.coroutines.launch
+import java.io.File
 import kotlin.math.abs
 
 private val DarkBackground = Color(0xFF0D0D0D)
@@ -137,15 +151,87 @@ fun ProfileScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showPrivacySubSheet by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
+    var showAvatarOptionsSheet by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showFriendOptionsSheet by remember { mutableStateOf(false) }
     var showRemoveFriendDialog by remember { mutableStateOf(false) }
     var showBlockFriendDialog by remember { mutableStateOf(false) }
+
+    val handleSelectedAvatarUri: (Uri) -> Unit = { uri ->
+        coroutineScope.launch {
+            try {
+                val compressedBytes = ImageCompressor.compressUriToWebP(
+                    context = context,
+                    imageUri = uri,
+                    maxDimension = 300,
+                    quality = 75
+                )
+                val base64 = Base64.encodeToString(compressedBytes, Base64.NO_WRAP)
+                val dataUri = "data:image/webp;base64,$base64"
+                viewModel.updateProfilePhoto(currentUserId, dataUri) {
+                    Toast.makeText(context, "Foto de perfil actualizada", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo procesar la imagen", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) handleSelectedAvatarUri(uri)
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val capturedUri = tempCameraUri
+        if (success && capturedUri != null) {
+            handleSelectedAvatarUri(capturedUri)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val uri = getTempProfileCameraUri(context)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Se necesita permiso de cámara para hacer fotos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val launchAvatarCamera: () -> Unit = {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            try {
+                val uri = getTempProfileCameraUri(context)
+                tempCameraUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
 
 
     LaunchedEffect(targetUserId, currentUserId) {
@@ -165,6 +251,13 @@ fun ProfileScreen(
         state.errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(state.photoErrorMessage) {
+        state.photoErrorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearPhotoError()
         }
     }
 
@@ -261,6 +354,113 @@ fun ProfileScreen(
             },
             containerColor = SheetBackground
         )
+    }
+
+    if (showAvatarOptionsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAvatarOptionsSheet = false },
+            containerColor = SheetBackground,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF48484A)) }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Editar perfil",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Surface(
+                    onClick = {
+                        showAvatarOptionsSheet = false
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    color = CardSurface,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = LimeGreen)
+                        Text("Elegir foto de la galería", color = Color.White, fontSize = 15.sp)
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        showAvatarOptionsSheet = false
+                        launchAvatarCamera()
+                    },
+                    color = CardSurface,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = LimeGreen)
+                        Text("Hacer foto con la cámara", color = Color.White, fontSize = 15.sp)
+                    }
+                }
+
+                if (state.profile?.photoUrl?.isNotBlank() == true) {
+                    Surface(
+                        onClick = {
+                            showAvatarOptionsSheet = false
+                            viewModel.updateProfilePhoto(currentUserId, "") {
+                                Toast.makeText(context, "Foto de perfil eliminada", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        color = CardSurface,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, tint = BadgeRed)
+                            Text("Quitar foto de perfil", color = BadgeRed, fontSize = 15.sp)
+                        }
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        showAvatarOptionsSheet = false
+                        viewModel.clearBioError()
+                        showEditBioDialog = true
+                    },
+                    color = CardSurface,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
+                        Text("Editar biografía", color = Color.White, fontSize = 15.sp)
+                    }
+                }
+            }
+        }
     }
 
     if (showEditBioDialog) {
@@ -813,19 +1013,35 @@ fun ProfileScreen(
                 .size(104.dp)
                 .align(Alignment.CenterHorizontally)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(avatarColorFor(rawUsername)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "U",
-                    color = Color(0xFF1A1A1A),
-                    fontSize = 38.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            UserAvatar(
+                photoUrl = state.profile?.photoUrl.orEmpty(),
+                username = displayName,
+                size = 104.dp,
+                backgroundColor = avatarColorFor(rawUsername),
+                fontSize = 38.sp,
+                modifier = if (state.isOwnProfile) {
+                    Modifier.clickable(enabled = !state.isSavingPhoto) {
+                        showAvatarOptionsSheet = true
+                    }
+                } else {
+                    Modifier
+                }
+            )
+
+            if (state.isSavingPhoto) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = LimeGreen,
+                        strokeWidth = 2.5.dp,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
 
             if (state.isOwnProfile) {
@@ -839,8 +1055,7 @@ fun ProfileScreen(
                         .background(LimeGreen)
                         .border(2.5.dp, DarkBackground, CircleShape)
                         .clickable {
-                            viewModel.clearBioError()
-                            showEditBioDialog = true
+                            showAvatarOptionsSheet = true
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1633,4 +1848,16 @@ private fun GlobeOutlineIcon() {
             strokeWidth = stroke
         )
     }
+}
+
+private fun getTempProfileCameraUri(context: Context): Uri {
+    val tempFile = File.createTempFile("avatar_capture_", ".jpg", context.cacheDir).apply {
+        createNewFile()
+        deleteOnExit()
+    }
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        tempFile
+    )
 }

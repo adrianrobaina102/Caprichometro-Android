@@ -5,5 +5,6 @@ interface UserProfileRepository {
     suspend fun saveProfile(profile: UserProfile): Result<Unit>
     suspend fun getUserById(userId: String): Result<UserProfile?>
     suspend fun updateBio(userId: String, bio: String): Result<Unit>
+    suspend fun updatePhotoUrl(userId: String, photoUrl: String): Result<Unit> = Result.success(Unit)
     suspend fun deleteProfile(userId: String, username: String): Result<Unit>
 }

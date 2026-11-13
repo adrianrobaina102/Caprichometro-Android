@@ -12,6 +12,7 @@ import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCa
 import com.example.caprichometro.application.usecase.friendship.RemoveFriendUseCase
 import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
+import com.example.caprichometro.application.usecase.profile.UpdateProfilePhotoUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
@@ -47,6 +48,8 @@ data class ProfileState(
     val isOwnProfile: Boolean = true,
     val isSavingBio: Boolean = false,
     val bioErrorMessage: String? = null,
+    val isSavingPhoto: Boolean = false,
+    val photoErrorMessage: String? = null,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
 )
@@ -71,7 +74,8 @@ class ProfileViewModel(
     private val voteRepository: VoteRepository? = null,
     private val updateBioUseCase: UpdateBioUseCase = UpdateBioUseCase(userProfileRepository),
     private val removeFriendUseCase: RemoveFriendUseCase? = null,
-    private val blockUserUseCase: BlockUserUseCase? = null
+    private val blockUserUseCase: BlockUserUseCase? = null,
+    private val updateProfilePhotoUseCase: UpdateProfilePhotoUseCase = UpdateProfilePhotoUseCase(userProfileRepository)
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
@@ -307,6 +311,45 @@ class ProfileViewModel(
                         it.copy(
                             isSavingBio = false,
                             bioErrorMessage = error.message ?: "No se pudo actualizar la biografía."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearPhotoError() {
+        _state.update { it.copy(photoErrorMessage = null) }
+    }
+
+    fun updateProfilePhoto(userId: String, photoUrl: String, onSuccess: () -> Unit = {}) {
+        if (userId.isBlank() || _state.value.isSavingPhoto) return
+        val requestSession = sessionGeneration
+        _state.update { it.copy(isSavingPhoto = true, photoErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = updateProfilePhotoUseCase.execute(userId, photoUrl)
+            val currentLoadedUid = _state.value.profile?.uid
+            if (requestSession != sessionGeneration || (currentLoadedUid != null && currentLoadedUid != userId)) {
+                return@launch
+            }
+            result.fold(
+                onSuccess = {
+                    val trimmed = photoUrl.trim()
+                    _state.update { current ->
+                        current.copy(
+                            isSavingPhoto = false,
+                            photoErrorMessage = null,
+                            profile = current.profile?.copy(photoUrl = trimmed)
+                        )
+                    }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            isSavingPhoto = false,
+                            photoErrorMessage = error.message ?: "No se pudo actualizar la foto de perfil."
                         )
                     }
                 }

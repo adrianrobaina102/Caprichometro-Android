@@ -56,6 +56,9 @@ class FirestoreUserProfileRepository(
                 if (profile.bio.isNotBlank()) {
                     userData["bio"] = profile.bio
                 }
+                if (profile.photoUrl.isNotBlank()) {
+                    userData["photoUrl"] = profile.photoUrl
+                }
 
                 val usernameData = mapOf(
                     "uid" to profile.uid
@@ -95,6 +98,7 @@ class FirestoreUserProfileRepository(
             }
 
             val bio = (userDoc.get("bio") as? String)?.trim().orEmpty()
+            val photoUrl = (userDoc.get("photoUrl") as? String)?.trim().orEmpty()
 
             val createdAt = try {
                 userDoc.getTimestamp("createdAt")?.toDate()
@@ -109,7 +113,8 @@ class FirestoreUserProfileRepository(
                 uid = userId,
                 username = username,
                 createdAt = createdAt,
-                bio = bio
+                bio = bio,
+                photoUrl = photoUrl
             )
             userProfileCache[userId] = CachedProfileEntry(profile, clockMillis())
             Result.success(profile)
@@ -129,6 +134,26 @@ class FirestoreUserProfileRepository(
             userProfileCache[userId]?.let { entry ->
                 userProfileCache[userId] = CachedProfileEntry(
                     profile = entry.profile.copy(bio = trimmedBio),
+                    cachedAtMillis = clockMillis()
+                )
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updatePhotoUrl(userId: String, photoUrl: String): Result<Unit> = withContext(ioDispatcher) {
+        if (userId.isBlank()) return@withContext Result.failure(IllegalArgumentException("El userId no puede estar vacío."))
+        try {
+            val trimmedUrl = photoUrl.trim()
+            db.collection("users").document(userId)
+                .update("photoUrl", trimmedUrl)
+                .await()
+
+            userProfileCache[userId]?.let { entry ->
+                userProfileCache[userId] = CachedProfileEntry(
+                    profile = entry.profile.copy(photoUrl = trimmedUrl),
                     cachedAtMillis = clockMillis()
                 )
             }

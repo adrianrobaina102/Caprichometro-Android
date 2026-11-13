@@ -63,10 +63,13 @@ class FirestoreFriendshipRepository(
                 userDoc.getLong("createdAt")?.let { Date(it) } ?: Date()
             }
 
+            val photoUrl = (userDoc.get("photoUrl") as? String)?.trim().orEmpty()
+
             val profile = UserProfile(
                 uid = uid,
                 username = resolvedUsername,
-                createdAt = createdAt
+                createdAt = createdAt,
+                photoUrl = photoUrl
             )
             Result.success(profile)
         } catch (e: Exception) {

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -246,9 +247,12 @@ fun AddFriendScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    PastelInitialAvatar(
+                    UserAvatar(
+                        photoUrl = user.photoUrl,
                         username = user.username,
-                        backgroundColor = avatarColorFor(user.username)
+                        size = 44.dp,
+                        backgroundColor = avatarColorFor(user.username),
+                        fontSize = 16.sp
                     )
 
                     Column {
