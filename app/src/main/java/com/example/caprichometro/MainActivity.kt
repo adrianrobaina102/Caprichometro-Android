@@ -349,10 +349,18 @@ fun CapriceApp(
                             }
                             "result" -> {
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
+                                val profileState by profileViewModel.state.collectAsState()
+                                val resultAuthorUsername = when {
+                                    capriceToShow == null -> null
+                                    capriceToShow.userId == currentUserId -> profileState.profile?.username
+                                    selectedFeedItem?.caprice?.id == capriceToShow.id -> selectedFeedItem?.author?.username
+                                    else -> friendshipState.friends.firstOrNull { it.uid == capriceToShow.userId }?.username
+                                }
                                 ResultScreen(
                                     caprice = capriceToShow,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
+                                    authorUsername = resultAuthorUsername,
                                     onCapriceUpdated = { updated ->
                                         selectedProfileCaprice = updated
                                         val decision = updated.finalDecision

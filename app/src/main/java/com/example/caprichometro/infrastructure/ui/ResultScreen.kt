@@ -45,6 +45,7 @@ fun ResultScreen(
     caprice: Caprice?,
     viewModel: ActivePollViewModel? = null,
     currentUserId: String = "",
+    authorUsername: String? = null,
     onCapriceUpdated: ((Caprice) -> Unit)? = null,
     onGoHome: () -> Unit,
     onNavigateToAuthorProfile: ((String) -> Unit)? = null
@@ -56,7 +57,12 @@ fun ResultScreen(
     val imageModel = remember(displayedCaprice?.imageUrl) {
         ImageModelHelper.parseImageModel(displayedCaprice?.imageUrl.orEmpty())
     }
-    val authorInitial = displayedCaprice?.userId?.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+    val resolvedUsername = authorUsername?.trim()?.removePrefix("@")
+        ?.takeIf { it.isNotBlank() }
+        ?: vmState?.authorUsername?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+    val authorInitial = resolvedUsername?.firstOrNull()?.uppercaseChar()?.toString()
+        ?: displayedCaprice?.userId?.firstOrNull()?.uppercaseChar()?.toString()
+        ?: "A"
 
     LaunchedEffect(caprice?.id, currentUserId) {
         val effectiveUserId = currentUserId.ifBlank { caprice?.userId.orEmpty() }
@@ -271,6 +277,7 @@ fun ResultScreen(
                 FinalDecisionCard(
                     caprice = displayedCaprice,
                     isAuthor = isAuthor,
+                    totalVotes = totalVotes,
                     finalDecision = finalDecision,
                     isSaving = isSavingDecision,
                     errorMessage = vmState?.errorMessage,
@@ -398,6 +405,7 @@ fun ResultBar(
 private fun FinalDecisionCard(
     caprice: Caprice,
     isAuthor: Boolean,
+    totalVotes: Int,
     finalDecision: Int?,
     isSaving: Boolean,
     errorMessage: String?,
@@ -431,6 +439,20 @@ private fun FinalDecisionCard(
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
+                )
+            }
+            totalVotes <= 0 -> {
+                Text(
+                    text = "SIN VOTOS DE AMIGOS",
+                    color = TextGray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Ningún amigo votó en esta encuesta, así que no hace falta confirmar decisión.",
+                    color = TextGray,
+                    fontSize = 13.sp
                 )
             }
             isAuthor -> {

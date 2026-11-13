@@ -952,7 +952,10 @@ fun ProfileScreen(
                         caprice = caprice,
                         accepted = state.verdicts[caprice.id],
                         isActive = !isExpired,
-                        isDecisionPending = state.isOwnProfile && isExpired && caprice.finalDecision == null
+                        isDecisionPending = state.isOwnProfile &&
+                            isExpired &&
+                            caprice.finalDecision == null &&
+                            (state.voteCounts[caprice.id] ?: 0) > 0
                     )
                 }
             } else {
