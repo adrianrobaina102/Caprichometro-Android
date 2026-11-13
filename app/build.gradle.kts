@@ -77,6 +77,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
+    implementation("com.google.firebase:firebase-appcheck-playintegrity:18.0.0")
+    debugImplementation("com.google.firebase:firebase-appcheck-debug:18.0.0")
     implementation(libs.coil.compose)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

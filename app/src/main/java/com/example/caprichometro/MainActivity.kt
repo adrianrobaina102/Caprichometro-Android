@@ -44,6 +44,7 @@ import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
+import com.example.caprichometro.infrastructure.security.AppCheckInstaller
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
@@ -63,6 +64,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Inicializa Firebase App Check (Debug en desarrollo, Play Integrity en release)
+        AppCheckInstaller.install(this)
 
         // Crea el canal de notificaciones para los avisos de votación y amigos
         PollNotificationHelper.createNotificationChannel(this)
