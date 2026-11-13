@@ -64,7 +64,13 @@ class ViewModelFactory(private val context: Context? = null) {
         val getUseCase = GetCapricesUseCase(capriceRepository)
         val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
         val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(acceptedFriendsUseCase, capriceRepository)
-        return CapriceViewModel(saveUseCase, getUseCase, uploadImageUseCase, getFriendsCapricesUseCase)
+        return CapriceViewModel(
+            saveCapriceUseCase = saveUseCase,
+            getCapricesUseCase = getUseCase,
+            uploadCapriceImageUseCase = uploadImageUseCase,
+            getFriendsCapricesUseCase = getFriendsCapricesUseCase,
+            profileCacheControl = userProfileRepository
+        )
     }
 
     fun createAuthViewModel(): AuthViewModel {

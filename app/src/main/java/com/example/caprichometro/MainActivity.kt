@@ -52,6 +52,7 @@ import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewMode
 import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 private val NavBarBg = Color(0xFF0D0D0D)
@@ -122,7 +123,10 @@ fun CapriceApp(
     val authState by authViewModel.state.collectAsState()
     val capriceState by capriceViewModel.state.collectAsState()
     val friendshipState by friendshipViewModel.state.collectAsState()
+    val profileState by profileViewModel.state.collectAsState()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val ownUserProfile = profileState.profile?.takeIf { it.uid == currentUserId }
+        ?: friendshipState.currentUserProfile?.takeIf { it.uid == currentUserId }
 
     // Solicitud del permiso de notificaciones en tiempo de ejecución (Android 13+ / API 33+)
     val context = LocalContext.current
@@ -219,16 +223,20 @@ fun CapriceApp(
 
             // 2. Escucha en vivo de publicaciones nuevas de amigos mientras la sesión está abierta
             launch {
-                observeFriendCapricesUseCase.execute(currentUserId, foregroundStart).collect { item ->
-                    PollNotificationHelper.showFriendCapriceNotification(
-                        context = context,
-                        recipientUserId = currentUserId,
-                        authorUsername = item.author.username,
-                        caprice = item.caprice
-                    )
-                    // Recargamos el feed social para que aparezca la nueva duda
-                    capriceViewModel.loadFriendsFeed()
-                }
+                observeFriendCapricesUseCase.execute(currentUserId, foregroundStart)
+                    .catch { e ->
+                        android.util.Log.w("MainActivity", "Error observando caprichos de amigos: ${e.message}")
+                    }
+                    .collect { item ->
+                        PollNotificationHelper.showFriendCapriceNotification(
+                            context = context,
+                            recipientUserId = currentUserId,
+                            authorUsername = item.author.username,
+                            caprice = item.caprice
+                        )
+                        // Recargamos el feed social para que aparezca la nueva duda
+                        capriceViewModel.loadFriendsFeed()
+                    }
             }
 
             // 3. Recuperación al volver a la app: decisiones finales de amigos aún no notificadas
@@ -245,22 +253,26 @@ fun CapriceApp(
 
             // 4. Escucha en vivo de decisiones finales confirmadas por amigos con la app abierta
             launch {
-                observeFriendCapricesUseCase.observeFinalDecisions(currentUserId, foregroundStart).collect { item ->
-                    val decidedAt = item.caprice.finalDecisionAt ?: item.caprice.timestamp
-                    notifyFriendCapriceUseCase.recordDecisionNotification(
-                        recipientUserId = currentUserId,
-                        friendUserId = item.author.uid,
-                        capriceId = item.caprice.id,
-                        timestamp = decidedAt
-                    )
-                    PollNotificationHelper.showFriendFinalDecisionNotification(
-                        context = context,
-                        recipientUserId = currentUserId,
-                        authorUsername = item.author.username,
-                        caprice = item.caprice
-                    )
-                    capriceViewModel.loadFriendsFeed()
-                }
+                observeFriendCapricesUseCase.observeFinalDecisions(currentUserId, foregroundStart)
+                    .catch { e ->
+                        android.util.Log.w("MainActivity", "Error observando decisiones de amigos: ${e.message}")
+                    }
+                    .collect { item ->
+                        val decidedAt = item.caprice.finalDecisionAt ?: item.caprice.timestamp
+                        notifyFriendCapriceUseCase.recordDecisionNotification(
+                            recipientUserId = currentUserId,
+                            friendUserId = item.author.uid,
+                            capriceId = item.caprice.id,
+                            timestamp = decidedAt
+                        )
+                        PollNotificationHelper.showFriendFinalDecisionNotification(
+                            context = context,
+                            recipientUserId = currentUserId,
+                            authorUsername = item.author.username,
+                            caprice = item.caprice
+                        )
+                        capriceViewModel.loadFriendsFeed()
+                    }
             }
         } else {
             profileViewModel.reset()
@@ -306,6 +318,7 @@ fun CapriceApp(
                                 ActivePollScreen(
                                     caprice = item?.caprice,
                                     authorUsername = item?.author?.username,
+                                    authorPhotoUrl = item?.author?.photoUrl,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     onNavigateBack = { currentScreen = "home" },
@@ -332,8 +345,15 @@ fun CapriceApp(
                             }
                             "active" -> {
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
+                                val activeAuthor = when {
+                                    capriceToShow == null -> null
+                                    capriceToShow.userId == currentUserId -> ownUserProfile
+                                    else -> friendshipState.friends.firstOrNull { it.uid == capriceToShow.userId }
+                                }
                                 ActivePollScreen(
                                     caprice = capriceToShow,
+                                    authorUsername = activeAuthor?.username,
+                                    authorPhotoUrl = activeAuthor?.photoUrl,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     onNavigateBack = {
@@ -349,18 +369,19 @@ fun CapriceApp(
                             }
                             "result" -> {
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
-                                val profileState by profileViewModel.state.collectAsState()
-                                val resultAuthorUsername = when {
+                                val resultAuthor = when {
                                     capriceToShow == null -> null
-                                    capriceToShow.userId == currentUserId -> profileState.profile?.username
-                                    selectedFeedItem?.caprice?.id == capriceToShow.id -> selectedFeedItem?.author?.username
-                                    else -> friendshipState.friends.firstOrNull { it.uid == capriceToShow.userId }?.username
+                                    capriceToShow.userId == currentUserId -> ownUserProfile
+                                    selectedFeedItem?.caprice?.id == capriceToShow.id -> selectedFeedItem?.author
+                                    profileState.profile?.uid == capriceToShow.userId -> profileState.profile
+                                    else -> friendshipState.friends.firstOrNull { it.uid == capriceToShow.userId }
                                 }
                                 ResultScreen(
                                     caprice = capriceToShow,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
-                                    authorUsername = resultAuthorUsername,
+                                    authorUsername = resultAuthor?.username,
+                                    authorPhotoUrl = resultAuthor?.photoUrl,
                                     onCapriceUpdated = { updated ->
                                         selectedProfileCaprice = updated
                                         val decision = updated.finalDecision

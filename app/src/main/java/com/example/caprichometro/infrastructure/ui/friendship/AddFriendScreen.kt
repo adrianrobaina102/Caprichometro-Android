@@ -90,6 +90,7 @@ fun AddFriendScreen(
     LaunchedEffect(actualUserId) {
         if (actualUserId.isNotBlank()) {
             viewModel.listenToIncomingRequests(actualUserId)
+            viewModel.refreshProfiles(actualUserId)
         }
     }
 
@@ -370,9 +371,12 @@ fun AddFriendScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        PastelInitialAvatar(
+                        UserAvatar(
+                            photoUrl = request.sender.photoUrl,
                             username = request.sender.username,
-                            backgroundColor = Color(0xFFA8B8F0)
+                            size = 44.dp,
+                            backgroundColor = Color(0xFFA8B8F0),
+                            fontSize = 16.sp
                         )
 
                         Column {
@@ -466,9 +470,12 @@ fun AddFriendScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        PastelInitialAvatar(
+                        UserAvatar(
+                            photoUrl = friend.photoUrl,
                             username = friend.username,
-                            backgroundColor = avatarColor
+                            size = 44.dp,
+                            backgroundColor = avatarColor,
+                            fontSize = 16.sp
                         )
 
                         Column {
@@ -589,6 +596,7 @@ fun AddFriendScreen(
             ?: FirebaseAuth.getInstance().currentUser?.displayName?.replace(" ", "")?.takeIf { it.isNotBlank() }
         InviteFriendBottomSheet(
             username = usernameToShare,
+            photoUrl = state.currentUserProfile?.photoUrl.orEmpty(),
             onDismiss = { showInviteSheet = false },
             onShareInvite = {
                 val shareText = InviteDeepLink.buildShareMessage(usernameToShare)
@@ -617,6 +625,7 @@ fun AddFriendScreen(
 @Composable
 private fun InviteFriendBottomSheet(
     username: String?,
+    photoUrl: String = "",
     onDismiss: () -> Unit,
     onShareInvite: () -> Unit,
     onCopyDirectLink: () -> Unit
@@ -666,9 +675,12 @@ private fun InviteFriendBottomSheet(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                PastelInitialAvatar(
+                UserAvatar(
+                    photoUrl = photoUrl,
                     username = cleanUsername.ifEmpty { "C" },
-                    backgroundColor = avatarColorFor(cleanUsername.ifEmpty { "capricho" })
+                    size = 44.dp,
+                    backgroundColor = avatarColorFor(cleanUsername.ifEmpty { "capricho" }),
+                    fontSize = 16.sp
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -777,27 +789,5 @@ private fun InviteFriendBottomSheet(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun PastelInitialAvatar(
-    username: String,
-    backgroundColor: Color
-) {
-    val initial = username.removePrefix("@").trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(backgroundColor),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            color = Color(0xFF1A1A1A),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold
-        )
     }
 }

@@ -11,16 +11,22 @@ import com.example.caprichometro.application.usecase.friendship.SearchUserByUser
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.domain.model.IncomingFriendRequest
 import com.example.caprichometro.domain.model.InviteDeepLink
+import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.UsernameRules
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 data class FriendshipSearchState(
     val searchQuery: String = "",
@@ -31,7 +37,8 @@ data class FriendshipSearchState(
     val requestSentSuccess: Boolean = false,
     val incomingRequests: List<IncomingFriendRequest> = emptyList(),
     val friends: List<UserProfile> = emptyList(),
-    val currentUsername: String? = null
+    val currentUsername: String? = null,
+    val currentUserProfile: UserProfile? = null
 )
 
 class FriendshipViewModel(
@@ -61,7 +68,7 @@ class FriendshipViewModel(
             launch {
                 userProfileRepository?.getUserById(currentUserId)?.onSuccess { profile ->
                     if (profile != null) {
-                        _state.update { it.copy(currentUsername = profile.username) }
+                        _state.update { it.copy(currentUsername = profile.username, currentUserProfile = profile) }
                     }
                 }
             }
@@ -94,7 +101,54 @@ class FriendshipViewModel(
         listenRequestsJob?.cancel()
         listenRequestsJob = null
         listeningUserId = null
-        _state.update { it.copy(incomingRequests = emptyList(), friends = emptyList()) }
+        _state.update { it.copy(incomingRequests = emptyList(), friends = emptyList(), currentUsername = null, currentUserProfile = null) }
+    }
+
+    fun refreshProfiles(currentUserId: String = "") {
+        val repo = userProfileRepository ?: return
+        val cacheControl = repo as? ProfileCacheControl
+        val currentFriends = _state.value.friends
+        val currentRequests = _state.value.incomingRequests
+        if (currentUserId.isBlank() && currentFriends.isEmpty() && currentRequests.isEmpty()) return
+
+        viewModelScope.launch {
+            val semaphore = Semaphore(4)
+            val refreshedOwn = if (currentUserId.isNotBlank()) {
+                cacheControl?.invalidateUser(currentUserId)
+                repo.getUserById(currentUserId).getOrNull()
+            } else {
+                null
+            }
+            val updatedFriends = coroutineScope {
+                currentFriends.map { friend ->
+                    async {
+                        semaphore.withPermit {
+                            cacheControl?.invalidateUser(friend.uid)
+                            repo.getUserById(friend.uid).getOrNull() ?: friend
+                        }
+                    }
+                }.awaitAll()
+            }
+            val updatedRequests = coroutineScope {
+                currentRequests.map { req ->
+                    async {
+                        semaphore.withPermit {
+                            cacheControl?.invalidateUser(req.sender.uid)
+                            val refreshedSender = repo.getUserById(req.sender.uid).getOrNull()
+                            if (refreshedSender != null) req.copy(sender = refreshedSender) else req
+                        }
+                    }
+                }.awaitAll()
+            }
+            _state.update {
+                it.copy(
+                    currentUsername = refreshedOwn?.username ?: it.currentUsername,
+                    currentUserProfile = refreshedOwn ?: it.currentUserProfile,
+                    friends = updatedFriends,
+                    incomingRequests = updatedRequests
+                )
+            }
+        }
     }
 
     fun updateSearchQuery(query: String) {

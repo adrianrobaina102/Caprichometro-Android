@@ -1,5 +1,6 @@
 package com.example.caprichometro.infrastructure.data
 
+import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.google.firebase.firestore.FirebaseFirestore
@@ -15,7 +16,7 @@ class FirestoreUserProfileRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clockMillis: () -> Long = { System.currentTimeMillis() }
-) : UserProfileRepository {
+) : UserProfileRepository, ProfileCacheControl {
 
     private data class CachedProfileEntry(
         val profile: UserProfile,
@@ -28,6 +29,16 @@ class FirestoreUserProfileRepository(
 
     // Cache en memoria con TTL de 60s para evitar llamadas redundantes y refrescar cambios recientes
     private val userProfileCache = ConcurrentHashMap<String, CachedProfileEntry>()
+
+    override fun invalidateUser(userId: String) {
+        if (userId.isNotBlank()) {
+            userProfileCache.remove(userId)
+        }
+    }
+
+    override fun invalidateAll() {
+        userProfileCache.clear()
+    }
 
     override suspend fun isUsernameAvailable(username: String): Result<Boolean> = withContext(ioDispatcher) {
         try {

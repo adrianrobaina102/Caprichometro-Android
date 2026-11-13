@@ -38,6 +38,7 @@ import com.example.caprichometro.infrastructure.notification.PollNotificationHel
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -54,6 +55,7 @@ private val OptionCardBorder = Color(0xFF2C2C30)
 fun ActivePollScreen(
     caprice: Caprice?,
     authorUsername: String? = null,
+    authorPhotoUrl: String? = null,
     viewModel: ActivePollViewModel? = null,
     currentUserId: String = "",
     onNavigateBack: () -> Unit = {},
@@ -61,7 +63,10 @@ fun ActivePollScreen(
     onNavigateToAuthorProfile: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val isFriendPoll = !authorUsername.isNullOrBlank()
+    val isFriendPoll = when {
+        caprice != null && currentUserId.isNotBlank() -> caprice.userId != currentUserId
+        else -> !authorUsername.isNullOrBlank()
+    }
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
 
     var isImageExpanded by remember { mutableStateOf(false) }
@@ -151,9 +156,10 @@ fun ActivePollScreen(
         null -> localTimeDisplay
     }
 
-    val headerTitle = if (isFriendPoll) "Duda de @$authorUsername" else "Tu duda está en el aire"
-    val avatarInitial = authorUsername?.firstOrNull()?.uppercaseChar()?.toString()
-        ?: caprice?.userId?.firstOrNull()?.uppercaseChar()?.toString()
+    val cleanAuthor = authorUsername?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+    val headerTitle = if (isFriendPoll && cleanAuthor != null) "Duda de @$cleanAuthor" else "Tu duda está en el aire"
+    val avatarUsername = cleanAuthor
+        ?: caprice?.userId?.takeIf { it.isNotBlank() }
         ?: "C"
 
     Scaffold(
@@ -188,19 +194,18 @@ fun ActivePollScreen(
                         ),
                     textAlign = TextAlign.Center
                 )
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(LimeGreen, CircleShape)
-                        .then(
-                            if (canOpenAuthorProfile) {
-                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
-                            } else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(avatarInitial, color = Color.Black, fontWeight = FontWeight.Bold)
-                }
+                UserAvatar(
+                    photoUrl = authorPhotoUrl.orEmpty(),
+                    username = avatarUsername,
+                    size = 32.dp,
+                    backgroundColor = LimeGreen,
+                    fontSize = 14.sp,
+                    modifier = if (canOpenAuthorProfile) {
+                        Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                    } else {
+                        Modifier
+                    }
+                )
             }
         }
     ) { paddingValues ->

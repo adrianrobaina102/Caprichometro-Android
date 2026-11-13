@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +33,8 @@ fun UserAvatar(
     textColor: Color = Color(0xFF1A1A1A)
 ) {
     val initial = username.removePrefix("@").trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    var loadFailed by remember(photoUrl) { mutableStateOf(false) }
+    val imageModel = remember(photoUrl) { ImageModelHelper.parseImageModel(photoUrl) }
 
     Box(
         modifier = modifier
@@ -37,11 +43,12 @@ fun UserAvatar(
             .background(backgroundColor),
         contentAlignment = Alignment.Center
     ) {
-        if (photoUrl.isNotBlank()) {
+        if (photoUrl.isNotBlank() && !loadFailed) {
             AsyncImage(
-                model = ImageModelHelper.parseImageModel(photoUrl),
+                model = imageModel,
                 contentDescription = "Avatar de $username",
                 contentScale = ContentScale.Crop,
+                onError = { loadFailed = true },
                 modifier = Modifier.fillMaxSize()
             )
         } else {

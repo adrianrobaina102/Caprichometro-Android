@@ -34,6 +34,7 @@ import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.material.icons.filled.Search
 
 private val DarkBackground = Color(0xFF0F0F0F)
@@ -46,6 +47,7 @@ fun ResultScreen(
     viewModel: ActivePollViewModel? = null,
     currentUserId: String = "",
     authorUsername: String? = null,
+    authorPhotoUrl: String? = null,
     onCapriceUpdated: ((Caprice) -> Unit)? = null,
     onGoHome: () -> Unit,
     onNavigateToAuthorProfile: ((String) -> Unit)? = null
@@ -109,19 +111,18 @@ fun ResultScreen(
                         ),
                     textAlign = TextAlign.Center
                 )
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(LimeGreen, CircleShape)
-                        .then(
-                            if (canOpenAuthorProfile) {
-                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
-                            } else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(authorInitial, color = Color.Black, fontWeight = FontWeight.Bold)
-                }
+                UserAvatar(
+                    photoUrl = authorPhotoUrl.orEmpty(),
+                    username = resolvedUsername ?: authorInitial,
+                    size = 32.dp,
+                    backgroundColor = LimeGreen,
+                    fontSize = 14.sp,
+                    modifier = if (canOpenAuthorProfile) {
+                        Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                    } else {
+                        Modifier
+                    }
+                )
             }
         },
         bottomBar = {

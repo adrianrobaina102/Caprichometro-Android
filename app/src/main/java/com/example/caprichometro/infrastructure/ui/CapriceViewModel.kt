@@ -9,6 +9,7 @@ import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
+import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +34,8 @@ class CapriceViewModel(
     private val saveCapriceUseCase: SaveCapriceUseCase,
     private val getCapricesUseCase: GetCapricesUseCase,
     private val uploadCapriceImageUseCase: UploadCapriceImageUseCase? = null,
-    private val getFriendsCapricesUseCase: GetFriendsCapricesUseCase? = null
+    private val getFriendsCapricesUseCase: GetFriendsCapricesUseCase? = null,
+    private val profileCacheControl: ProfileCacheControl? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CapriceState())
@@ -136,6 +138,8 @@ class CapriceViewModel(
         feedLoadJob?.cancel()
         feedLoadJob = viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isFeedLoading = true, feedError = null) }
+            // Limpiamos la caché de perfiles al recargar el feed para recoger fotos o bios recién cambiadas
+            profileCacheControl?.invalidateAll()
 
             val result = useCase.execute(uid, perFriendLimit = 20, totalLimit = 20)
             result.fold(

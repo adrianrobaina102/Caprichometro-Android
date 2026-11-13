@@ -2,6 +2,7 @@ package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.domain.model.CapriceFeedItem
+import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository
@@ -23,6 +24,8 @@ class GetNotificationCapriceUseCase(
 
         val caprice = capriceDetailsRepository.getCapriceById(capriceId).getOrThrow()
             ?: return@runCatching null
+
+        (userProfileRepository as? ProfileCacheControl)?.invalidateUser(caprice.userId)
 
         // 1. Capricho propio
         if (caprice.userId == recipientUserId) {

@@ -813,12 +813,27 @@ fun ProfileScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = "@${blockedUser.username}",
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    UserAvatar(
+                                        photoUrl = blockedUser.photoUrl,
+                                        username = blockedUser.username,
+                                        size = 34.dp,
+                                        backgroundColor = avatarColorFor(blockedUser.username),
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "@${blockedUser.username}",
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
 
                                 OutlinedButton(
                                     onClick = { viewModel.unblockUser(currentUserId, blockedUser.uid) },

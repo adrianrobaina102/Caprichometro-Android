@@ -43,6 +43,7 @@ import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
 import com.example.caprichometro.domain.validation.ValidationResult
@@ -721,7 +722,15 @@ fun CapriceScreen(
                                             uncheckedColor = TextGray
                                         )
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    UserAvatar(
+                                        photoUrl = friend.photoUrl,
+                                        username = friend.username,
+                                        size = 32.dp,
+                                        backgroundColor = LimeGreen,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = "@${friend.username}",

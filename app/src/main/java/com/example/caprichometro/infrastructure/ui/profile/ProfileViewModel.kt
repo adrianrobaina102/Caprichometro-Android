@@ -14,6 +14,7 @@ import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
 import com.example.caprichometro.application.usecase.profile.UpdateProfilePhotoUseCase
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.VoteRepository
@@ -148,6 +149,9 @@ class ProfileViewModel(
         }
 
         profileLoadJob = viewModelScope.launch {
+            // Invalidar caché del perfil visitado para reflejar cambios recientes de foto o biografía
+            (userProfileRepository as? ProfileCacheControl)?.invalidateUser(targetUserId)
+
             // Fase 1: Cargar datos principales en paralelo (~200ms) sin bloquear por subcolecciones de votos
             val result = coroutineScope {
                 val profileDeferred = async { userProfileRepository.getUserById(targetUserId).getOrNull() }
