@@ -42,15 +42,56 @@ class AuthUseCasesTest {
             val result = registerUseCase.execute("test@mail.com", "123456", "ad")
             assertTrue(result.isFailure)
             assertTrue(result.exceptionOrNull() is InvalidUsernameException)
+            coVerify(exactly = 0) { authRepository.register(any(), any(), any()) }
             coVerify(exactly = 0) { userProfileRepository.isUsernameAvailable(any()) }
         }
 
         @Test
-        fun `falla si el nombre de usuario ya esta ocupado`() = runTest {
+        fun `autentica antes de comprobar disponibilidad y revierte la cuenta si esta ocupado`() = runTest {
+            val user = User(id = "uid_temp", email = "test@mail.com", name = "adrian_dev")
+            coEvery { authRepository.register("test@mail.com", "123456", "adrian_dev") } returns Result.success(user)
             coEvery { userProfileRepository.isUsernameAvailable("adrian_dev") } returns Result.success(false)
+            coEvery { authRepository.deleteAccount() } returns Result.success(Unit)
+
             val result = registerUseCase.execute("test@mail.com", "123456", "adrian_dev")
             assertTrue(result.isFailure)
             assertTrue(result.exceptionOrNull() is UsernameTakenException)
+            io.mockk.coVerifyOrder {
+                authRepository.register("test@mail.com", "123456", "adrian_dev")
+                userProfileRepository.isUsernameAvailable("adrian_dev")
+                authRepository.deleteAccount()
+            }
+            coVerify(exactly = 0) { userProfileRepository.saveProfile(any()) }
+        }
+
+        @Test
+        fun `revierte la cuenta de Auth si falla guardar el perfil`() = runTest {
+            val user = User(id = "uid_fail", email = "test@mail.com", name = "nuevo_user")
+            coEvery { authRepository.register("test@mail.com", "123456", "nuevo_user") } returns Result.success(user)
+            coEvery { userProfileRepository.isUsernameAvailable("nuevo_user") } returns Result.success(true)
+            coEvery { userProfileRepository.saveProfile(any()) } returns Result.failure(Exception("PERMISSION_DENIED"))
+            coEvery { authRepository.deleteAccount() } returns Result.success(Unit)
+
+            val result = registerUseCase.execute("test@mail.com", "123456", "nuevo_user")
+            assertTrue(result.isFailure)
+            coVerify(exactly = 1) { authRepository.deleteAccount() }
+        }
+
+        @Test
+        fun `completa registro autenticado y guarda perfil cuando el username esta libre`() = runTest {
+            val user = User(id = "uid_ok", email = "ok@mail.com", name = "libre_user")
+            coEvery { authRepository.register("ok@mail.com", "123456", "libre_user") } returns Result.success(user)
+            coEvery { userProfileRepository.isUsernameAvailable("libre_user") } returns Result.success(true)
+            coEvery { userProfileRepository.saveProfile(any()) } returns Result.success(Unit)
+
+            val result = registerUseCase.execute("ok@mail.com", "123456", "@Libre_User ")
+            assertTrue(result.isSuccess)
+            io.mockk.coVerifyOrder {
+                authRepository.register("ok@mail.com", "123456", "libre_user")
+                userProfileRepository.isUsernameAvailable("libre_user")
+                userProfileRepository.saveProfile(match { it.uid == "uid_ok" && it.username == "libre_user" })
+            }
+            coVerify(exactly = 0) { authRepository.deleteAccount() }
         }
     }
 
