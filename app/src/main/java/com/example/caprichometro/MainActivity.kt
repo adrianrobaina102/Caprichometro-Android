@@ -259,6 +259,7 @@ fun CapriceApp(
                         authorUsername = item.author.username,
                         caprice = item.caprice
                     )
+                    capriceViewModel.loadFriendsFeed()
                 }
             }
         } else {

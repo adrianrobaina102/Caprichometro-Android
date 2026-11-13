@@ -693,8 +693,9 @@ fun ProfileScreen(
 
     val totalDudas = state.caprices.size
     val expiredCaprices = state.caprices.filter { (System.currentTimeMillis() - it.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS }
-    val totalResueltas = expiredCaprices.size
-    val positiveVerdicts = expiredCaprices.count { state.verdicts[it.id] == true }
+    val resolvedCaprices = expiredCaprices.filter { state.verdicts[it.id] != null }
+    val totalResueltas = resolvedCaprices.size
+    val positiveVerdicts = resolvedCaprices.count { state.verdicts[it.id] == true }
     val hiceCasoPercent = if (totalResueltas > 0) {
         ((positiveVerdicts.toFloat() / totalResueltas) * 100).toInt().coerceIn(0, 100)
     } else {

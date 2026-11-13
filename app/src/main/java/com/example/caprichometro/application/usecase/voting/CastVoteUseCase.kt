@@ -15,6 +15,9 @@ class CastVoteUseCase(
         if (caprice.userId == voterId) {
             return Result.failure(IllegalStateException("No puedes votar en tu propio capricho"))
         }
+        if (!caprice.isVisibleTo(voterId)) {
+            return Result.failure(IllegalStateException("No tienes permiso para votar en este capricho"))
+        }
         if (PollNotificationScheduler.isPollExpired(caprice.timestamp)) {
             return Result.failure(IllegalStateException("La votación ya ha cerrado (límite de 5 minutos alcanzado)"))
         }

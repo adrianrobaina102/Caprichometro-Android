@@ -214,7 +214,9 @@ class ProfileViewModel(
                             semaphore.withPermit {
                                 val votes = repo.getVotes(caprice.id).getOrDefault(emptyList())
                                 val cachedVerdict = computeVerdictStatus(caprice, votes)
-                                verdictCache[caprice.id] = cachedVerdict
+                                if (caprice.finalDecision != null) {
+                                    verdictCache[caprice.id] = cachedVerdict
+                                }
                                 caprice.id to cachedVerdict.toAcceptedOrNull()
                             }
                         }
