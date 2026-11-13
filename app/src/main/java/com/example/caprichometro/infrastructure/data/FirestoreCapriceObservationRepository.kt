@@ -47,4 +47,36 @@ class FirestoreCapriceObservationRepository : CapriceObservationRepository {
             registration.remove()
         }
     }
+
+    override fun observeFriendFinalDecisions(friendUserId: String, sinceTimestamp: Long): Flow<Caprice> = callbackFlow {
+        if (friendUserId.isBlank()) {
+            close()
+            return@callbackFlow
+        }
+
+        val query = db.collection(collectionName)
+            .whereEqualTo("userId", friendUserId)
+
+        val registration = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.w("FirestoreCapriceObs", "Error observando decisiones de $friendUserId: ${error.message}")
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+
+            for (change in snapshot.documentChanges) {
+                if (change.type == DocumentChange.Type.ADDED || change.type == DocumentChange.Type.MODIFIED) {
+                    val caprice = change.document.toCapriceOrNull("FirestoreCapriceObs")
+                    val decidedAt = caprice?.finalDecisionAt ?: 0L
+                    if (caprice != null && (caprice.finalDecision == 1 || caprice.finalDecision == 2) && decidedAt > sinceTimestamp) {
+                        trySend(caprice)
+                    }
+                }
+            }
+        }
+
+        awaitClose {
+            registration.remove()
+        }
+    }
 }

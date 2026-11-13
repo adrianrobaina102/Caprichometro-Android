@@ -4,6 +4,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.*
@@ -42,20 +44,24 @@ private val TextGray = Color(0xFFAAAAAA)
 fun ResultScreen(
     caprice: Caprice?,
     viewModel: ActivePollViewModel? = null,
+    currentUserId: String = "",
+    onCapriceUpdated: ((Caprice) -> Unit)? = null,
     onGoHome: () -> Unit,
     onNavigateToAuthorProfile: ((String) -> Unit)? = null
 ) {
     var isImageExpanded by remember { mutableStateOf(false) }
-    val imageModel = remember(caprice?.imageUrl) {
-        ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
-    }
-    val authorInitial = caprice?.userId?.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
-
     val vmState by viewModel?.state?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(null)
+    val displayedCaprice = vmState?.caprice?.takeIf { it.id == caprice?.id } ?: caprice
 
-    LaunchedEffect(caprice?.id) {
-        if (caprice != null && viewModel != null && vmState?.caprice?.id != caprice.id) {
-            viewModel.initialize(caprice, caprice.userId)
+    val imageModel = remember(displayedCaprice?.imageUrl) {
+        ImageModelHelper.parseImageModel(displayedCaprice?.imageUrl.orEmpty())
+    }
+    val authorInitial = displayedCaprice?.userId?.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+
+    LaunchedEffect(caprice?.id, currentUserId) {
+        val effectiveUserId = currentUserId.ifBlank { caprice?.userId.orEmpty() }
+        if (caprice != null && viewModel != null && (vmState?.caprice?.id != caprice.id || vmState?.currentUserId != effectiveUserId)) {
+            viewModel.initialize(caprice, effectiveUserId)
         }
     }
 
@@ -134,6 +140,7 @@ fun ResultScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -253,6 +260,29 @@ fun ResultScreen(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            if (displayedCaprice != null) {
+                val isAuthor = currentUserId.isNotBlank() && displayedCaprice.userId == currentUserId
+                val finalDecision = displayedCaprice.finalDecision
+                val isSavingDecision = vmState?.isSavingFinalDecision == true
+
+                FinalDecisionCard(
+                    caprice = displayedCaprice,
+                    isAuthor = isAuthor,
+                    finalDecision = finalDecision,
+                    isSaving = isSavingDecision,
+                    errorMessage = vmState?.errorMessage,
+                    onSelectDecision = { option ->
+                        viewModel?.confirmFinalDecision(option) { updated ->
+                            onCapriceUpdated?.invoke(updated)
+                        }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 
@@ -360,6 +390,124 @@ fun ResultBar(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+@Composable
+private fun FinalDecisionCard(
+    caprice: Caprice,
+    isAuthor: Boolean,
+    finalDecision: Int?,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onSelectDecision: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF1A1A1D))
+            .border(
+                width = 1.dp,
+                color = if (finalDecision != null) LimeGreen.copy(alpha = 0.6f) else Color(0xFF2C2C30),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(16.dp)
+    ) {
+        when {
+            finalDecision != null -> {
+                val label = if (finalDecision == 1) "A" else "B"
+                val answerText = if (finalDecision == 1) caprice.answer1 else caprice.answer2
+                Text(
+                    text = if (isAuthor) "TU DECISIÓN FINAL" else "DECISIÓN FINAL DEL AUTOR",
+                    color = LimeGreen,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "$label · $answerText",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            isAuthor -> {
+                Text(
+                    text = "PENDIENTE DE CONFIRMAR TU DECISIÓN",
+                    color = Color(0xFFFFD54F),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "¿Qué decidiste al final?",
+                    color = TextGray,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { onSelectDecision(1) },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text(
+                            text = "A · ${caprice.answer1}",
+                            maxLines = 1,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { onSelectDecision(2) },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text(
+                            text = "B · ${caprice.answer2}",
+                            maxLines = 1,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                if (isSaving) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LimeGreen
+                    )
+                }
+                if (!errorMessage.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = Color(0xFFFF6B6B),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            else -> {
+                Text(
+                    text = "PENDIENTE DE DECISIÓN FINAL",
+                    color = TextGray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "El autor aún no ha confirmado si eligió A o B.",
+                    color = TextGray,
+                    fontSize = 13.sp
+                )
+            }
         }
     }
 }

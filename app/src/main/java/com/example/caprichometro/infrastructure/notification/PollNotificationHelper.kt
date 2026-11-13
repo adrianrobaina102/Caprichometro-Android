@@ -197,4 +197,64 @@ object PollNotificationHelper {
         } catch (_: SecurityException) {
         }
     }
+
+    fun showFriendFinalDecisionNotification(
+        context: Context,
+        recipientUserId: String,
+        authorUsername: String,
+        caprice: Caprice
+    ) {
+        val chosenOption = when (caprice.finalDecision) {
+            1 -> caprice.answer1
+            2 -> caprice.answer2
+            else -> return
+        }
+        createNotificationChannel(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NAVIGATE_TO, "result")
+            putExtra(EXTRA_CAPRICE_ID, caprice.id)
+            putExtra(EXTRA_CAPRICE_QUESTION, caprice.question)
+            putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
+            if (caprice.id.isNotBlank()) {
+                data = Uri.parse("caprichometro://caprice/${caprice.id}")
+            }
+        }
+
+        val requestCode = "decision_${caprice.id}".hashCode()
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = "@$authorUsername ya tomó una decisión"
+        val body = "Al final eligió: $chosenOption"
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_caprichometro_logo)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    if (caprice.question.isNotBlank()) "\"${caprice.question}\"\n$body" else body
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(
+                requestCode,
+                notification
+            )
+        } catch (_: SecurityException) {
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.example.caprichometro.infrastructure.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
@@ -27,6 +28,7 @@ data class ActivePollUiState(
     val votes: List<Vote> = emptyList(),
     val userVote: Vote? = null,
     val isCastingVote: Boolean = false,
+    val isSavingFinalDecision: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -34,7 +36,8 @@ class ActivePollViewModel(
     private val castVoteUseCase: CastVoteUseCase,
     private val observeVotesUseCase: ObserveVotesUseCase,
     private val calculateVerdictUseCase: CalculateVerdictUseCase,
-    private val voteRepository: VoteRepository
+    private val voteRepository: VoteRepository,
+    private val updateFinalDecisionUseCase: UpdateFinalDecisionUseCase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivePollUiState())
@@ -152,6 +155,38 @@ class ActivePollViewModel(
                         it.copy(
                             isCastingVote = false,
                             errorMessage = error.message ?: "No se pudo emitir el voto"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun confirmFinalDecision(decision: Int, onUpdated: ((Caprice) -> Unit)? = null) {
+        val caprice = _state.value.caprice ?: return
+        val currentUserId = _state.value.currentUserId
+        val useCase = updateFinalDecisionUseCase ?: return
+        if (currentUserId.isBlank() || _state.value.isSavingFinalDecision) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isSavingFinalDecision = true, errorMessage = null) }
+            val result = useCase.execute(caprice, currentUserId, decision)
+            result.fold(
+                onSuccess = { updatedCaprice ->
+                    _state.update {
+                        it.copy(
+                            caprice = updatedCaprice,
+                            isSavingFinalDecision = false,
+                            errorMessage = null
+                        )
+                    }
+                    onUpdated?.invoke(updatedCaprice)
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            isSavingFinalDecision = false,
+                            errorMessage = error.message ?: "No se pudo guardar tu decisión final"
                         )
                     }
                 }

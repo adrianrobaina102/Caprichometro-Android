@@ -113,7 +113,8 @@ class ViewModelFactory(private val context: Context? = null) {
             CastVoteUseCase(voteRepository),
             ObserveVotesUseCase(voteRepository),
             CalculateVerdictUseCase(),
-            voteRepository
+            voteRepository,
+            com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase(capriceRepository)
         )
     }
 

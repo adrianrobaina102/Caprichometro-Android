@@ -69,6 +69,7 @@ private data class MemoryItem(
     val gradientColors: List<Color>,
     val accepted: Boolean?,
     val isActive: Boolean = false,
+    val isDecisionPending: Boolean = false,
     val extraCount: Int = 0
 )
 
@@ -89,7 +90,8 @@ private fun avatarColorFor(username: String): Color {
 private fun capriceToMemory(
     caprice: Caprice,
     accepted: Boolean?,
-    isActive: Boolean
+    isActive: Boolean,
+    isDecisionPending: Boolean = false
 ): MemoryItem {
     val emoji = when (caprice.type.lowercase()) {
         "compra", "compras" -> "\uD83D\uDECD\uFE0F"
@@ -117,7 +119,8 @@ private fun capriceToMemory(
         imageUrl = caprice.imageUrl,
         gradientColors = colors,
         accepted = accepted,
-        isActive = isActive
+        isActive = isActive,
+        isDecisionPending = isDecisionPending
     )
 }
 @OptIn(ExperimentalMaterial3Api::class)
@@ -947,7 +950,8 @@ fun ProfileScreen(
                     capriceToMemory(
                         caprice = caprice,
                         accepted = state.verdicts[caprice.id],
-                        isActive = !isExpired
+                        isActive = !isExpired,
+                        isDecisionPending = state.isOwnProfile && isExpired && caprice.finalDecision == null
                     )
                 }
             } else {
@@ -1222,6 +1226,24 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        if (item.isDecisionPending) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .background(Color(0xFF2B2410), RoundedCornerShape(50))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Pendiente",
+                    color = Color(0xFFFFD54F),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

@@ -30,6 +30,13 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
             ?.distinct()
             .orEmpty()
 
+        val finalDecision = (get("finalDecision") as? Number)?.toInt()?.takeIf { it == 1 || it == 2 }
+        val finalDecisionAt = when (val rawDecisionAt = get("finalDecisionAt")) {
+            is Number -> rawDecisionAt.toLong()
+            is Timestamp -> rawDecisionAt.toDate().time
+            else -> null
+        }
+
         Caprice(
             id = id,
             userId = getString("userId") ?: "",
@@ -39,7 +46,9 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
             answer2 = answer2,
             imageUrl = getString("imageUrl").orEmpty(),
             timestamp = parsedTimestamp,
-            visibleToUserIds = visibleToUserIds
+            visibleToUserIds = visibleToUserIds,
+            finalDecision = finalDecision,
+            finalDecisionAt = finalDecisionAt
         )
     } catch (e: Exception) {
         Log.e(logTag, "Documento caprice inválido $id: ${e.message}", e)

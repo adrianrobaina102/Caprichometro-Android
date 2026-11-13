@@ -11,7 +11,9 @@ data class Caprice(
     val answer2: String = "",
     val imageUrl: String = "",
     val timestamp: Long = System.currentTimeMillis(),
-    val visibleToUserIds: List<String> = emptyList()
+    val visibleToUserIds: List<String> = emptyList(),
+    val finalDecision: Int? = null,
+    val finalDecisionAt: Long? = null
 ) {
     /**
      * Comprueba si [viewerUserId] tiene permiso para ver este capricho.
@@ -33,6 +35,8 @@ data class Caprice(
         private var imageUrl: String = ""
         private var timestamp: Long = System.currentTimeMillis()
         private var visibleToUserIds: List<String> = emptyList()
+        private var finalDecision: Int? = null
+        private var finalDecisionAt: Long? = null
 
         fun setId(id: String) = apply { this.id = id }
         fun setUserId(userId: String) = apply { this.userId = userId }
@@ -47,6 +51,10 @@ data class Caprice(
         fun setVisibleToUserIds(userIds: List<String>) = apply {
             this.visibleToUserIds = userIds.filter { it.isNotBlank() }.distinct()
         }
+        fun setFinalDecision(decision: Int?, decidedAt: Long? = null) = apply {
+            this.finalDecision = decision?.takeIf { it == 1 || it == 2 }
+            this.finalDecisionAt = decidedAt
+        }
 
         fun build(): Caprice {
             check(question.isNotBlank()) { "La pregunta es obligatoria" }
@@ -60,7 +68,9 @@ data class Caprice(
                 answer2 = answer2,
                 imageUrl = imageUrl,
                 timestamp = timestamp,
-                visibleToUserIds = visibleToUserIds
+                visibleToUserIds = visibleToUserIds,
+                finalDecision = finalDecision,
+                finalDecisionAt = finalDecisionAt
             )
         }
     }

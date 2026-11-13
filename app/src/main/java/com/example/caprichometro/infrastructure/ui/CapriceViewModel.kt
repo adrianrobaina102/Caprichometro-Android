@@ -163,4 +163,16 @@ class CapriceViewModel(
             )
         }
     }
+
+    fun markFinalDecision(capriceId: String, decision: Int, decidedAt: Long) {
+        _state.update { current ->
+            current.copy(
+                latestCaprices = current.latestCaprices.map { caprice ->
+                    if (caprice.id == capriceId) {
+                        caprice.copy(finalDecision = decision, finalDecisionAt = decidedAt)
+                    } else caprice
+                }
+            )
+        }
+    }
 }

@@ -90,6 +90,31 @@ class FirestoreCapriceRepository(
             }
         }
 
+    override suspend fun updateFinalDecision(
+        capriceId: String,
+        decision: Int,
+        decidedAt: Long
+    ): Result<Unit> = withContext(ioDispatcher) {
+        if (capriceId.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("ID de capricho inválido"))
+        }
+        try {
+            db.collection(collectionName)
+                .document(capriceId)
+                .update(
+                    mapOf(
+                        "finalDecision" to decision,
+                        "finalDecisionAt" to decidedAt
+                    )
+                )
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirestoreCapriceRepo", "Error guardando decisión final para $capriceId: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     private suspend fun fetchCapriceDocuments(userId: String, limit: Int): List<DocumentSnapshot> {
         return try {
             val query = db.collection(collectionName).whereEqualTo("userId", userId)

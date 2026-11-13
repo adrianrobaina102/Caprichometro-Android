@@ -36,6 +36,29 @@ class SharedPreferencesCapriceNotificationHistoryRepository(
             .apply()
     }
 
+    override fun getLastNotifiedDecisionCapriceId(recipientUserId: String, friendUserId: String): String? {
+        if (recipientUserId.isBlank() || friendUserId.isBlank()) return null
+        return prefs.getString("notif_decision_id_${recipientUserId}_${friendUserId}", null)
+    }
+
+    override fun getLastNotifiedDecisionTimestamp(recipientUserId: String, friendUserId: String): Long {
+        if (recipientUserId.isBlank() || friendUserId.isBlank()) return 0L
+        return prefs.getLong("notif_decision_ts_${recipientUserId}_${friendUserId}", 0L)
+    }
+
+    override fun setLastNotifiedDecision(
+        recipientUserId: String,
+        friendUserId: String,
+        capriceId: String,
+        timestamp: Long
+    ) {
+        if (recipientUserId.isBlank() || friendUserId.isBlank()) return
+        prefs.edit()
+            .putString("notif_decision_id_${recipientUserId}_${friendUserId}", capriceId)
+            .putLong("notif_decision_ts_${recipientUserId}_${friendUserId}", timestamp)
+            .apply()
+    }
+
     private fun keyId(recipientUserId: String, friendUserId: String): String {
         return "notif_caprice_id_${recipientUserId}_${friendUserId}"
     }

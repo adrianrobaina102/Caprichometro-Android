@@ -69,4 +69,56 @@ class NotifyFriendCapriceUseCase(
     fun recordNotification(recipientUserId: String, friendUserId: String, capriceId: String, timestamp: Long) {
         historyRepository.setLastNotified(recipientUserId, friendUserId, capriceId, timestamp)
     }
+
+    /**
+     * Comprueba si algún amigo aceptado ha confirmado su decisión final (`finalDecision`)
+     * en un capricho visible y aún no notificado localmente.
+     */
+    suspend fun checkAndNotifyFriendFinalDecisions(
+        recipientUserId: String,
+        onNotify: (author: UserProfile, caprice: Caprice) -> Unit
+    ): List<CapriceFeedItem> {
+        if (recipientUserId.isBlank()) return emptyList()
+
+        return try {
+            val acceptedFriends = getAcceptedFriendsUseCase.execute(recipientUserId).first()
+            if (acceptedFriends.isEmpty()) return emptyList()
+
+            coroutineScope {
+                acceptedFriends.map { friend ->
+                    async {
+                        val caprices = capriceRepository.getCaprices(friend.uid, limit = 20).getOrNull()
+                            ?: return@async null
+                        val latestDecided = caprices
+                            .filter { it.isVisibleTo(recipientUserId) && (it.finalDecision == 1 || it.finalDecision == 2) }
+                            .maxByOrNull { it.finalDecisionAt ?: it.timestamp }
+                            ?: return@async null
+
+                        val decidedAt = latestDecided.finalDecisionAt ?: latestDecided.timestamp
+                        val lastId = historyRepository.getLastNotifiedDecisionCapriceId(recipientUserId, friend.uid)
+                        val lastTs = historyRepository.getLastNotifiedDecisionTimestamp(recipientUserId, friend.uid)
+
+                        if (latestDecided.id != lastId && decidedAt > lastTs) {
+                            onNotify(friend, latestDecided)
+                            historyRepository.setLastNotifiedDecision(
+                                recipientUserId = recipientUserId,
+                                friendUserId = friend.uid,
+                                capriceId = latestDecided.id,
+                                timestamp = decidedAt
+                            )
+                            CapriceFeedItem(caprice = latestDecided, author = friend)
+                        } else {
+                            null
+                        }
+                    }
+                }.awaitAll().filterNotNull()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun recordDecisionNotification(recipientUserId: String, friendUserId: String, capriceId: String, timestamp: Long) {
+        historyRepository.setLastNotifiedDecision(recipientUserId, friendUserId, capriceId, timestamp)
+    }
 }

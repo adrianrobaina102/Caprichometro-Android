@@ -1,6 +1,7 @@
 package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
+import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.repository.CapriceObservationRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -15,7 +16,22 @@ class ObserveFriendCapricesUseCase(
     private val observationRepository: CapriceObservationRepository
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun execute(currentUserId: String, sinceTimestamp: Long): Flow<CapriceFeedItem> {
+    fun execute(currentUserId: String, sinceTimestamp: Long): Flow<CapriceFeedItem> =
+        observeFriendsStream(currentUserId) { friendUid ->
+            observationRepository.observeFriendCaprices(friendUid, sinceTimestamp)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeFinalDecisions(currentUserId: String, sinceTimestamp: Long): Flow<CapriceFeedItem> =
+        observeFriendsStream(currentUserId) { friendUid ->
+            observationRepository.observeFriendFinalDecisions(friendUid, sinceTimestamp)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeFriendsStream(
+        currentUserId: String,
+        streamProvider: (String) -> Flow<Caprice>
+    ): Flow<CapriceFeedItem> {
         if (currentUserId.isBlank()) return emptyFlow()
 
         return getAcceptedFriendsUseCase.execute(currentUserId).flatMapLatest { friends ->
@@ -25,12 +41,11 @@ class ObserveFriendCapricesUseCase(
                 channelFlow {
                     friends.forEach { friend ->
                         launch {
-                            observationRepository.observeFriendCaprices(friend.uid, sinceTimestamp)
-                                .collect { caprice ->
-                                    if (caprice.isVisibleTo(currentUserId)) {
-                                        send(CapriceFeedItem(caprice = caprice, author = friend))
-                                    }
+                            streamProvider(friend.uid).collect { caprice ->
+                                if (caprice.isVisibleTo(currentUserId)) {
+                                    send(CapriceFeedItem(caprice = caprice, author = friend))
                                 }
+                            }
                         }
                     }
                 }

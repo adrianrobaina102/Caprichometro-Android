@@ -92,6 +92,18 @@ class ProfileViewModel(
         verdictCache.clear()
     }
 
+    private fun computeVerdictStatus(caprice: Caprice, votes: List<com.example.caprichometro.domain.model.Vote>): CachedVerdict {
+        val decision = caprice.finalDecision ?: return CachedVerdict.TIE_OR_NONE
+        val opt1Votes = votes.count { it.option == 1 }
+        val opt2Votes = votes.count { it.option == 2 }
+        val winningOption = when {
+            opt1Votes > opt2Votes -> 1
+            opt2Votes > opt1Votes -> 2
+            else -> return CachedVerdict.TIE_OR_NONE
+        }
+        return if (decision == winningOption) CachedVerdict.ACCEPTED else CachedVerdict.REJECTED
+    }
+
     private fun CachedVerdict.toAcceptedOrNull(): Boolean? = when (this) {
         CachedVerdict.ACCEPTED -> true
         CachedVerdict.REJECTED -> false
@@ -201,13 +213,7 @@ class ProfileViewModel(
                         async {
                             semaphore.withPermit {
                                 val votes = repo.getVotes(caprice.id).getOrDefault(emptyList())
-                                val opt1Votes = votes.count { it.option == 1 }
-                                val opt2Votes = votes.count { it.option == 2 }
-                                val cachedVerdict = when {
-                                    opt1Votes > opt2Votes -> CachedVerdict.ACCEPTED
-                                    opt2Votes > opt1Votes -> CachedVerdict.REJECTED
-                                    else -> CachedVerdict.TIE_OR_NONE
-                                }
+                                val cachedVerdict = computeVerdictStatus(caprice, votes)
                                 verdictCache[caprice.id] = cachedVerdict
                                 caprice.id to cachedVerdict.toAcceptedOrNull()
                             }
@@ -226,6 +232,31 @@ class ProfileViewModel(
 
     fun clearBioError() {
         _state.update { it.copy(bioErrorMessage = null) }
+    }
+
+    fun markFinalDecision(capriceId: String, decision: Int, decidedAt: Long) {
+        var updatedCaprice: Caprice? = null
+        _state.update { current ->
+            current.copy(
+                caprices = current.caprices.map { caprice ->
+                    if (caprice.id == capriceId) {
+                        caprice.copy(finalDecision = decision, finalDecisionAt = decidedAt).also {
+                            updatedCaprice = it
+                        }
+                    } else caprice
+                }
+            )
+        }
+        val targetCaprice = updatedCaprice ?: return
+        val repo = voteRepository ?: return
+        viewModelScope.launch {
+            val votes = repo.getVotes(capriceId).getOrDefault(emptyList())
+            val cachedVerdict = computeVerdictStatus(targetCaprice, votes)
+            verdictCache[capriceId] = cachedVerdict
+            _state.update { current ->
+                current.copy(verdicts = current.verdicts + (capriceId to cachedVerdict.toAcceptedOrNull()))
+            }
+        }
     }
 
     fun updateBio(userId: String, newBio: String, onSuccess: () -> Unit = {}) {

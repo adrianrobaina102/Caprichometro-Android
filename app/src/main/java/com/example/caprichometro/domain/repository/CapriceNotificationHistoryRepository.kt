@@ -20,4 +20,15 @@ interface CapriceNotificationHistoryRepository {
         capriceId: String,
         timestamp: Long
     )
+
+    fun getLastNotifiedDecisionCapriceId(recipientUserId: String, friendUserId: String): String? = null
+
+    fun getLastNotifiedDecisionTimestamp(recipientUserId: String, friendUserId: String): Long = 0L
+
+    fun setLastNotifiedDecision(
+        recipientUserId: String,
+        friendUserId: String,
+        capriceId: String,
+        timestamp: Long
+    ) {}
 }

@@ -177,8 +177,13 @@ fun CapriceApp(
                             "active"
                         }
                     } else {
-                        selectedFeedItem = item
-                        currentScreen = "friend_poll"
+                        if (navigateTo == "result") {
+                            selectedProfileCaprice = item.caprice
+                            currentScreen = "result"
+                        } else {
+                            selectedFeedItem = item
+                            currentScreen = "friend_poll"
+                        }
                     }
                 }
             } else if (navigateTo == "result") {
@@ -223,6 +228,37 @@ fun CapriceApp(
                     )
                     // Recargamos el feed social para que aparezca la nueva duda
                     capriceViewModel.loadFriendsFeed()
+                }
+            }
+
+            // 3. Recuperación al volver a la app: decisiones finales de amigos aún no notificadas
+            launch {
+                notifyFriendCapriceUseCase.checkAndNotifyFriendFinalDecisions(currentUserId) { author, caprice ->
+                    PollNotificationHelper.showFriendFinalDecisionNotification(
+                        context = context,
+                        recipientUserId = currentUserId,
+                        authorUsername = author.username,
+                        caprice = caprice
+                    )
+                }
+            }
+
+            // 4. Escucha en vivo de decisiones finales confirmadas por amigos con la app abierta
+            launch {
+                observeFriendCapricesUseCase.observeFinalDecisions(currentUserId, foregroundStart).collect { item ->
+                    val decidedAt = item.caprice.finalDecisionAt ?: item.caprice.timestamp
+                    notifyFriendCapriceUseCase.recordDecisionNotification(
+                        recipientUserId = currentUserId,
+                        friendUserId = item.author.uid,
+                        capriceId = item.caprice.id,
+                        timestamp = decidedAt
+                    )
+                    PollNotificationHelper.showFriendFinalDecisionNotification(
+                        context = context,
+                        recipientUserId = currentUserId,
+                        authorUsername = item.author.username,
+                        caprice = item.caprice
+                    )
                 }
             }
         } else {
@@ -315,6 +351,16 @@ fun CapriceApp(
                                 ResultScreen(
                                     caprice = capriceToShow,
                                     viewModel = activePollViewModel,
+                                    currentUserId = currentUserId,
+                                    onCapriceUpdated = { updated ->
+                                        selectedProfileCaprice = updated
+                                        val decision = updated.finalDecision
+                                        val decidedAt = updated.finalDecisionAt
+                                        if (decision != null && decidedAt != null) {
+                                            profileViewModel.markFinalDecision(updated.id, decision, decidedAt)
+                                            capriceViewModel.markFinalDecision(updated.id, decision, decidedAt)
+                                        }
+                                    },
                                     onGoHome = {
                                         val wasFromProfile = selectedProfileCaprice != null
                                         selectedProfileCaprice = null
