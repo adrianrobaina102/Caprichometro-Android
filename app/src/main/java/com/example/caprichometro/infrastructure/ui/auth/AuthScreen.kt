@@ -55,8 +55,9 @@ private val AuthDarkColorScheme = darkColorScheme(
     outline = BorderGray
 )
 
-private val DisplayDateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("es", "ES"))
-private val HeadlineDateFormatter = DateTimeFormatter.ofPattern("d 'de' MMM 'de' yyyy", Locale("es", "ES"))
+private val EsLocale = Locale.Builder().setLanguage("es").setRegion("ES").build()
+private val DisplayDateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", EsLocale)
+private val HeadlineDateFormatter = DateTimeFormatter.ofPattern("d 'de' MMM 'de' yyyy", EsLocale)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -1,6 +1,6 @@
 package com.example.caprichometro.application.usecase.auth
 
-import com.example.caprichometro.domain.model.AuthRepository
+import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.User
 
 class GetCurrentUserUseCase(private val authRepository: AuthRepository) {

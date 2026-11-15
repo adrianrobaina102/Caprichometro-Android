@@ -1,7 +1,7 @@
 package com.example.caprichometro.application.usecase.auth
 
 import android.content.Context
-import com.example.caprichometro.domain.model.AuthRepository
+import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository

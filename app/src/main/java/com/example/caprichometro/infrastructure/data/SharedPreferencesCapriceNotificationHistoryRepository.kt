@@ -2,6 +2,7 @@ package com.example.caprichometro.infrastructure.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRepository
 
 class SharedPreferencesCapriceNotificationHistoryRepository(
@@ -30,10 +31,10 @@ class SharedPreferencesCapriceNotificationHistoryRepository(
         timestamp: Long
     ) {
         if (recipientUserId.isBlank() || friendUserId.isBlank()) return
-        prefs.edit()
-            .putString(keyId(recipientUserId, friendUserId), capriceId)
-            .putLong(keyTimestamp(recipientUserId, friendUserId), timestamp)
-            .apply()
+        prefs.edit {
+            putString(keyId(recipientUserId, friendUserId), capriceId)
+            putLong(keyTimestamp(recipientUserId, friendUserId), timestamp)
+        }
     }
 
     override fun getLastNotifiedDecisionCapriceId(recipientUserId: String, friendUserId: String): String? {
@@ -53,10 +54,10 @@ class SharedPreferencesCapriceNotificationHistoryRepository(
         timestamp: Long
     ) {
         if (recipientUserId.isBlank() || friendUserId.isBlank()) return
-        prefs.edit()
-            .putString("notif_decision_id_${recipientUserId}_${friendUserId}", capriceId)
-            .putLong("notif_decision_ts_${recipientUserId}_${friendUserId}", timestamp)
-            .apply()
+        prefs.edit {
+            putString("notif_decision_id_${recipientUserId}_${friendUserId}", capriceId)
+            putLong("notif_decision_ts_${recipientUserId}_${friendUserId}", timestamp)
+        }
     }
 
     private fun keyId(recipientUserId: String, friendUserId: String): String {

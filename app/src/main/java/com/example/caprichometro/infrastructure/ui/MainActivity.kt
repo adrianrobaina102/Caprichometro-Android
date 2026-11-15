@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,6 +199,43 @@ fun CapriceApp(
             viewingProfileUserId = authorId
             previousScreenBeforeProfile = fromScreen
             currentScreen = "profile"
+        }
+    }
+
+    BackHandler(enabled = authState.isAuthSuccessful && (selectedPublicAuthor != null || currentScreen != "home")) {
+        if (selectedPublicAuthor != null) {
+            selectedPublicAuthor = null
+            return@BackHandler
+        }
+        when (currentScreen) {
+            "friend_poll", "create" -> currentScreen = "home"
+            "active" -> {
+                if (selectedProfileCaprice != null) {
+                    selectedProfileCaprice = null
+                    currentScreen = "profile"
+                } else {
+                    currentScreen = "create"
+                }
+            }
+            "result" -> {
+                val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
+                val wasFromProfile = selectedProfileCaprice != null && selectedFeedItem?.caprice?.id != capriceToShow?.id
+                selectedProfileCaprice = null
+                selectedFeedItem = null
+                currentScreen = if (wasFromProfile) "profile" else "home"
+            }
+            "add_friend" -> {
+                viewingProfileUserId = currentUserId
+                currentScreen = "profile"
+            }
+            "profile" -> {
+                if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank() && previousScreenBeforeProfile != "profile") {
+                    viewingProfileUserId = currentUserId
+                    currentScreen = previousScreenBeforeProfile
+                } else {
+                    currentScreen = "home"
+                }
+            }
         }
     }
     val canOpenAuthorProfileFor: (String?, Boolean) -> Boolean = { authorId, feedCanOpen ->

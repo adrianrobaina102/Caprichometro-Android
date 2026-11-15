@@ -15,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-import com.example.caprichometro.domain.model.AuthRepository
+import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.BuildConfig
 import com.google.firebase.auth.FirebaseAuth

@@ -36,6 +36,7 @@ import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.PollState
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
@@ -159,10 +160,8 @@ fun ActivePollScreen(
 
     LaunchedEffect(caprice, isFriendPoll) {
         if (caprice != null && viewModel == null) {
-            val totalTimeMillis = PollNotificationScheduler.POLL_DURATION_MILLIS
             while (true) {
-                val elapsedTime = System.currentTimeMillis() - caprice.timestamp
-                val remainingTime = totalTimeMillis - elapsedTime
+                val remainingTime = PollTiming.calculateTriggerTime(caprice.timestamp) - System.currentTimeMillis()
 
                 if (remainingTime <= 0) {
                     localTimeDisplay = "00:00"
@@ -361,7 +360,7 @@ fun ActivePollScreen(
             // Hora explícita local de cierre acordada ("Cierra a las HH:mm" / "Cerró a las HH:mm")
             val closeTimeFormatted = remember(caprice?.timestamp) {
                 if (caprice != null && caprice.timestamp > 0L) {
-                    val closeTimestamp = caprice.timestamp + PollNotificationScheduler.POLL_DURATION_MILLIS
+                    val closeTimestamp = PollTiming.calculateTriggerTime(caprice.timestamp)
                     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(closeTimestamp))
                 } else null
             }

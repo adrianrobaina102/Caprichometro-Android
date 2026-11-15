@@ -46,9 +46,9 @@ import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.NearbyCellGrid
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.splitByDistanceRadius
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
@@ -929,7 +929,7 @@ private fun CapriceFeedCard(
 ) {
     val caprice = item.caprice
     val author = item.author
-    val isActive = (nowMillis - caprice.timestamp) < PollNotificationScheduler.POLL_DURATION_MILLIS
+    val isActive = !PollTiming.isPollExpired(caprice.timestamp, nowMillis)
     val relativeTime = remember(caprice.timestamp, nowMillis) {
         formatRelativeTime(caprice.timestamp, nowMillis)
     }
@@ -1158,8 +1158,7 @@ internal fun formatRelativeTime(timestampMillis: Long, nowMillis: Long): String 
 }
 
 internal fun formatPollStatus(timestampMillis: Long, nowMillis: Long): String {
-    val totalDuration = PollNotificationScheduler.POLL_DURATION_MILLIS
-    val closeTimestamp = timestampMillis + totalDuration
+    val closeTimestamp = PollTiming.calculateTriggerTime(timestampMillis)
     val remainingMillis = closeTimestamp - nowMillis
 
     return if (remainingMillis > 0) {

@@ -5,10 +5,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.net.toUri
 import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.infrastructure.ui.MainActivity
@@ -25,18 +24,16 @@ object PollNotificationHelper {
     const val EXTRA_RECIPIENT_USER_ID = "EXTRA_RECIPIENT_USER_ID"
 
     fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notificaciones de votaciones y caprichos de amigos en Caprichómetro"
-                enableVibration(true)
-            }
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            notificationManager?.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notificaciones de votaciones y caprichos de amigos en Caprichómetro"
+            enableVibration(true)
         }
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.createNotificationChannel(channel)
     }
 
     fun showCapriceCreatedNotification(
@@ -54,7 +51,7 @@ object PollNotificationHelper {
             putExtra(EXTRA_CAPRICE_QUESTION, capriceQuestion)
             putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
             if (capriceId.isNotBlank()) {
-                data = Uri.parse("caprichometro://caprice/$capriceId")
+                data = "caprichometro://caprice/$capriceId".toUri()
             }
         }
 
@@ -104,7 +101,7 @@ object PollNotificationHelper {
             putExtra(EXTRA_CAPRICE_QUESTION, capriceQuestion)
             putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
             if (capriceId.isNotBlank()) {
-                data = Uri.parse("caprichometro://caprice/$capriceId")
+                data = "caprichometro://caprice/$capriceId".toUri()
             }
         }
 
@@ -158,7 +155,7 @@ object PollNotificationHelper {
             putExtra(EXTRA_CAPRICE_QUESTION, caprice.question)
             putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
             if (caprice.id.isNotBlank()) {
-                data = Uri.parse("caprichometro://caprice/${caprice.id}")
+                data = "caprichometro://caprice/${caprice.id}".toUri()
             }
         }
 
@@ -218,7 +215,7 @@ object PollNotificationHelper {
             putExtra(EXTRA_CAPRICE_QUESTION, caprice.question)
             putExtra(EXTRA_RECIPIENT_USER_ID, recipientUserId)
             if (caprice.id.isNotBlank()) {
-                data = Uri.parse("caprichometro://caprice/${caprice.id}")
+                data = "caprichometro://caprice/${caprice.id}".toUri()
             }
         }
 

@@ -1,7 +1,7 @@
 package com.example.caprichometro.application.usecase.auth
 
 import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.model.AuthRepository
+import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.example.caprichometro.domain.model.UserProfileRepository
 import kotlinx.coroutines.CancellationException

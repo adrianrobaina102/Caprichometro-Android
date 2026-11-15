@@ -62,8 +62,8 @@ import com.example.caprichometro.infrastructure.ui.components.FullScreenImageVie
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.util.ImageCompressor
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.PollTiming
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.abs
@@ -923,7 +923,7 @@ fun ProfileScreen(
     val displayName = rawUsername.replaceFirstChar { it.uppercaseChar() }
 
     val totalDudas = state.caprices.size
-    val expiredCaprices = state.caprices.filter { (System.currentTimeMillis() - it.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS }
+    val expiredCaprices = state.caprices.filter { PollTiming.isPollExpired(it.timestamp) }
     val resolvedCaprices = expiredCaprices.filter { state.verdicts[it.id] != null }
     val totalResueltas = resolvedCaprices.size
     val positiveVerdicts = resolvedCaprices.count { state.verdicts[it.id] == true }
@@ -1195,7 +1195,7 @@ fun ProfileScreen(
             // Grid de Caprichos / Recuerdos reales
             val displayMemories = if (state.caprices.isNotEmpty()) {
                 state.caprices.map { caprice ->
-                    val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                    val isExpired = PollTiming.isPollExpired(caprice.timestamp)
                     capriceToMemory(
                         caprice = caprice,
                         accepted = state.verdicts[caprice.id],

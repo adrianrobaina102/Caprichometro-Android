@@ -1,6 +1,7 @@
-package com.example.caprichometro.domain.model
+package com.example.caprichometro.domain.repository
 
 import android.content.Context
+import com.example.caprichometro.domain.model.User
 
 interface AuthRepository {
     suspend fun signIn(email: String, password: String): Result<User>

@@ -7,7 +7,7 @@ import com.example.caprichometro.application.usecase.auth.RegisterUseCase
 import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCase
 import com.example.caprichometro.application.usecase.auth.UsernameTakenException
 import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.model.AuthRepository
+import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
