@@ -14,11 +14,12 @@ import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
 import com.example.caprichometro.application.usecase.profile.UpdateProfilePhotoUseCase
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.CapriceCacheControl
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.VoteRepository
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -83,7 +84,8 @@ class ProfileViewModel(
     private val updateBioUseCase: UpdateBioUseCase = UpdateBioUseCase(userProfileRepository),
     private val removeFriendUseCase: RemoveFriendUseCase? = null,
     private val blockUserUseCase: BlockUserUseCase? = null,
-    private val updateProfilePhotoUseCase: UpdateProfilePhotoUseCase = UpdateProfilePhotoUseCase(userProfileRepository)
+    private val updateProfilePhotoUseCase: UpdateProfilePhotoUseCase = UpdateProfilePhotoUseCase(userProfileRepository),
+    private val capriceCacheControl: CapriceCacheControl? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
@@ -229,7 +231,7 @@ class ProfileViewModel(
             // Fase 2: Cargar en segundo plano solo los veredictos cerrados no cacheados (pool de 4)
             val repo = voteRepository ?: return@launch
             val pendingCaprices = result.caprices.filter { caprice ->
-                val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                val isExpired = PollTiming.isPollExpired(caprice.timestamp)
                 val hasValidVerdict = verdictCache[caprice.id]?.finalDecision == caprice.finalDecision
                 isExpired && (!hasValidVerdict || !voteCountCache.containsKey(caprice.id))
             }
@@ -413,6 +415,8 @@ class ProfileViewModel(
     fun signOut() {
         viewModelScope.launch {
             signOutUseCase.execute()
+            (userProfileRepository as? ProfileCacheControl)?.invalidateAll()
+            capriceCacheControl?.invalidateAll()
             reset()
             _state.update { it.copy(isSignedOut = true) }
         }
@@ -426,6 +430,8 @@ class ProfileViewModel(
             val result = deleteAccountUseCase.execute(currentUserId, username)
             result.fold(
                 onSuccess = {
+                    (userProfileRepository as? ProfileCacheControl)?.invalidateAll()
+                    capriceCacheControl?.invalidateAll()
                     reset()
                     _state.update { it.copy(isSignedOut = true) }
                 },

@@ -125,7 +125,8 @@ class FirestoreVoteRepository(
                         Log.d("FirestoreVoteRepo", "Usuario desconectado, manteniendo canal abierto para reconexion")
                         return@addSnapshotListener
                     }
-                    Log.w("FirestoreVoteRepo", "Aviso temporal escuchando votos de $capriceId: ${error.message}")
+                    Log.w("FirestoreVoteRepo", "Error escuchando votos de $capriceId: ${error.message}")
+                    close(error)
                     return@addSnapshotListener
                 }
 

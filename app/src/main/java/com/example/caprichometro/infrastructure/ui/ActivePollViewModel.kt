@@ -9,16 +9,17 @@ import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.VerdictResult
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -26,7 +27,7 @@ data class ActivePollUiState(
     val caprice: Caprice? = null,
     val authorUsername: String? = null,
     val currentUserId: String = "",
-    val pollState: PollState = PollState.Active(PollNotificationScheduler.POLL_DURATION_MILLIS),
+    val pollState: PollState = PollState.Active(PollTiming.POLL_DURATION_MILLIS),
     val votes: List<Vote> = emptyList(),
     val userVote: Vote? = null,
     val isCastingVote: Boolean = false,
@@ -50,6 +51,7 @@ class ActivePollViewModel(
     val state: StateFlow<ActivePollUiState> = _state.asStateFlow()
 
     private var votesJob: Job? = null
+    private var userVoteJob: Job? = null
     private var tickerJob: Job? = null
     private var placeNameJob: Job? = null
 
@@ -59,9 +61,11 @@ class ActivePollViewModel(
 
     fun reset() {
         votesJob?.cancel()
+        userVoteJob?.cancel()
         tickerJob?.cancel()
         placeNameJob?.cancel()
         votesJob = null
+        userVoteJob = null
         tickerJob = null
         placeNameJob = null
         _state.value = ActivePollUiState()
@@ -74,16 +78,33 @@ class ActivePollViewModel(
         approximateDistanceMeters: Double? = null,
         authorLocationCell: String? = null
     ) {
-        val previousCaprice = _state.value.caprice
-        val isSameUserAndCaprice = previousCaprice?.id == caprice.id && _state.value.currentUserId == currentUserId
-        if (isSameUserAndCaprice && votesJob?.isActive == true && tickerJob?.isActive == true) {
-            if (approximateDistanceMeters != null && _state.value.approximateDistanceMeters == null) {
-                _state.update { it.copy(approximateDistanceMeters = approximateDistanceMeters) }
+        val previousState = _state.value
+        val previousCaprice = previousState.caprice
+        val isSameUserAndCaprice = previousCaprice?.id == caprice.id && previousState.currentUserId == currentUserId
+        val isAlreadyTracking = votesJob?.isActive == true ||
+            userVoteJob?.isActive == true ||
+            previousState.pollState is PollState.Expired
+        if (isSameUserAndCaprice && isAlreadyTracking) {
+            if ((approximateDistanceMeters != null && previousState.approximateDistanceMeters == null) ||
+                previousCaprice != caprice ||
+                (authorUsername != null && previousState.authorUsername != authorUsername)
+            ) {
+                _state.update { current ->
+                    current.copy(
+                        caprice = caprice,
+                        authorUsername = authorUsername ?: current.authorUsername,
+                        approximateDistanceMeters = current.approximateDistanceMeters ?: approximateDistanceMeters,
+                        pollState = if (previousCaprice != caprice) {
+                            resolveCurrentPollState(caprice, current.currentUserId, current.userVote, current.votes)
+                        } else current.pollState
+                    )
+                }
             }
             return
         }
 
         votesJob?.cancel()
+        userVoteJob?.cancel()
         tickerJob?.cancel()
         placeNameJob?.cancel()
 
@@ -118,45 +139,56 @@ class ActivePollViewModel(
         }
 
         // 1. Cargamos el voto emitido previamente por el usuario actual (si existe)
-        viewModelScope.launch {
+        userVoteJob = viewModelScope.launch {
             val userVoteResult = voteRepository.getUserVote(caprice.id, currentUserId)
             val userVote = userVoteResult.getOrNull()
             _state.update { current ->
+                if (current.caprice?.id != caprice.id) return@update current
                 val updatedVotes = if (userVote != null && current.votes.none { it.voterId == userVote.voterId }) {
                     current.votes + userVote
                 } else current.votes
                 current.copy(
                     userVote = userVote,
-                    pollState = resolveCurrentPollState(current.caprice ?: caprice, current.currentUserId, userVote, updatedVotes)
+                    pollState = resolveCurrentPollState(current.caprice, current.currentUserId, userVote, updatedVotes)
                 )
             }
         }
 
         // 2. Escucha en tiempo real de todos los votos en la subcolección de Firestore
         votesJob = viewModelScope.launch {
-            observeVotesUseCase.execute(caprice.id).collect { votesList ->
-                _state.update { current ->
-                    val myVote = current.userVote ?: votesList.firstOrNull { it.voterId == current.currentUserId }
-                    current.copy(
-                        votes = votesList,
-                        userVote = myVote,
-                        pollState = resolveCurrentPollState(current.caprice ?: caprice, current.currentUserId, myVote, votesList)
-                    )
+            observeVotesUseCase.execute(caprice.id)
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    _state.update { current ->
+                        if (current.caprice?.id != caprice.id) return@update current
+                        current.copy(errorMessage = e.message ?: "No se pudieron sincronizar los votos")
+                    }
                 }
-            }
+                .collect { votesList ->
+                    _state.update { current ->
+                        if (current.caprice?.id != caprice.id) return@update current
+                        val myVote = current.userVote ?: votesList.firstOrNull { it.voterId == current.currentUserId }
+                        current.copy(
+                            votes = votesList,
+                            userVote = myVote,
+                            pollState = resolveCurrentPollState(current.caprice, current.currentUserId, myVote, votesList)
+                        )
+                    }
+                }
         }
 
         // 3. Temporizador de cuenta atrás reactivo que actualiza cada 1s y dispara expiración
         tickerJob = viewModelScope.launch {
-            val duration = PollNotificationScheduler.POLL_DURATION_MILLIS
+            val duration = PollTiming.POLL_DURATION_MILLIS
             while (true) {
                 val elapsed = System.currentTimeMillis() - caprice.timestamp
                 val remaining = (duration - elapsed).coerceAtLeast(0L)
 
                 _state.update { current ->
+                    if (current.caprice?.id != caprice.id) return@update current
                     current.copy(
                         pollState = resolveCurrentPollState(
-                            caprice = current.caprice ?: caprice,
+                            caprice = current.caprice,
                             currentUserId = current.currentUserId,
                             userVote = current.userVote,
                             votes = current.votes,
@@ -241,8 +273,7 @@ class ActivePollViewModel(
     }
 
     private fun computeInitialPollState(caprice: Caprice, currentUserId: String): PollState {
-        val remaining = (PollNotificationScheduler.POLL_DURATION_MILLIS - (System.currentTimeMillis() - caprice.timestamp))
-            .coerceAtLeast(0L)
+        val remaining = PollTiming.remainingMillis(caprice.timestamp)
         return if (remaining <= 0L) {
             PollState.Expired(calculateVerdictUseCase.execute(caprice, emptyList()), remainingMillis = 0L)
         } else if (caprice.userId == currentUserId) {
@@ -259,8 +290,7 @@ class ActivePollViewModel(
         votes: List<Vote>,
         remainingOverride: Long? = null
     ): PollState {
-        val remaining = remainingOverride ?: (PollNotificationScheduler.POLL_DURATION_MILLIS - (System.currentTimeMillis() - caprice.timestamp))
-            .coerceAtLeast(0L)
+        val remaining = remainingOverride ?: PollTiming.remainingMillis(caprice.timestamp)
 
         if (remaining <= 0L) {
             val verdict = calculateVerdictUseCase.execute(caprice, votes)
@@ -295,8 +325,8 @@ class ActivePollViewModel(
     }
 
     override fun onCleared() {
-        super.onCleared()
         votesJob?.cancel()
+        userVoteJob?.cancel()
         tickerJob?.cancel()
         placeNameJob?.cancel()
     }

@@ -158,6 +158,10 @@ class AuthViewModel(
         }
     }
 
+    fun clearSessionState() {
+        _state.value = AuthState(isAuthSuccessful = false)
+    }
+
     fun deleteAccount(userId: String, username: String) {
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, errorMessage = null) }

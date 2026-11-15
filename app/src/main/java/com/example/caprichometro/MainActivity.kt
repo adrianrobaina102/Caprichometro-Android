@@ -27,7 +27,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,10 +51,10 @@ import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCas
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.InviteDeepLink
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.security.AppCheckInstaller
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
@@ -71,6 +74,20 @@ private val NavDivider = Color(0xFF222224)
 private val ActiveLime = Color(0xFFB8E636)
 private val InactiveIcon = Color(0xFF7C7C80)
 
+class SessionNavigationViewModel : ViewModel() {
+    var bootstrappedUserId: String? = null
+    var selectedFeedItem by mutableStateOf<CapriceFeedItem?>(null)
+    var selectedProfileCaprice by mutableStateOf<Caprice?>(null)
+    var selectedPublicAuthor by mutableStateOf<UserProfile?>(null)
+
+    fun reset() {
+        bootstrappedUserId = null
+        selectedFeedItem = null
+        selectedProfileCaprice = null
+        selectedPublicAuthor = null
+    }
+}
+
 class MainActivity : ComponentActivity() {
     private var pendingIntentState = mutableStateOf<Intent?>(null)
 
@@ -83,14 +100,17 @@ class MainActivity : ComponentActivity() {
         // Crea el canal de notificaciones para los avisos de votación y amigos
         PollNotificationHelper.createNotificationChannel(this)
 
-        pendingIntentState.value = intent
+        if (savedInstanceState == null) {
+            pendingIntentState.value = intent
+        }
 
-        val viewModelFactory = ViewModelFactory(this)
-        val capriceViewModel = viewModelFactory.createCapriceViewModel()
-        val authViewModel = viewModelFactory.createAuthViewModel()
-        val friendshipViewModel = viewModelFactory.createFriendshipViewModel()
-        val profileViewModel = viewModelFactory.createProfileViewModel()
-        val activePollViewModel = viewModelFactory.createActivePollViewModel()
+        val viewModelFactory = ViewModelFactory.getInstance(applicationContext)
+        val capriceViewModel = ViewModelProvider(this, viewModelFactory)[CapriceViewModel::class.java]
+        val authViewModel = ViewModelProvider(this, viewModelFactory)[AuthViewModel::class.java]
+        val friendshipViewModel = ViewModelProvider(this, viewModelFactory)[FriendshipViewModel::class.java]
+        val profileViewModel = ViewModelProvider(this, viewModelFactory)[ProfileViewModel::class.java]
+        val activePollViewModel = ViewModelProvider(this, viewModelFactory)[ActivePollViewModel::class.java]
+        val sessionNavViewModel = ViewModelProvider(this)[SessionNavigationViewModel::class.java]
         val observeFriendCapricesUseCase = viewModelFactory.createObserveFriendCapricesUseCase()
         val notifyFriendCapriceUseCase = viewModelFactory.createNotifyFriendCapriceUseCase()
         val getNotificationCapriceUseCase = viewModelFactory.createGetNotificationCapriceUseCase()
@@ -102,9 +122,11 @@ class MainActivity : ComponentActivity() {
                 friendshipViewModel = friendshipViewModel,
                 profileViewModel = profileViewModel,
                 activePollViewModel = activePollViewModel,
+                sessionNavViewModel = sessionNavViewModel,
                 observeFriendCapricesUseCase = observeFriendCapricesUseCase,
                 notifyFriendCapriceUseCase = notifyFriendCapriceUseCase,
                 getNotificationCapriceUseCase = getNotificationCapriceUseCase,
+                onClearSessionCaches = { viewModelFactory.invalidateSessionCaches() },
                 pendingIntent = pendingIntentState.value,
                 onClearPendingIntent = { pendingIntentState.value = null }
             )
@@ -125,9 +147,11 @@ fun CapriceApp(
     friendshipViewModel: FriendshipViewModel,
     profileViewModel: ProfileViewModel,
     activePollViewModel: ActivePollViewModel,
+    sessionNavViewModel: SessionNavigationViewModel,
     observeFriendCapricesUseCase: ObserveFriendCapricesUseCase,
     notifyFriendCapriceUseCase: NotifyFriendCapriceUseCase,
     getNotificationCapriceUseCase: GetNotificationCapriceUseCase,
+    onClearSessionCaches: () -> Unit = {},
     pendingIntent: Intent? = null,
     onClearPendingIntent: () -> Unit = {}
 ) {
@@ -157,12 +181,17 @@ fun CapriceApp(
         }
     }
 
-    var currentScreen by remember { mutableStateOf("home") }
-    var viewingProfileUserId by remember { mutableStateOf("") }
-    var previousScreenBeforeProfile by remember { mutableStateOf("home") }
-    var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
-    var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
-    var selectedPublicAuthor by remember { mutableStateOf<UserProfile?>(null) }
+    var currentScreen by rememberSaveable { mutableStateOf("home") }
+    var viewingProfileUserId by rememberSaveable { mutableStateOf("") }
+    var previousScreenBeforeProfile by rememberSaveable { mutableStateOf("home") }
+    var selectedFeedItem by remember { mutableStateOf(sessionNavViewModel.selectedFeedItem) }
+    var selectedProfileCaprice by remember { mutableStateOf(sessionNavViewModel.selectedProfileCaprice) }
+    var selectedPublicAuthor by remember { mutableStateOf(sessionNavViewModel.selectedPublicAuthor) }
+    LaunchedEffect(selectedFeedItem, selectedProfileCaprice, selectedPublicAuthor) {
+        sessionNavViewModel.selectedFeedItem = selectedFeedItem
+        sessionNavViewModel.selectedProfileCaprice = selectedProfileCaprice
+        sessionNavViewModel.selectedPublicAuthor = selectedPublicAuthor
+    }
 
     val openProfile: (String, String) -> Unit = { authorId, fromScreen ->
         if (authorId.isNotBlank()) {
@@ -211,7 +240,7 @@ fun CapriceApp(
                 if (item != null) {
                     if (item.caprice.userId == currentUserId) {
                         selectedProfileCaprice = item.caprice
-                        currentScreen = if (navigateTo == "result" || PollNotificationScheduler.isPollExpired(item.caprice.timestamp)) {
+                        currentScreen = if (navigateTo == "result" || PollTiming.isPollExpired(item.caprice.timestamp)) {
                             "result"
                         } else {
                             "active"
@@ -238,7 +267,11 @@ fun CapriceApp(
     // Escuchamos solicitudes pendientes, amigos, feed y notificaciones de amigos al iniciar sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
-            profileViewModel.reset()
+            val isNewSessionBootstrap = sessionNavViewModel.bootstrappedUserId != currentUserId
+            if (isNewSessionBootstrap) {
+                sessionNavViewModel.bootstrappedUserId = currentUserId
+                profileViewModel.reset()
+            }
             val startupStart = System.currentTimeMillis()
             val foregroundStart = startupStart
 
@@ -248,7 +281,11 @@ fun CapriceApp(
                 android.Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
             capriceViewModel.onLocationPermissionChanged(hasLocationPermission)
-            capriceViewModel.loadFriendsFeed()
+            if (isNewSessionBootstrap) {
+                capriceViewModel.loadFriendsFeed()
+            } else {
+                capriceViewModel.loadFriendsFeedIfNeeded()
+            }
 
             // 2. Diferimos escuchas secundarias, notificaciones y perfil hasta que el feed inicial haya respondido
             launch {
@@ -261,27 +298,29 @@ fun CapriceApp(
                 )
 
                 friendshipViewModel.listenToIncomingRequests(currentUserId)
-                capriceViewModel.fetchUserCaprices(limit = 50)
+                if (isNewSessionBootstrap) {
+                    capriceViewModel.fetchUserCaprices(limit = 50)
 
-                // Recuperación al volver a la app: último capricho no notificado y decisiones finales pendientes
-                launch {
-                    notifyFriendCapriceUseCase.checkAndNotifyUnnotifiedFriendCaprices(currentUserId) { author, caprice ->
-                        PollNotificationHelper.showFriendCapriceNotification(
-                            context = context,
-                            recipientUserId = currentUserId,
-                            authorUsername = author.username,
-                            caprice = caprice
-                        )
+                    // Recuperación al volver a la app: último capricho no notificado y decisiones finales pendientes
+                    launch {
+                        notifyFriendCapriceUseCase.checkAndNotifyUnnotifiedFriendCaprices(currentUserId) { author, caprice ->
+                            PollNotificationHelper.showFriendCapriceNotification(
+                                context = context,
+                                recipientUserId = currentUserId,
+                                authorUsername = author.username,
+                                caprice = caprice
+                            )
+                        }
                     }
-                }
-                launch {
-                    notifyFriendCapriceUseCase.checkAndNotifyFriendFinalDecisions(currentUserId) { author, caprice ->
-                        PollNotificationHelper.showFriendFinalDecisionNotification(
-                            context = context,
-                            recipientUserId = currentUserId,
-                            authorUsername = author.username,
-                            caprice = caprice
-                        )
+                    launch {
+                        notifyFriendCapriceUseCase.checkAndNotifyFriendFinalDecisions(currentUserId) { author, caprice ->
+                            PollNotificationHelper.showFriendFinalDecisionNotification(
+                                context = context,
+                                recipientUserId = currentUserId,
+                                authorUsername = author.username,
+                                caprice = caprice
+                            )
+                        }
                     }
                 }
 
@@ -321,6 +360,8 @@ fun CapriceApp(
                 }
             }
         } else {
+            sessionNavViewModel.reset()
+            onClearSessionCaches()
             profileViewModel.reset()
             friendshipViewModel.stopListening()
             activePollViewModel.reset()
@@ -362,32 +403,36 @@ fun CapriceApp(
                             }
                             "friend_poll" -> {
                                 val item = selectedFeedItem
-                                val pollAuthor = resolveAuthorForCaprice(item?.caprice, item) ?: item?.author
-                                val canOpenProfile = canOpenAuthorProfileFor(
-                                    item?.caprice?.userId,
-                                    item?.canOpenAuthorProfile != false
-                                )
-                                ActivePollScreen(
-                                    caprice = item?.caprice,
-                                    authorUsername = pollAuthor?.username,
-                                    authorPhotoUrl = pollAuthor?.photoUrl,
-                                    authorLocationCell = pollAuthor?.locationCell,
-                                    viewModel = activePollViewModel,
-                                    currentUserId = currentUserId,
-                                    onNavigateBack = { currentScreen = "home" },
-                                    onTimerFinished = {
-                                        selectedProfileCaprice = item?.caprice
-                                        currentScreen = "result"
-                                    },
-                                    onNavigateToAuthorProfile = { authorId ->
-                                        openProfile(authorId, "friend_poll")
-                                    },
-                                    onOpenPublicAuthorInfo = pollAuthor?.let { author ->
-                                        { selectedPublicAuthor = author }
-                                    },
-                                    canOpenAuthorProfileOverride = canOpenProfile,
-                                    approximateDistanceMeters = item?.approximateDistanceMeters
-                                )
+                                if (item == null) {
+                                    LaunchedEffect(Unit) { currentScreen = "home" }
+                                } else {
+                                    val pollAuthor = resolveAuthorForCaprice(item.caprice, item) ?: item.author
+                                    val canOpenProfile = canOpenAuthorProfileFor(
+                                        item.caprice.userId,
+                                        item.canOpenAuthorProfile
+                                    )
+                                    ActivePollScreen(
+                                        caprice = item.caprice,
+                                        authorUsername = pollAuthor?.username,
+                                        authorPhotoUrl = pollAuthor?.photoUrl,
+                                        authorLocationCell = pollAuthor?.locationCell,
+                                        viewModel = activePollViewModel,
+                                        currentUserId = currentUserId,
+                                        onNavigateBack = { currentScreen = "home" },
+                                        onTimerFinished = {
+                                            selectedProfileCaprice = item.caprice
+                                            currentScreen = "result"
+                                        },
+                                        onNavigateToAuthorProfile = { authorId ->
+                                            openProfile(authorId, "friend_poll")
+                                        },
+                                        onOpenPublicAuthorInfo = pollAuthor?.let { author ->
+                                            { selectedPublicAuthor = author }
+                                        },
+                                        canOpenAuthorProfileOverride = canOpenProfile,
+                                        approximateDistanceMeters = item.approximateDistanceMeters
+                                    )
+                                }
                             }
                             "create" -> {
                                 CapriceScreen(
@@ -512,7 +557,7 @@ fun CapriceApp(
                                     onNavigateToFriends = { currentScreen = "add_friend" },
                                     onSelectCaprice = { caprice ->
                                         selectedProfileCaprice = caprice
-                                        val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
+                                        val isExpired = PollTiming.isPollExpired(caprice.timestamp)
                                         currentScreen = if (isExpired) "result" else "active"
                                     },
                                     onBack = {
@@ -524,12 +569,15 @@ fun CapriceApp(
                                         }
                                     },
                                     onSignedOut = {
+                                        sessionNavViewModel.reset()
+                                        onClearSessionCaches()
                                         profileViewModel.reset()
                                         friendshipViewModel.stopListening()
                                         activePollViewModel.reset()
                                         capriceViewModel.reset()
-                                        authViewModel.signOut()
+                                        authViewModel.clearSessionState()
                                         viewingProfileUserId = ""
+                                        previousScreenBeforeProfile = "home"
                                         selectedFeedItem = null
                                         selectedProfileCaprice = null
                                         selectedPublicAuthor = null

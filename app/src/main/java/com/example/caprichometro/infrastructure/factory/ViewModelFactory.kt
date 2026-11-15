@@ -1,6 +1,8 @@
 ﻿package com.example.caprichometro.infrastructure.factory
 
 import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
@@ -49,7 +51,8 @@ import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 
-class ViewModelFactory(private val context: Context? = null) {
+class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
+    private val appContext: Context? = context?.applicationContext
     private val capriceRepository by lazy { FirestoreCapriceRepository() }
     private val userProfileRepository by lazy { FirestoreUserProfileRepository() }
     private val authRepository by lazy { FirebaseAuthRepository() }
@@ -60,13 +63,13 @@ class ViewModelFactory(private val context: Context? = null) {
     private val nearbyCapriceRepository by lazy { FirestoreNearbyCapriceRepository() }
     private val voteRepository by lazy { FirestoreVoteRepository() }
     private val locationRepository: DeviceLocationRepository? by lazy {
-        context?.let { AndroidLocationRepository(it) }
+        appContext?.let { AndroidLocationRepository(it) }
     }
     private val approximatePlaceNameRepository: ApproximatePlaceNameRepository? by lazy {
-        context?.let { AndroidApproximatePlaceNameRepository(it) }
+        appContext?.let { AndroidApproximatePlaceNameRepository(it) }
     }
     private val notificationHistoryRepository by lazy {
-        SharedPreferencesCapriceNotificationHistoryRepository(context ?: throw IllegalStateException("Context required for notification history"))
+        SharedPreferencesCapriceNotificationHistoryRepository(appContext ?: throw IllegalStateException("Context required for notification history"))
     }
 
     private val acceptedFriendsUseCase by lazy {
@@ -131,19 +134,48 @@ class ViewModelFactory(private val context: Context? = null) {
 
     fun createProfileViewModel(): ProfileViewModel {
         return ProfileViewModel(
-            GetCurrentUserUseCase(authRepository),
-            userProfileRepository,
-            GetBlockedUsersUseCase(friendshipRepository, userProfileRepository),
-            UnblockUserUseCase(friendshipRepository),
-            SignOutUseCase(authRepository),
-            DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepository),
-            GetCapricesUseCase(capriceRepository),
-            acceptedFriendsUseCase,
-            voteRepository,
-            UpdateBioUseCase(userProfileRepository),
-            RemoveFriendUseCase(friendshipRepository),
-            BlockUserUseCase(friendshipRepository)
+            getCurrentUserUseCase = GetCurrentUserUseCase(authRepository),
+            userProfileRepository = userProfileRepository,
+            getBlockedUsersUseCase = GetBlockedUsersUseCase(friendshipRepository, userProfileRepository),
+            unblockUserUseCase = UnblockUserUseCase(friendshipRepository),
+            signOutUseCase = SignOutUseCase(authRepository),
+            deleteAccountUseCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepository),
+            getCapricesUseCase = GetCapricesUseCase(capriceRepository),
+            getAcceptedFriendsUseCase = acceptedFriendsUseCase,
+            voteRepository = voteRepository,
+            updateBioUseCase = UpdateBioUseCase(userProfileRepository),
+            removeFriendUseCase = RemoveFriendUseCase(friendshipRepository),
+            blockUserUseCase = BlockUserUseCase(friendshipRepository),
+            capriceCacheControl = capriceRepository
         )
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return when {
+            modelClass.isAssignableFrom(CapriceViewModel::class.java) -> createCapriceViewModel() as T
+            modelClass.isAssignableFrom(AuthViewModel::class.java) -> createAuthViewModel() as T
+            modelClass.isAssignableFrom(FriendshipViewModel::class.java) -> createFriendshipViewModel() as T
+            modelClass.isAssignableFrom(ProfileViewModel::class.java) -> createProfileViewModel() as T
+            modelClass.isAssignableFrom(ActivePollViewModel::class.java) -> createActivePollViewModel() as T
+            else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        }
+    }
+
+    fun invalidateSessionCaches() {
+        userProfileRepository.invalidateAll()
+        capriceRepository.invalidateAll()
+    }
+
+    companion object {
+        @Volatile
+        private var sharedInstance: ViewModelFactory? = null
+
+        fun getInstance(context: Context): ViewModelFactory {
+            return sharedInstance ?: synchronized(this) {
+                sharedInstance ?: ViewModelFactory(context.applicationContext).also { sharedInstance = it }
+            }
+        }
     }
 
     fun createActivePollViewModel(): ActivePollViewModel {

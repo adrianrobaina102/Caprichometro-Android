@@ -14,10 +14,12 @@ import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.DeviceLocationException
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
@@ -735,5 +737,53 @@ class CapriceViewModelNearbyTest {
         assertThat(vm.state.value.error).contains("Image too large")
         assertThat(vm.state.value.isLoading).isFalse()
         coVerify(exactly = 0) { saveCapriceUseCase.execute(any()) }
+    }
+
+    @Test
+    fun `ActivePollViewModel es idempotente al reinicializar una encuesta expirada y propaga error de escucha`() = runTest(testDispatcher) {
+        val castVote = mockk<CastVoteUseCase>()
+        val observeVotes = mockk<ObserveVotesUseCase>()
+        val calculateVerdict = CalculateVerdictUseCase()
+        val voteRepo = mockk<VoteRepository>()
+        val existingVote = Vote(capriceId = "exp_1", voterId = "user_1", option = 1)
+
+        coEvery { voteRepo.getUserVote("exp_1", "user_1") } returns Result.success(existingVote)
+        every { observeVotes.execute("exp_1") } returns flowOf(listOf(existingVote))
+
+        val activePollVm = ActivePollViewModel(
+            castVoteUseCase = castVote,
+            observeVotesUseCase = observeVotes,
+            calculateVerdictUseCase = calculateVerdict,
+            voteRepository = voteRepo
+        )
+        val expiredCaprice = Caprice(
+            id = "exp_1",
+            userId = "friend_1",
+            question = "¿Votación cerrada?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = System.currentTimeMillis() - PollTiming.POLL_DURATION_MILLIS - 60_000L
+        )
+
+        activePollVm.initialize(expiredCaprice, "user_1")
+        testScheduler.runCurrent()
+        activePollVm.initialize(expiredCaprice.copy(finalDecision = 1, finalDecisionAt = expiredCaprice.timestamp + 400_000L), "user_1")
+        testScheduler.runCurrent()
+
+        coVerify(exactly = 1) { voteRepo.getUserVote("exp_1", "user_1") }
+        assertThat(activePollVm.state.value.userVote).isEqualTo(existingVote)
+        assertThat(activePollVm.state.value.caprice?.finalDecision).isEqualTo(1)
+
+        // Verifica manejo seguro de error en la escucha de votos
+        coEvery { voteRepo.getUserVote("err_1", "user_1") } returns Result.success(null)
+        every { observeVotes.execute("err_1") } returns flow {
+            throw IllegalStateException("PERMISSION_DENIED")
+        }
+        activePollVm.initialize(expiredCaprice.copy(id = "err_1"), "user_1")
+        testScheduler.runCurrent()
+
+        assertThat(activePollVm.state.value.errorMessage).contains("PERMISSION_DENIED")
+        activePollVm.reset()
+        testScheduler.runCurrent()
     }
 }
