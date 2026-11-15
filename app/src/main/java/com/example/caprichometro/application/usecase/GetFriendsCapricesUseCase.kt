@@ -64,7 +64,8 @@ class GetFriendsCapricesUseCase(
     private data class FriendsPageSnapshot(
         val candidates: List<RawFriendCaprice>,
         val resolvedProfiles: ConcurrentHashMap<String, UserProfile>,
-        val missingProfileIds: MutableSet<String>
+        val missingProfileIds: MutableSet<String>,
+        val hasViewerLocation: Boolean = false
     )
 
     private val cachedSnapshots = ConcurrentHashMap<String, FriendsPageSnapshot>()
@@ -315,7 +316,8 @@ class GetFriendsCapricesUseCase(
         cachedSnapshots[currentUserId] = FriendsPageSnapshot(
             candidates = validCandidates,
             resolvedProfiles = resolvedServerProfiles,
-            missingProfileIds = missingServerProfiles
+            missingProfileIds = missingServerProfiles,
+            hasViewerLocation = finalLocation != null
         )
         send(
             ProgressiveFeedBatch(
@@ -326,6 +328,48 @@ class GetFriendsCapricesUseCase(
             )
         )
     }.flowOn(defaultDispatcher)
+
+    /**
+     * Recalcula y reordena en memoria (`< 50 km` / `> 50 km`) las distancias del snapshot actual
+     * sin volver a consultar caprichos en Firestore (por ejemplo tras conceder permiso de ubicación).
+     */
+    suspend fun refreshCachedDistances(
+        currentUserId: String,
+        visiblePageLimit: Int = DEFAULT_PAGE_SIZE
+    ): ProgressiveFeedBatch? = withContext(defaultDispatcher) {
+        val snapshot = cachedSnapshots[currentUserId] ?: return@withContext null
+        val viewerLocation = resolveViewerLocationOrNull() ?: return@withContext null
+        val recalculated = sortedByFriendsFeedOrder(
+            items = snapshot.candidates.map { candidate ->
+                val cell = candidate.caprice.distanceCell()
+                val distanceMeters = if (cell != null) {
+                    NearbyCellGrid.distanceInMeters(viewerLocation, cell)
+                } else {
+                    null
+                }
+                candidate.copy(distanceMeters = distanceMeters)
+            },
+            distanceOf = { it.distanceMeters },
+            capriceOf = { it.caprice }
+        )
+        val safeLimit = visiblePageLimit.coerceAtLeast(DEFAULT_PAGE_SIZE)
+        val (hydratedItems, validCandidates) = hydrateValidFriendsSlice(
+            candidates = recalculated,
+            limit = safeLimit,
+            resolvedProfiles = snapshot.resolvedProfiles,
+            missingProfileIds = snapshot.missingProfileIds
+        )
+        cachedSnapshots[currentUserId] = snapshot.copy(
+            candidates = validCandidates,
+            hasViewerLocation = true
+        )
+        ProgressiveFeedBatch(
+            items = hydratedItems,
+            isFromCache = false,
+            isComplete = true,
+            totalAvailableCount = validCandidates.size
+        )
+    }
 
     /**
      * Hidrata bajo demanda la siguiente página de amigos (`5` primero y el resto de `5` en `5`)

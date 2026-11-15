@@ -27,18 +27,29 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 class AndroidLocationRepository(
-    private val context: Context
+    private val context: Context,
+    private val clockMillis: () -> Long = { System.currentTimeMillis() }
 ) : DeviceLocationRepository {
 
     companion object {
-        // Para celdas aproximadas de ~5.5 km una lectura reciente de 10 minutos evita esperas de GPS en General
+        // Para celdas aproximadas de ~5.5 km una lectura reciente de 10 minutos evita esperas de GPS en General y Amigos
         private const val MAX_CACHED_LOCATION_AGE_MS = 10 * 60_000L
+        private const val MAX_FALLBACK_MEMORY_AGE_MS = 2 * 60_000L
         private const val MAX_ACCEPTABLE_ACCURACY_METERS = 20_000f
         private const val CURRENT_LOCATION_TIMEOUT_MS = 2_500L
     }
 
+    private data class MemoryCachedLocation(
+        val location: ApproximateLocation,
+        val cachedAtMillis: Long,
+        val ttlMillis: Long
+    )
+
     private val appContext = context.applicationContext
     private val requestMutex = Mutex()
+
+    @Volatile
+    private var memoryCachedLocation: MemoryCachedLocation? = null
 
     override fun hasLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
@@ -50,7 +61,13 @@ class AndroidLocationRepository(
     @SuppressLint("MissingPermission")
     override suspend fun currentApproximateLocation(): Result<ApproximateLocation> {
         if (!hasLocationPermission()) {
+            memoryCachedLocation = null
             return Result.failure(DeviceLocationException.PermissionDenied())
+        }
+
+        val now = clockMillis()
+        memoryCachedLocation?.takeIf { (now - it.cachedAtMillis) in 0L..it.ttlMillis }?.let { cached ->
+            return Result.success(cached.location)
         }
 
         val locationManager = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
@@ -66,22 +83,31 @@ class AndroidLocationRepository(
         }
 
         findCachedLocation(locationManager, checkFreshness = true)?.let { cached ->
+            memoryCachedLocation = MemoryCachedLocation(cached, clockMillis(), MAX_CACHED_LOCATION_AGE_MS)
             return Result.success(cached)
         }
 
         return requestMutex.withLock {
             try {
+                val lockNow = clockMillis()
+                memoryCachedLocation?.takeIf { (lockNow - it.cachedAtMillis) in 0L..it.ttlMillis }?.let { cached ->
+                    return@withLock Result.success(cached.location)
+                }
+
                 findCachedLocation(locationManager, checkFreshness = true)?.let { cached ->
+                    memoryCachedLocation = MemoryCachedLocation(cached, clockMillis(), MAX_CACHED_LOCATION_AGE_MS)
                     return@withLock Result.success(cached)
                 }
 
                 val fallbackCached = findCachedLocation(locationManager, checkFreshness = false)
                 val firstFresh = fetchFirstAvailableLocation(locationManager, providers)
                 if (firstFresh != null) {
+                    memoryCachedLocation = MemoryCachedLocation(firstFresh, clockMillis(), MAX_CACHED_LOCATION_AGE_MS)
                     return@withLock Result.success(firstFresh)
                 }
 
                 fallbackCached?.let { fallback ->
+                    memoryCachedLocation = MemoryCachedLocation(fallback, clockMillis(), MAX_FALLBACK_MEMORY_AGE_MS)
                     return@withLock Result.success(fallback)
                 }
 
