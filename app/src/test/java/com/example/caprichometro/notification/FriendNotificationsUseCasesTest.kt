@@ -15,8 +15,10 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -199,5 +201,57 @@ class FriendNotificationsUseCasesTest {
 
         assertThat(feedItem.caprice.id).isEqualTo("cap_live")
         assertThat(feedItem.author.username).isEqualTo("carlos")
+    }
+
+    @Test
+    fun `ObserveFriendCapricesUseCase observeAllUpdates unifica caprichos y decisiones filtrando por audiencia`() = runTest {
+        val friend = UserProfile(uid = "friend_1", username = "carlos")
+        val newCaprice = Caprice(
+            id = "cap_new",
+            userId = "friend_1",
+            question = "¿Nuevo?",
+            answer1 = "A",
+            answer2 = "B",
+            timestamp = 10_000L,
+            visibleToUserIds = listOf("friend_1", "user_me")
+        )
+        val decidedCaprice = Caprice(
+            id = "cap_decided",
+            userId = "friend_1",
+            question = "¿Decidido?",
+            answer1 = "A",
+            answer2 = "B",
+            timestamp = 5_000L,
+            visibleToUserIds = listOf("friend_1", "user_me"),
+            finalDecision = 1,
+            finalDecisionAt = 11_000L
+        )
+        val hiddenCaprice = Caprice(
+            id = "cap_hidden",
+            userId = "friend_1",
+            question = "¿Secreto?",
+            answer1 = "A",
+            answer2 = "B",
+            timestamp = 12_000L,
+            visibleToUserIds = listOf("friend_1", "other")
+        )
+
+        val fakeRepo = object : CapriceObservationRepository {
+            override fun observeFriendCaprices(friendUserId: String, sinceTimestamp: Long): Flow<Caprice> =
+                flowOf(newCaprice, hiddenCaprice)
+
+            override fun observeFriendFinalDecisions(friendUserId: String, sinceTimestamp: Long): Flow<Caprice> =
+                flowOf(decidedCaprice)
+        }
+
+        coEvery { getAcceptedFriendsUseCase.execute("user_me") } returns flowOf(listOf(friend))
+
+        val combined = ObserveFriendCapricesUseCase(getAcceptedFriendsUseCase, fakeRepo)
+            .observeAllUpdates("user_me", 9_000L)
+            .toList()
+
+        assertThat(combined).hasSize(2)
+        assertThat(combined.map { it.feedItem.caprice.id to it.isFinalDecision })
+            .containsExactlyInAnyOrder("cap_new" to false, "cap_decided" to true)
     }
 }

@@ -1,10 +1,12 @@
 package com.example.caprichometro.caprice
 
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.domain.model.ApproximateLocation
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.ProfileCacheControl
@@ -37,7 +39,9 @@ class CapriceViewModelNearbyTest {
     private val testDispatcher = StandardTestDispatcher()
     private val saveCapriceUseCase: SaveCapriceUseCase = mockk()
     private val getCapricesUseCase: GetCapricesUseCase = mockk()
+    private val getFriendsCapricesUseCase: GetFriendsCapricesUseCase = mockk()
     private val profileCacheControl: ProfileCacheControl = mockk()
+    private val capriceCacheControl: CapriceCacheControl = mockk()
     private val getNearbyCapricesUseCase: GetNearbyCapricesUseCase = mockk()
     private val locationRepository: DeviceLocationRepository = mockk()
 
@@ -50,6 +54,7 @@ class CapriceViewModelNearbyTest {
         currentClock = 1_000_000L
         currentUid = "user_1"
         every { profileCacheControl.invalidateAll() } just runs
+        every { capriceCacheControl.invalidateAll() } just runs
     }
 
     @AfterEach
@@ -61,7 +66,9 @@ class CapriceViewModelNearbyTest {
         return CapriceViewModel(
             saveCapriceUseCase = saveCapriceUseCase,
             getCapricesUseCase = getCapricesUseCase,
+            getFriendsCapricesUseCase = getFriendsCapricesUseCase,
             profileCacheControl = profileCacheControl,
+            capriceCacheControl = capriceCacheControl,
             getNearbyCapricesUseCase = getNearbyCapricesUseCase,
             locationRepository = locationRepository,
             clockMillis = { currentClock },
@@ -82,7 +89,7 @@ class CapriceViewModelNearbyTest {
         coEvery { getNearbyCapricesUseCase.execute("user_1") } returns Result.success(listOf(sampleItem))
 
         val vm = createViewModel()
-        vm.selectHomeTab(HomeFeedTab.FOR_YOU)
+        vm.selectHomeTab(HomeFeedTab.GENERAL)
         vm.loadNearbyFeedIfNeeded()
         advanceUntilIdle()
 
@@ -170,5 +177,92 @@ class CapriceViewModelNearbyTest {
         assertThat(vm.state.value.isNearbyDiscoveryEnabled).isFalse()
         assertThat(vm.state.value.preparedNearbyCell).isNull()
         assertThat(vm.state.value.nearbyCreationError).contains("ubicación")
+    }
+
+    @Test
+    fun `loadFriendsFeed evita recarga duplicada en arranque y solo invalida caches en refresco manual`() = runTest(testDispatcher) {
+        coEvery { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) } returns Result.success(emptyList())
+
+        val vm = createViewModel()
+        vm.loadFriendsFeed()
+        // Síncronamente antes de ejecutar la corrutina ya debe constar isFeedLoading = true
+        assertThat(vm.state.value.isFeedLoading).isTrue()
+
+        vm.loadFriendsFeedIfNeeded()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) }
+        verify(exactly = 0) { profileCacheControl.invalidateAll() }
+        verify(exactly = 0) { capriceCacheControl.invalidateAll() }
+
+        vm.loadFriendsFeed(isManualRefresh = true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) }
+        verify(exactly = 1) { profileCacheControl.invalidateAll() }
+        verify(exactly = 1) { capriceCacheControl.invalidateAll() }
+    }
+
+    @Test
+    fun `paginacion de Amigos y General muestra 20 caprichos iniciales y avanza de 20 en 20`() = runTest(testDispatcher) {
+        val friendItems = (1..25).map { idx ->
+            CapriceFeedItem(
+                caprice = Caprice(
+                    id = "f_$idx",
+                    userId = "friend_1",
+                    question = "¿Duda amigo $idx?",
+                    answer1 = "Sí",
+                    answer2 = "No",
+                    timestamp = 1_000_000L - idx * 1_000L
+                ),
+                author = UserProfile(uid = "friend_1", username = "ana")
+            )
+        }
+        val nearbyItems = (1..23).map { idx ->
+            CapriceFeedItem(
+                caprice = Caprice(
+                    id = "g_$idx",
+                    userId = "stranger_$idx",
+                    question = "¿Duda general $idx?",
+                    answer1 = "Sí",
+                    answer2 = "No",
+                    nearbyCell = "v1_2608_3525"
+                ),
+                author = UserProfile(uid = "stranger_$idx", username = "user$idx"),
+                canOpenAuthorProfile = false,
+                approximateDistanceMeters = idx * 100.0
+            )
+        }
+
+        coEvery { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) } returns Result.success(friendItems)
+        every { locationRepository.hasLocationPermission() } returns true
+        coEvery { getNearbyCapricesUseCase.execute("user_1") } returns Result.success(nearbyItems)
+
+        val vm = createViewModel()
+        vm.loadFriendsFeed()
+        vm.loadNearbyFeed()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.feedItems).hasSize(20)
+        assertThat(vm.state.value.totalFriendsFeedCount).isEqualTo(25)
+        assertThat(vm.state.value.hasMoreFriendsFeed).isTrue()
+
+        vm.loadMoreFriendsFeed()
+        assertThat(vm.state.value.feedItems).hasSize(25)
+        assertThat(vm.state.value.hasMoreFriendsFeed).isFalse()
+
+        assertThat(vm.state.value.nearbyFeedItems).hasSize(20)
+        assertThat(vm.state.value.totalNearbyFeedCount).isEqualTo(23)
+        assertThat(vm.state.value.hasMoreNearbyFeed).isTrue()
+
+        vm.loadMoreNearbyFeed()
+        assertThat(vm.state.value.nearbyFeedItems).hasSize(23)
+        assertThat(vm.state.value.hasMoreNearbyFeed).isFalse()
+
+        // Un refresco manual vuelve a mostrar la primera página de 20
+        vm.loadFriendsFeed(isManualRefresh = true)
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(20)
+        assertThat(vm.state.value.hasMoreFriendsFeed).isTrue()
     }
 }

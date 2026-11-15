@@ -73,7 +73,7 @@ class CapriceNearbyTest {
     }
 
     @Test
-    fun `bloqueos en ambos sentidos voto unico y limite de 5 minutos se mantienen en Para ti`() = runTest {
+    fun `bloqueos en ambos sentidos voto unico y limite de 5 minutos se mantienen en General`() = runTest {
         val voteRepo = mockk<VoteRepository>()
         val friendshipRepo = mockk<FriendshipRepository>()
         val useCase = CastVoteUseCase(voteRepo, friendshipRepo)
