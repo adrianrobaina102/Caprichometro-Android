@@ -68,27 +68,14 @@ import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.abs
 
-private val DarkBackground = Color(0xFF0D0D0D)
-private val SheetBackground = Color(0xFF161616)
-private val CardSurface = Color(0xFF1C1C1E)
-private val LimeGreen = Color(0xFFB8E636)
-private val BadgeGreen = Color(0xFF9EE03A)
-private val BadgeRed = Color(0xFFE5484D)
-private val SubtleGray = Color(0xFF8E8E93)
-private val DividerDark = Color(0xFF232325)
-
-private data class MemoryItem(
-    val title: String,
-    val subtitle: String = "",
-    val emoji: String,
-    val imageUrl: String = "",
-    val gradientColors: List<Color>,
-    val accepted: Boolean?,
-    val isDecidedTie: Boolean = false,
-    val isActive: Boolean = false,
-    val isDecisionPending: Boolean = false,
-    val extraCount: Int = 0
-)
+internal val DarkBackground = Color(0xFF0D0D0D)
+internal val SheetBackground = Color(0xFF161616)
+internal val CardSurface = Color(0xFF1C1C1E)
+internal val LimeGreen = Color(0xFFB8E636)
+internal val BadgeGreen = Color(0xFF9EE03A)
+internal val BadgeRed = Color(0xFFE5484D)
+internal val SubtleGray = Color(0xFF8E8E93)
+internal val DividerDark = Color(0xFF232325)
 
 private val PastelAvatarColors = listOf(
     Color(0xFFA8B8F0),
@@ -98,49 +85,10 @@ private val PastelAvatarColors = listOf(
     Color(0xFFC5A8F0)
 )
 
-private fun avatarColorFor(username: String): Color {
+internal fun avatarColorFor(username: String): Color {
     if (username.isBlank()) return PastelAvatarColors[0]
     val index = abs(username.lowercase().hashCode()) % PastelAvatarColors.size
     return PastelAvatarColors[index]
-}
-
-private fun capriceToMemory(
-    caprice: Caprice,
-    accepted: Boolean?,
-    isDecidedTie: Boolean = false,
-    isActive: Boolean,
-    isDecisionPending: Boolean = false
-): MemoryItem {
-    val emoji = when (caprice.type.lowercase()) {
-        "compra", "compras" -> "\uD83D\uDECD\uFE0F"
-        "comida", "cena", "almuerzo" -> "\uD83C\uDF55"
-        "ropa" -> "\uD83D\uDC55"
-        "plan", "planes", "viaje", "fiesta" -> "\uD83C\uDF89"
-        else -> "\u2728"
-    }
-
-    val hash = abs(caprice.question.hashCode() + caprice.id.hashCode())
-    val gradientPalette = listOf(
-        listOf(Color(0xFF8C7A6B), Color(0xFF4A3F37)),
-        listOf(Color(0xFF5D7599), Color(0xFFD99B66), Color(0xFF3D4E5E)),
-        listOf(Color(0xFF8C3B2B), Color(0xFFD97925)),
-        listOf(Color(0xFF4A154B), Color(0xFF8E2DE2), Color(0xFF1A0933)),
-        listOf(Color(0xFF634832), Color(0xFF9C7A5B)),
-        listOf(Color(0xFF3B4D6B), Color(0xFF1E293B))
-    )
-    val colors = gradientPalette[hash % gradientPalette.size]
-
-    return MemoryItem(
-        title = caprice.question,
-        subtitle = "${caprice.answer1} / ${caprice.answer2}",
-        emoji = emoji,
-        imageUrl = caprice.imageUrl,
-        gradientColors = colors,
-        accepted = accepted,
-        isDecidedTie = isDecidedTie,
-        isActive = isActive,
-        isDecisionPending = isDecisionPending
-    )
 }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,7 +108,6 @@ fun ProfileScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettingsSheet by remember { mutableStateOf(false) }
-    var showPrivacySubSheet by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showAvatarOptionsSheet by remember { mutableStateOf(false) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
@@ -281,7 +228,6 @@ fun ProfileScreen(
                 TextButton(
                     onClick = {
                         showDeleteConfirmDialog = false
-                        showPrivacySubSheet = false
                         showSettingsSheet = false
                         viewModel.deleteAccount(currentUserId, state.profile?.username.orEmpty())
                     }
@@ -629,280 +575,26 @@ fun ProfileScreen(
         }
     }
     if (showSettingsSheet) {
-        ModalBottomSheet(
-            onDismissRequest = {
+        ProfileSettingsModalSheet(
+            friendsCount = state.friends.size,
+            blockedUsers = state.blockedUsers,
+            onDismiss = { showSettingsSheet = false },
+            onEditProfile = {
                 showSettingsSheet = false
-                showPrivacySubSheet = false
+                viewModel.clearBioError()
+                showEditBioDialog = true
             },
-            containerColor = SheetBackground,
-            scrimColor = Color.Black.copy(alpha = 0.65f),
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            dragHandle = {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 12.dp, bottom = 8.dp)
-                        .width(42.dp)
-                        .height(4.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF5A5A5E))
-                )
-            }
-        ) {
-            if (!showPrivacySubSheet) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 32.dp)
-                ) {
-                    SettingsRow(
-                        icon = { PersonOutlineIcon() },
-                        title = "Editar perfil",
-                        onClick = {
-                            showSettingsSheet = false
-                            viewModel.clearBioError()
-                            showEditBioDialog = true
-                        }
-                    )
-                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                    SettingsRow(
-                        icon = { PeopleOutlineIcon() },
-                        title = if (state.friends.isNotEmpty()) "Amigos (${state.friends.size})" else "Amigos",
-                        onClick = {
-                            showSettingsSheet = false
-                            onNavigateToFriends()
-                        }
-                    )
-                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                    SettingsRow(
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        title = "Notificaciones",
-                        onClick = {
-                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            }
-                            try {
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                Toast.makeText(context, "Ajustes de notificaciones no disponibles", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                    SettingsRow(
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        title = if (state.blockedUsers.isNotEmpty()) {
-                            "Privacidad (${state.blockedUsers.size} bloqueados)"
-                        } else {
-                            "Privacidad"
-                        },
-                        onClick = { showPrivacySubSheet = true }
-                    )
-                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                    SettingsRow(
-                        icon = { GlobeOutlineIcon() },
-                        title = "Idioma",
-                        onClick = {
-                            Toast.makeText(context, "Idioma: Español", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showSettingsSheet = false
-                                viewModel.signOut()
-                            }
-                            .padding(vertical = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = "Cerrar sesión",
-                            tint = BadgeRed,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = "Cerrar sesión",
-                            color = BadgeRed,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            } else {
-                // Sub-vista de Privacidad: Usuarios Bloqueados y Eliminar Cuenta
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 32.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp)
-                    ) {
-                        IconButton(
-                            onClick = { showPrivacySubSheet = false },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Volver",
-                                tint = Color.White
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Privacidad y bloqueos",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Text(
-                        text = "USUARIOS BLOQUEADOS · ${state.blockedUsers.size}",
-                        color = SubtleGray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (state.blockedUsers.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(CardSurface, RoundedCornerShape(14.dp))
-                                .padding(18.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No tienes ningún usuario bloqueado.",
-                                color = SubtleGray,
-                                fontSize = 13.sp
-                            )
-                        }
-                    } else {
-                        state.blockedUsers.forEach { blockedUser ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 6.dp)
-                                    .background(CardSurface, RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            Toast.makeText(
-                                                context,
-                                                "@${blockedUser.username} está bloqueado. Pulsa «Desbloquear» si quieres volver a interactuar.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                        .padding(end = 8.dp)
-                                ) {
-                                    UserAvatar(
-                                        photoUrl = blockedUser.photoUrl,
-                                        username = blockedUser.username,
-                                        size = 34.dp,
-                                        backgroundColor = avatarColorFor(blockedUser.username),
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = "@${blockedUser.username}",
-                                        color = Color.White,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                OutlinedButton(
-                                    onClick = { viewModel.unblockUser(currentUserId, blockedUser.uid) },
-                                    shape = RoundedCornerShape(50),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.LockOpen,
-                                        contentDescription = null,
-                                        tint = LimeGreen,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Desbloquear", fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { showDeleteConfirmDialog = true },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2A1416),
-                            contentColor = BadgeRed
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteForever,
-                            contentDescription = null,
-                            tint = BadgeRed,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Eliminar cuenta permanentemente",
-                            color = BadgeRed,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
-        }
+            onNavigateToFriends = {
+                showSettingsSheet = false
+                onNavigateToFriends()
+            },
+            onUnblockUser = { blockedUserId -> viewModel.unblockUser(currentUserId, blockedUserId) },
+            onSignOut = {
+                showSettingsSheet = false
+                viewModel.signOut()
+            },
+            onRequestDeleteAccount = { showDeleteConfirmDialog = true }
+        )
     }
 
     if (state.isLoading && state.profile == null) {
@@ -1002,10 +694,7 @@ fun ProfileScreen(
                     }
 
                     IconButton(
-                        onClick = {
-                            showPrivacySubSheet = false
-                            showSettingsSheet = true
-                        },
+                        onClick = { showSettingsSheet = true },
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .size(36.dp)
@@ -1019,10 +708,7 @@ fun ProfileScreen(
                     }
                 } else {
                     IconButton(
-                        onClick = {
-                            showPrivacySubSheet = false
-                            showSettingsSheet = true
-                        },
+                        onClick = { showSettingsSheet = true },
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .size(36.dp)
@@ -1192,210 +878,24 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (selectedTab == 0) {
-            // Grid de Caprichos / Recuerdos reales
-            val displayMemories = if (state.caprices.isNotEmpty()) {
-                state.caprices.map { caprice ->
-                    val isExpired = PollTiming.isPollExpired(caprice.timestamp)
-                    capriceToMemory(
-                        caprice = caprice,
-                        accepted = state.verdicts[caprice.id],
-                        isDecidedTie = caprice.id in state.decidedTieIds,
-                        isActive = !isExpired,
-                        isDecisionPending = state.isOwnProfile &&
-                            isExpired &&
-                            caprice.finalDecision == null &&
-                            (state.voteCounts[caprice.id] ?: 0) > 0
-                    )
-                }
-            } else {
-                emptyList()
-            }
-
-            if (displayMemories.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp)
-                        .background(CardSurface, RoundedCornerShape(16.dp))
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "💭", fontSize = 36.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (state.isOwnProfile) "Aún no tienes caprichos publicados." else "Este usuario aún no tiene caprichos.",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (state.isOwnProfile) "Toca la cámara inferior para publicar tu primera duda." else "Sus dudas aparecerán aquí cuando las comparta.",
-                            color = SubtleGray,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            } else {
-                val rows = displayMemories.chunked(3)
-                rows.forEachIndexed { rowIndex, rowItems ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        rowItems.forEachIndexed { itemIndex, item ->
-                            val capriceIndex = rowIndex * 3 + itemIndex
-                            val correspondingCaprice = state.caprices.getOrNull(capriceIndex)
-                            MemoryCard(
-                                item = item,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(0.78f)
-                                    .clickable {
-                                        if (correspondingCaprice != null) {
-                                            onSelectCaprice(correspondingCaprice)
-                                        }
-                                    }
-                            )
-                        }
-                        if (rowItems.size < 3) {
-                            repeat(3 - rowItems.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = "Ver mis recuerdos",
-                    color = Color(0xFF3A3A3C),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            ProfileMemoriesTab(
+                caprices = state.caprices,
+                verdicts = state.verdicts,
+                decidedTieIds = state.decidedTieIds,
+                voteCounts = state.voteCounts,
+                isOwnProfile = state.isOwnProfile,
+                onSelectCaprice = onSelectCaprice
+            )
         } else {
-            // Pestaña Estadísticas: Resumen de decisiones + Mis categorías (fiel al mockup)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Tarjeta 1: Donut chart + Hice caso
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(CardSurface, RoundedCornerShape(20.dp))
-                        .padding(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.size(92.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            DecisionDonutChart(percent = hiceCasoPercent / 100f)
-                            Text(
-                                text = "$hiceCasoPercent%",
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = "Hice caso",
-                                color = Color.White,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "de mis amigos",
-                                color = Color.White,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "en $totalResueltas de $totalDudas dudas",
-                                color = SubtleGray,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
-
-                // Tarjeta 2: Mis categorías
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(CardSurface, RoundedCornerShape(20.dp))
-                        .padding(20.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Mis categorías",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Ver todas",
-                                color = LimeGreen,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ) {
-                            CategoryStatItem(
-                                icon = { ShoppingBagIcon() },
-                                name = "Compras",
-                                count = comprasCount,
-                                backgroundColor = Color(0xFF381A26)
-                            )
-                            CategoryStatItem(
-                                icon = { PartyPopperIcon() },
-                                name = "Planes",
-                                count = planesCount,
-                                backgroundColor = Color(0xFF241B3B)
-                            )
-                            CategoryStatItem(
-                                icon = { HangerIcon() },
-                                name = "Ropa",
-                                count = ropaCount,
-                                backgroundColor = Color(0xFF302B1B)
-                            )
-                            CategoryStatItem(
-                                icon = { MoreDotsIcon() },
-                                name = "Otros",
-                                count = otrosCount,
-                                backgroundColor = Color(0xFF242426)
-                            )
-                        }
-                    }
-                }
-            }
+            ProfileStatsTab(
+                hiceCasoPercent = hiceCasoPercent,
+                totalResueltas = totalResueltas,
+                totalDudas = totalDudas,
+                comprasCount = comprasCount,
+                planesCount = planesCount,
+                ropaCount = ropaCount,
+                otrosCount = otrosCount
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1424,346 +924,6 @@ private fun StatColumn(value: String, label: String) {
             text = label,
             color = SubtleGray,
             fontSize = 12.sp
-        )
-    }
-}
-
-@Composable
-private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
-    val imageModel = remember(item.imageUrl) {
-        ImageModelHelper.parseImageModel(item.imageUrl)
-    }
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Brush.verticalGradient(item.gradientColors))
-    ) {
-        if (item.imageUrl.isNotBlank()) {
-            AsyncImage(
-                model = imageModel,
-                contentDescription = item.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f)),
-                            startY = 60f
-                        )
-                    )
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            verticalArrangement = if (item.imageUrl.isNotBlank()) Arrangement.Bottom else Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (item.imageUrl.isBlank()) {
-                Text(text = item.emoji, fontSize = 34.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-            }
-            Text(
-                text = item.title,
-                color = Color.White.copy(alpha = 0.95f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            if (item.subtitle.isNotBlank() && item.imageUrl.isBlank()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = item.subtitle,
-                    color = Color.White.copy(alpha = 0.70f),
-                    fontSize = 9.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        if (item.isDecisionPending) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .background(Color(0xFF2B2410), RoundedCornerShape(50))
-                    .padding(horizontal = 7.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Pendiente",
-                    color = Color(0xFFFFD54F),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        if (item.isActive) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF2E3D18)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "\u23F1\uFE0F", fontSize = 12.sp)
-            }
-        } else if (item.accepted != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(if (item.accepted) BadgeGreen else BadgeRed),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (item.accepted) Icons.Default.Check else Icons.Default.Close,
-                    contentDescription = null,
-                    tint = if (item.accepted) Color(0xFF1A2E05) else Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        } else if (item.isDecidedTie) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(BadgeGreen),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Verified,
-                    contentDescription = "Decisión guardada en empate",
-                    tint = Color(0xFF1A2E05),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        if (item.extraCount > 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
-                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "+${item.extraCount}",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DecisionDonutChart(percent: Float) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val strokeWidth = 11.dp.toPx()
-        val diameter = size.minDimension - strokeWidth
-        val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
-        val arcSize = Size(diameter, diameter)
-
-        // Fondo del donut en gris oscuro
-        drawArc(
-            color = Color(0xFF2B2E24),
-            startAngle = 0f,
-            sweepAngle = 360f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth)
-        )
-
-        // Arco de progreso verde lima
-        val sweep = (percent * 360f).coerceIn(0f, 360f)
-        drawArc(
-            color = LimeGreen,
-            startAngle = -90f,
-            sweepAngle = sweep,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-        )
-    }
-}
-
-@Composable
-private fun CategoryStatItem(
-    icon: @Composable () -> Unit,
-    name: String,
-    count: Int,
-    backgroundColor: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(54.dp)
-                .clip(CircleShape)
-                .background(backgroundColor),
-            contentAlignment = Alignment.Center
-        ) {
-            icon()
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = name,
-            color = SubtleGray,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = "$count",
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun ShoppingBagIcon(tint: Color = Color(0xFFF472B6)) {
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val stroke = 1.8.dp.toPx()
-        val w = size.width
-        val h = size.height
-
-        drawRoundRect(
-            color = tint,
-            topLeft = Offset(w * 0.16f, h * 0.28f),
-            size = Size(w * 0.68f, h * 0.60f),
-            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
-            style = Stroke(width = stroke)
-        )
-        drawArc(
-            color = tint,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(w * 0.33f, h * 0.14f),
-            size = Size(w * 0.34f, h * 0.28f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round)
-        )
-    }
-}
-
-@Composable
-private fun PartyPopperIcon(tint: Color = Color(0xFFA78BFA)) {
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val stroke = 1.8.dp.toPx()
-        val w = size.width
-        val h = size.height
-
-        val path = Path().apply {
-            moveTo(w * 0.18f, h * 0.82f)
-            lineTo(w * 0.72f, h * 0.48f)
-            lineTo(w * 0.48f, h * 0.22f)
-            close()
-        }
-        drawPath(path, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
-
-        drawCircle(color = tint, radius = 1.6.dp.toPx(), center = Offset(w * 0.76f, h * 0.24f))
-        drawCircle(color = tint, radius = 1.3.dp.toPx(), center = Offset(w * 0.84f, h * 0.40f))
-        drawCircle(color = tint, radius = 1.4.dp.toPx(), center = Offset(w * 0.62f, h * 0.14f))
-    }
-}
-
-@Composable
-private fun HangerIcon(tint: Color = Color(0xFFFBBF24)) {
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val stroke = 1.8.dp.toPx()
-        val w = size.width
-        val h = size.height
-
-        drawArc(
-            color = tint,
-            startAngle = 160f,
-            sweepAngle = 220f,
-            useCenter = false,
-            topLeft = Offset(w * 0.42f, h * 0.12f),
-            size = Size(w * 0.20f, h * 0.20f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round)
-        )
-
-        val path = Path().apply {
-            moveTo(w * 0.5f, h * 0.32f)
-            lineTo(w * 0.86f, h * 0.68f)
-            lineTo(w * 0.14f, h * 0.68f)
-            close()
-        }
-        drawPath(path, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
-    }
-}
-
-@Composable
-private fun MoreDotsIcon(tint: Color = Color(0xFF9CA3AF)) {
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val r = 2.2.dp.toPx()
-        val cy = size.height / 2f
-        val w = size.width
-        drawCircle(color = tint, radius = r, center = Offset(w * 0.25f, cy))
-        drawCircle(color = tint, radius = r, center = Offset(w * 0.50f, cy))
-        drawCircle(color = tint, radius = r, center = Offset(w * 0.75f, cy))
-    }
-}
-
-@Composable
-private fun SettingsRow(
-    icon: @Composable () -> Unit,
-    title: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                icon()
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = SubtleGray,
-            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -1834,77 +994,6 @@ private fun StatsBarTabIcon(tint: Color) {
             end = Offset(w * 0.8f, h * 0.4f),
             strokeWidth = strokeWidth,
             cap = StrokeCap.Round
-        )
-    }
-}
-
-@Composable
-private fun PersonOutlineIcon() {
-    Icon(
-        imageVector = Icons.Default.Person,
-        contentDescription = null,
-        tint = Color.White,
-        modifier = Modifier.size(22.dp)
-    )
-}
-
-@Composable
-private fun PeopleOutlineIcon() {
-    Canvas(modifier = Modifier.size(22.dp)) {
-        val stroke = 1.8.dp.toPx()
-        val w = size.width
-        val h = size.height
-        drawCircle(
-            color = Color.White,
-            radius = w * 0.18f,
-            center = Offset(w * 0.38f, h * 0.32f),
-            style = Stroke(width = stroke)
-        )
-        drawArc(
-            color = Color.White,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(w * 0.12f, h * 0.56f),
-            size = Size(w * 0.52f, h * 0.42f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round)
-        )
-        drawCircle(
-            color = Color.White,
-            radius = w * 0.14f,
-            center = Offset(w * 0.72f, h * 0.36f),
-            style = Stroke(width = stroke)
-        )
-        drawArc(
-            color = Color.White,
-            startAngle = 200f,
-            sweepAngle = 140f,
-            useCenter = false,
-            topLeft = Offset(w * 0.52f, h * 0.60f),
-            size = Size(w * 0.40f, h * 0.36f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round)
-        )
-    }
-}
-
-@Composable
-private fun GlobeOutlineIcon() {
-    Canvas(modifier = Modifier.size(22.dp)) {
-        val stroke = 1.8.dp.toPx()
-        val r = size.minDimension * 0.42f
-        val c = Offset(size.width / 2f, size.height / 2f)
-        drawCircle(color = Color.White, radius = r, center = c, style = Stroke(width = stroke))
-        drawOval(
-            color = Color.White,
-            topLeft = Offset(c.x - r * 0.48f, c.y - r),
-            size = Size(r * 0.96f, r * 2f),
-            style = Stroke(width = stroke)
-        )
-        drawLine(
-            color = Color.White,
-            start = Offset(c.x - r, c.y),
-            end = Offset(c.x + r, c.y),
-            strokeWidth = stroke
         )
     }
 }

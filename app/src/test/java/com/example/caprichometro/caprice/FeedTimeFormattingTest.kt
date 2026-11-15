@@ -1,7 +1,7 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.infrastructure.ui.formatPollStatus
-import com.example.caprichometro.infrastructure.ui.formatRelativeTime
+import com.example.caprichometro.infrastructure.ui.home.formatPollStatus
+import com.example.caprichometro.infrastructure.ui.home.formatRelativeTime
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 

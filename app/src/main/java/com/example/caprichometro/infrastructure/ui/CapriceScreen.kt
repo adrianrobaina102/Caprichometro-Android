@@ -51,6 +51,9 @@ import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
 import com.example.caprichometro.domain.validation.ValidationResult
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
+import com.example.caprichometro.infrastructure.ui.caprice.CapriceAudienceSheet
+import com.example.caprichometro.infrastructure.ui.caprice.CapricePhotoSourceSheet
+import com.example.caprichometro.infrastructure.ui.caprice.getTempCameraUri
 import com.example.caprichometro.infrastructure.util.ImageCompressor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -702,265 +705,37 @@ fun CapriceScreen(
 
         // Modal selector: Cámara nativa vs Galería
         if (showPhotoSourceSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showPhotoSourceSheet = false },
-                containerColor = Color(0xFF1E1E22),
-                contentColor = Color.White,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = "Foto de tu capricho",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+            CapricePhotoSourceSheet(
+                hasSelectedImage = selectedImageUri != null,
+                onDismiss = { showPhotoSourceSheet = false },
+                onTakePhoto = {
+                    showPhotoSourceSheet = false
+                    launchCamera()
+                },
+                onPickGallery = {
+                    showPhotoSourceSheet = false
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                showPhotoSourceSheet = false
-                                launchCamera()
-                            }
-                            .padding(vertical = 14.dp, horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PhotoCamera,
-                            contentDescription = "Cámara",
-                            tint = LimeGreen,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = "Hacer foto con la cámara",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                showPhotoSourceSheet = false
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            }
-                            .padding(vertical = 14.dp, horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = "Galería",
-                            tint = LimeGreen,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = "Elegir de la galería",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White
-                        )
-                    }
-
-                    if (selectedImageUri != null) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 6.dp),
-                            color = Color(0xFF2C2C30)
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    showPhotoSourceSheet = false
-                                    selectedImageUri = null
-                                }
-                                .padding(vertical = 14.dp, horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Quitar foto",
-                                tint = Color(0xFFFF5252),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Text(
-                                text = "Quitar foto",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFFFF5252)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
+                },
+                onRemovePhoto = {
+                    showPhotoSourceSheet = false
+                    selectedImageUri = null
                 }
-            }
+            )
         }
 
         if (showAudienceSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showAudienceSheet = false },
-                containerColor = Color(0xFF1A1A1E),
-                contentColor = Color.White
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "¿A qué amigos enviarlo?",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        if (friends.isNotEmpty()) {
-                            val allSelected = selectAllFriends || effectiveSelectedFriendIds.size == friends.size
-                            TextButton(
-                                onClick = {
-                                    if (allSelected) {
-                                        selectAllFriends = false
-                                        customSelectedFriendIds = emptySet()
-                                    } else {
-                                        selectAllFriends = true
-                                        customSelectedFriendIds = emptySet()
-                                    }
-                                }
-                            ) {
-                                Text(
-                                    text = if (allSelected) "Ninguno" else "Todos",
-                                    color = LimeGreen,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (friends.isEmpty()) {
-                        Text(
-                            text = "Todavía no tienes amigos aceptados en tu lista.",
-                            color = TextGray,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(vertical = 20.dp)
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 320.dp)
-                        ) {
-                            val toggleFriendSelection = { friendUid: String ->
-                                val updated = if (friendUid in effectiveSelectedFriendIds) {
-                                    effectiveSelectedFriendIds - friendUid
-                                } else {
-                                    effectiveSelectedFriendIds + friendUid
-                                }
-                                if (updated.size == friends.size) {
-                                    selectAllFriends = true
-                                    customSelectedFriendIds = emptySet()
-                                } else {
-                                    selectAllFriends = false
-                                    customSelectedFriendIds = updated
-                                }
-                            }
-                            items(friends, key = { it.uid }) { friend ->
-                                val isChecked = friend.uid in effectiveSelectedFriendIds
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable { toggleFriendSelection(friend.uid) }
-                                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = { toggleFriendSelection(friend.uid) },
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = LimeGreen,
-                                            checkmarkColor = Color.Black,
-                                            uncheckedColor = TextGray
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    UserAvatar(
-                                        photoUrl = friend.photoUrl,
-                                        username = friend.username,
-                                        size = 32.dp,
-                                        backgroundColor = LimeGreen,
-                                        fontSize = 13.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "@${friend.username}",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 15.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Button(
-                        onClick = { showAudienceSheet = false },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = LimeGreen,
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Text(
-                            text = "Listo",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
+            CapriceAudienceSheet(
+                friends = friends,
+                selectAllFriends = selectAllFriends,
+                effectiveSelectedFriendIds = effectiveSelectedFriendIds,
+                onDismiss = { showAudienceSheet = false },
+                onSelectionChange = { newSelectAll, newCustomIds ->
+                    selectAllFriends = newSelectAll
+                    customSelectedFriendIds = newCustomIds
                 }
-            }
+            )
         }
     }
-}
-
-private fun getTempCameraUri(context: Context): Uri {
-    val tempFile = File.createTempFile("caprice_capture_", ".jpg", context.cacheDir).apply {
-        createNewFile()
-        deleteOnExit()
-    }
-    return FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        tempFile
-    )
 }

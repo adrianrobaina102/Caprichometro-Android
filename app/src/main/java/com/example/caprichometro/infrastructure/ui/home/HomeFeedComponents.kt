@@ -1,0 +1,778 @@
+package com.example.caprichometro.infrastructure.ui.home
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.caprichometro.domain.model.CapriceFeedItem
+import com.example.caprichometro.domain.model.NearbyCellGrid
+import com.example.caprichometro.domain.model.PollTiming
+import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.domain.model.splitByDistanceRadius
+import com.example.caprichometro.infrastructure.ui.CapriceViewModel
+import com.example.caprichometro.infrastructure.ui.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
+
+internal val FeedBg = Color(0xFF0D0D0D)
+internal val CardBg = Color(0xFF18181A)
+internal val CardBorder = Color(0xFF28282C)
+internal val OptionBg = Color(0xFF222225)
+internal val LimeAccent = Color(0xFFD4FF00)
+internal val TextSecondary = Color(0xFF9E9EA4)
+internal val ClosedBadgeBg = Color(0xFF2A2A2E)
+
+@Composable
+internal fun FriendsLocationPermissionBanner(
+    isPermanentlyDenied: Boolean,
+    onAllowClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = LimeAccent,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Activa ubicación para ver distancias en Amigos",
+            color = Color.White,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        TextButton(
+            onClick = onAllowClick,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = if (isPermanentlyDenied) "Ajustes" else "Activar",
+                color = LimeAccent,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Cerrar aviso",
+                tint = TextSecondary,
+                modifier = Modifier.size(15.dp)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun HomeFeedTabBar(
+    selectedTab: HomeFeedTab,
+    onSelectTab: (HomeFeedTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        HomeFeedTabPill(
+            label = "Amigos",
+            selected = selectedTab == HomeFeedTab.FRIENDS,
+            onClick = { onSelectTab(HomeFeedTab.FRIENDS) },
+            modifier = Modifier.weight(1f)
+        )
+        HomeFeedTabPill(
+            label = "General",
+            selected = selectedTab == HomeFeedTab.GENERAL,
+            onClick = { onSelectTab(HomeFeedTab.GENERAL) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun HomeFeedTabPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) LimeAccent else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.Black else TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+internal fun FeedLoadingState(message: String) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircularProgressIndicator(color = LimeAccent)
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+internal fun FeedErrorState(
+    title: String,
+    message: String,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = LimeAccent,
+                contentColor = Color.Black
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Reintentar", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+internal fun FriendsEmptyState(
+    isLoading: Boolean,
+    onRefresh: () -> Unit,
+    onNavigateToFriends: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(CardBg)
+                .border(1.dp, CardBorder, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "👀", fontSize = 30.sp)
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = "Nada por aquí todavía",
+            color = Color.White,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Cuando tus amigos publiquen una compra o un plan, aparecerán aquí las 20 dudas más recientes.",
+            color = TextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = onRefresh,
+                enabled = !isLoading,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            ) {
+                Text("Actualizar", fontWeight = FontWeight.SemiBold)
+            }
+            Button(
+                onClick = onNavigateToFriends,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LimeAccent,
+                    contentColor = Color.Black
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Buscar amigos", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun FeedActionState(
+    emoji: String,
+    title: String,
+    message: String,
+    primaryLabel: String,
+    onPrimaryClick: () -> Unit,
+    primaryEnabled: Boolean = true,
+    secondaryLabel: String? = null,
+    onSecondaryClick: (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(CardBg)
+                .border(1.dp, CardBorder, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = emoji, fontSize = 30.sp)
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (secondaryLabel != null && onSecondaryClick != null) {
+                OutlinedButton(
+                    onClick = onSecondaryClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Text(secondaryLabel, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Button(
+                onClick = onPrimaryClick,
+                enabled = primaryEnabled,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LimeAccent,
+                    contentColor = Color.Black
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(primaryLabel, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun FeedItemsList(
+    items: List<CapriceFeedItem>,
+    totalCount: Int,
+    hasMore: Boolean,
+    isBackgroundSyncing: Boolean,
+    onLoadMore: () -> Unit,
+    nowMillis: Long,
+    onSelectFeedItem: (CapriceFeedItem) -> Unit,
+    onNavigateToUserProfile: (String) -> Unit,
+    onOpenNonFriendProfile: (UserProfile) -> Unit,
+    onImageClick: (String) -> Unit
+) {
+    val listState = rememberLazyListState()
+    val sections = remember(items) { splitByDistanceRadius(items) }
+    val showPaginationFooter = (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE) &&
+        (!isBackgroundSyncing || !hasMore || (items.size >= CapriceViewModel.FEED_PAGE_SIZE && items.size % CapriceViewModel.FEED_PAGE_SIZE == 0))
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Sección < 50 km sin cabecera ni texto adicional
+        items(
+            items = sections.localItems,
+            key = { "${it.author.uid}_${it.caprice.id}_${it.caprice.timestamp}" }
+        ) { item ->
+            CapriceFeedCard(
+                item = item,
+                nowMillis = nowMillis,
+                onClick = { onSelectFeedItem(item) },
+                onNavigateToUserProfile = onNavigateToUserProfile,
+                onOpenNonFriendProfile = onOpenNonFriendProfile,
+                onImageClick = onImageClick
+            )
+        }
+
+        if (sections.farItems.isNotEmpty()) {
+            item(key = "far_caprices_section_header") {
+                FarCapricesSectionHeader()
+            }
+            items(
+                items = sections.farItems,
+                key = { "far_${it.author.uid}_${it.caprice.id}_${it.caprice.timestamp}" }
+            ) { item ->
+                CapriceFeedCard(
+                    item = item,
+                    nowMillis = nowMillis,
+                    onClick = { onSelectFeedItem(item) },
+                    onNavigateToUserProfile = onNavigateToUserProfile,
+                    onOpenNonFriendProfile = onOpenNonFriendProfile,
+                    onImageClick = onImageClick
+                )
+            }
+        }
+
+        if (showPaginationFooter) {
+            item(key = "feed_pagination_footer") {
+                FeedPaginationFooter(
+                    visibleCount = items.size,
+                    totalCount = totalCount,
+                    hasMore = hasMore,
+                    onLoadMore = onLoadMore
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FarCapricesSectionHeader() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            thickness = 1.dp,
+            color = CardBorder
+        )
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(CardBg)
+                .border(1.dp, CardBorder, RoundedCornerShape(50))
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "Caprichos más lejanos",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "> 50 km",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            thickness = 1.dp,
+            color = CardBorder
+        )
+    }
+}
+
+@Composable
+private fun FeedPaginationFooter(
+    visibleCount: Int,
+    totalCount: Int,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit
+) {
+    val remaining = (totalCount - visibleCount).coerceAtLeast(0)
+    val nextBatch = remaining.coerceAtMost(CapriceViewModel.FEED_PAGE_SIZE)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp, bottom = 12.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = if (hasMore) {
+                "Mostrando $visibleCount de $totalCount caprichos"
+            } else {
+                "Mostrando los $visibleCount caprichos disponibles"
+            },
+            color = TextSecondary,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+        )
+
+        if (hasMore) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = onLoadMore,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LimeAccent.copy(alpha = 0.14f),
+                    contentColor = LimeAccent
+                ),
+                border = BorderStroke(1.dp, LimeAccent)
+            ) {
+                Text(
+                    text = "Cargar $nextBatch más",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun CapriceFeedCard(
+    item: CapriceFeedItem,
+    nowMillis: Long,
+    onClick: () -> Unit,
+    onNavigateToUserProfile: (String) -> Unit = {},
+    onOpenNonFriendProfile: (UserProfile) -> Unit = {},
+    onImageClick: (String) -> Unit = {}
+) {
+    val caprice = item.caprice
+    val author = item.author
+    val isActive = !PollTiming.isPollExpired(caprice.timestamp, nowMillis)
+    val relativeTime = remember(caprice.timestamp, nowMillis) {
+        formatRelativeTime(caprice.timestamp, nowMillis)
+    }
+    val statusText = remember(caprice.timestamp, nowMillis) {
+        formatPollStatus(caprice.timestamp, nowMillis)
+    }
+    val imageModel = remember(caprice.imageUrl) {
+        ImageModelHelper.parseImageModel(caprice.imageUrl)
+    }
+    val typeEmoji = if (caprice.type.contains("compra", ignoreCase = true)) "🛍️" else "🎉"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        // Cabecera: Avatar + @username siempre reactivos (perfil si amigo/propio, ficha añadir si desconocido)
+        val canOpenAuthor = item.canOpenAuthorProfile && author.uid.isNotBlank()
+        val hasAuthorTapAction = author.uid.isNotBlank()
+        val distanceLabel = remember(item.approximateDistanceMeters) {
+            item.approximateDistanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .then(
+                        if (hasAuthorTapAction) {
+                            Modifier.clickable {
+                                if (canOpenAuthor) {
+                                    onNavigateToUserProfile(author.uid)
+                                } else {
+                                    onOpenNonFriendProfile(author)
+                                }
+                            }
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(vertical = 2.dp, horizontal = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                UserAvatar(
+                    photoUrl = author.photoUrl,
+                    username = author.username,
+                    size = 38.dp,
+                    backgroundColor = LimeAccent,
+                    fontSize = 16.sp
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column {
+                    Text(
+                        text = "@${author.username}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "$typeEmoji ${caprice.type} • $relativeTime",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (distanceLabel != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = LimeAccent,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = distanceLabel,
+                                color = LimeAccent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (isActive) LimeAccent.copy(alpha = 0.16f) else ClosedBadgeBg)
+                    .border(
+                        width = 1.dp,
+                        color = if (isActive) LimeAccent else CardBorder,
+                        shape = RoundedCornerShape(50)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = statusText,
+                    color = if (isActive) LimeAccent else TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Pregunta principal
+        Text(
+            text = caprice.question,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 23.sp
+        )
+
+        // Foto opcional debajo de la pregunta y antes de las opciones
+        if (caprice.imageUrl.isNotBlank()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF121214))
+                    .clickable { onImageClick(caprice.imageUrl) }
+            ) {
+                AsyncImage(
+                    model = imageModel,
+                    contentDescription = caprice.question,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                        .padding(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Ampliar foto",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Dos opciones informativas
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FeedOptionPill(label = "A", text = caprice.answer1)
+            FeedOptionPill(label = "B", text = caprice.answer2)
+        }
+    }
+}
+
+@Composable
+private fun FeedOptionPill(label: String, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(OptionBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(CardBorder),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                color = LimeAccent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+internal fun formatRelativeTime(timestampMillis: Long, nowMillis: Long): String {
+    val diffMillis = (nowMillis - timestampMillis).coerceAtLeast(0L)
+    val minutes = diffMillis / 60_000L
+    val hours = minutes / 60L
+    val days = hours / 24L
+
+    return when {
+        minutes < 1L -> "Ahora"
+        minutes < 60L -> "${minutes}m"
+        hours < 24L -> "${hours}h"
+        else -> "${days}d"
+    }
+}
+
+internal fun formatPollStatus(timestampMillis: Long, nowMillis: Long): String {
+    val closeTimestamp = PollTiming.calculateTriggerTime(timestampMillis)
+    val remainingMillis = closeTimestamp - nowMillis
+
+    return if (remainingMillis > 0) {
+        val remainingMin = kotlin.math.ceil(remainingMillis / 60_000.0).toLong().coerceAtLeast(1L)
+        if (remainingMin == 1L) "Queda 1 min" else "Quedan $remainingMin min"
+    } else {
+        val closedSinceMillis = (nowMillis - closeTimestamp).coerceAtLeast(0L)
+        val closedMinutes = closedSinceMillis / 60_000L
+        val closedHours = closedMinutes / 60L
+        val closedDays = closedHours / 24L
+
+        when {
+            closedMinutes < 1L -> "Cerró ahora"
+            closedMinutes < 60L -> "Cerró hace ${closedMinutes} min"
+            closedHours < 24L -> "Cerró hace ${closedHours}h"
+            else -> "Cerró hace ${closedDays}d"
+        }
+    }
+}
