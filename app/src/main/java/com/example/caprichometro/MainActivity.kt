@@ -209,6 +209,11 @@ fun CapriceApp(
             val foregroundStart = startupStart
 
             // 1. Priorizamos al 100% la carga inicial del feed para evitar contención en el arranque en frío
+            val hasLocationPermission = ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            capriceViewModel.onLocationPermissionChanged(hasLocationPermission)
             capriceViewModel.loadFriendsFeed()
 
             // 2. Diferimos escuchas secundarias, notificaciones y perfil hasta que el feed inicial haya respondido
@@ -338,7 +343,8 @@ fun CapriceApp(
                                         previousScreenBeforeProfile = "friend_poll"
                                         currentScreen = "profile"
                                     },
-                                    canOpenAuthorProfileOverride = item?.canOpenAuthorProfile != false
+                                    canOpenAuthorProfileOverride = item?.canOpenAuthorProfile != false,
+                                    approximateDistanceMeters = item?.approximateDistanceMeters
                                 )
                             }
                             "create" -> {
@@ -414,6 +420,11 @@ fun CapriceApp(
                                         selectedFeedItem?.canOpenAuthorProfile != false
                                     } else {
                                         true
+                                    },
+                                    approximateDistanceMeters = if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
+                                        selectedFeedItem?.approximateDistanceMeters
+                                    } else {
+                                        null
                                     }
                                 )
                             }

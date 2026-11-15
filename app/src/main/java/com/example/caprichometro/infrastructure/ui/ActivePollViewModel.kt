@@ -32,6 +32,7 @@ data class ActivePollUiState(
     val isCastingVote: Boolean = false,
     val isSavingFinalDecision: Boolean = false,
     val approximatePlaceName: String? = null,
+    val approximateDistanceMeters: Double? = null,
     val isResolvingPlaceName: Boolean = false,
     val errorMessage: String? = null
 )
@@ -66,10 +67,18 @@ class ActivePollViewModel(
         _state.value = ActivePollUiState()
     }
 
-    fun initialize(caprice: Caprice, currentUserId: String, authorUsername: String? = null) {
+    fun initialize(
+        caprice: Caprice,
+        currentUserId: String,
+        authorUsername: String? = null,
+        approximateDistanceMeters: Double? = null
+    ) {
         val previousCaprice = _state.value.caprice
         val isSameUserAndCaprice = previousCaprice?.id == caprice.id && _state.value.currentUserId == currentUserId
         if (isSameUserAndCaprice && votesJob?.isActive == true && tickerJob?.isActive == true) {
+            if (approximateDistanceMeters != null && _state.value.approximateDistanceMeters == null) {
+                _state.update { it.copy(approximateDistanceMeters = approximateDistanceMeters) }
+            }
             return
         }
 
@@ -77,15 +86,16 @@ class ActivePollViewModel(
         tickerJob?.cancel()
         placeNameJob?.cancel()
 
+        val cell = caprice.distanceCell()
         _state.value = ActivePollUiState(
             caprice = caprice,
             authorUsername = authorUsername,
             currentUserId = currentUserId,
             pollState = computeInitialPollState(caprice, currentUserId),
-            isResolvingPlaceName = !caprice.nearbyCell.isNullOrBlank() && getApproximatePlaceNameUseCase != null
+            approximateDistanceMeters = approximateDistanceMeters,
+            isResolvingPlaceName = cell != null && getApproximatePlaceNameUseCase != null
         )
 
-        val cell = caprice.nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
         if (cell != null && getApproximatePlaceNameUseCase != null) {
             placeNameJob = viewModelScope.launch {
                 val resolved = try {

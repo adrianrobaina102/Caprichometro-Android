@@ -1,6 +1,7 @@
 package com.example.caprichometro.infrastructure.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -19,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
@@ -36,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -69,33 +72,57 @@ fun HomeScreen(
     val state by viewModel.state.collectAsState()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
-    var hasAutoPromptedNearby by remember { mutableStateOf(false) }
+    var isLocationBannerDismissed by remember { mutableStateOf(false) }
+    var isLocationPermanentlyDenied by remember { mutableStateOf(false) }
 
-    val nearbyPermissionLauncher = rememberLauncherForActivityResult(
+    val openAppSettings = {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", context.packageName, null)
+        )
+        context.startActivity(intent)
+    }
+
+    val coarseLocationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        viewModel.onLocationPermissionChanged(isGranted)
         if (isGranted) {
-            nowMillis = System.currentTimeMillis()
-            viewModel.loadNearbyFeed()
+            isLocationPermanentlyDenied = false
+            if (state.selectedHomeTab == HomeFeedTab.GENERAL) {
+                nowMillis = System.currentTimeMillis()
+                viewModel.loadNearbyFeed()
+            }
         } else {
-            viewModel.onNearbyFeedPermissionDenied()
+            val activity = context as? Activity
+            isLocationPermanentlyDenied = activity != null &&
+                !ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            if (state.selectedHomeTab == HomeFeedTab.GENERAL) {
+                viewModel.onNearbyFeedPermissionDenied()
+            }
         }
     }
 
-    // Si el usuario vuelve desde Ajustes tras conceder ubicación en General, recargamos al instante
+    // Si el usuario vuelve desde Ajustes tras conceder ubicación, recalculamos Amigos y/o General al instante
     DisposableEffect(context, state.selectedHomeTab) {
         val lifecycleOwner = context as? LifecycleOwner
         if (lifecycleOwner == null) {
             onDispose { }
         } else {
             val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME &&
-                    state.selectedHomeTab == HomeFeedTab.GENERAL &&
-                    state.nearbyNeedsLocationPermission &&
-                    hasCoarseLocationPermission(context)
-                ) {
-                    nowMillis = System.currentTimeMillis()
-                    viewModel.loadNearbyFeedIfNeeded()
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    val hasPerm = hasCoarseLocationPermission(context)
+                    viewModel.onLocationPermissionChanged(hasPerm)
+                    if (hasPerm) {
+                        isLocationPermanentlyDenied = false
+                        if (state.selectedHomeTab == HomeFeedTab.GENERAL && state.nearbyNeedsLocationPermission) {
+                            nowMillis = System.currentTimeMillis()
+                            viewModel.loadNearbyFeedIfNeeded()
+                        }
+                    }
                 }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
@@ -107,15 +134,24 @@ fun HomeScreen(
 
     LaunchedEffect(state.selectedHomeTab) {
         nowMillis = System.currentTimeMillis()
+        val hasPerm = hasCoarseLocationPermission(context)
+        viewModel.onLocationPermissionChanged(hasPerm)
+
         when (state.selectedHomeTab) {
-            HomeFeedTab.FRIENDS -> viewModel.loadFriendsFeedIfNeeded()
+            HomeFeedTab.FRIENDS -> {
+                viewModel.loadFriendsFeedIfNeeded()
+                if (!hasPerm && !state.hasAutoPromptedLocation) {
+                    viewModel.markLocationPermissionAutoPrompted()
+                    coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }
+            }
             HomeFeedTab.GENERAL -> {
-                if (hasCoarseLocationPermission(context)) {
+                if (hasPerm) {
                     viewModel.loadNearbyFeedIfNeeded()
-                } else if (!hasAutoPromptedNearby) {
-                    hasAutoPromptedNearby = true
+                } else if (!state.hasAutoPromptedLocation) {
+                    viewModel.markLocationPermissionAutoPrompted()
                     viewModel.onNearbyFeedPermissionDenied()
-                    nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                 } else {
                     viewModel.onNearbyFeedPermissionDenied()
                 }
@@ -184,7 +220,7 @@ fun HomeScreen(
                             } else if (hasCoarseLocationPermission(context)) {
                                 viewModel.loadNearbyFeed(isManualRefresh = true)
                             } else {
-                                nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                             }
                         },
                         enabled = !isCurrentTabLoading,
@@ -265,17 +301,35 @@ fun HomeScreen(
                     }
 
                     else -> {
-                        FeedItemsList(
-                            items = state.feedItems,
-                            totalCount = state.totalFriendsFeedCount,
-                            hasMore = state.hasMoreFriendsFeed,
-                            isBackgroundSyncing = state.isFriendsBackgroundSyncing,
-                            onLoadMore = { viewModel.loadMoreFriendsFeed() },
-                            nowMillis = nowMillis,
-                            onSelectFeedItem = onSelectFeedItem,
-                            onNavigateToUserProfile = onNavigateToUserProfile,
-                            onImageClick = { fullScreenImageUrl = it }
-                        )
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            if (!state.isLocationPermissionGranted &&
+                                state.hasAutoPromptedLocation &&
+                                !isLocationBannerDismissed
+                            ) {
+                                FriendsLocationPermissionBanner(
+                                    isPermanentlyDenied = isLocationPermanentlyDenied,
+                                    onAllowClick = {
+                                        if (isLocationPermanentlyDenied) {
+                                            openAppSettings()
+                                        } else {
+                                            coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                        }
+                                    },
+                                    onDismiss = { isLocationBannerDismissed = true }
+                                )
+                            }
+                            FeedItemsList(
+                                items = state.feedItems,
+                                totalCount = state.totalFriendsFeedCount,
+                                hasMore = state.hasMoreFriendsFeed,
+                                isBackgroundSyncing = state.isFriendsBackgroundSyncing,
+                                onLoadMore = { viewModel.loadMoreFriendsFeed() },
+                                nowMillis = nowMillis,
+                                onSelectFeedItem = onSelectFeedItem,
+                                onNavigateToUserProfile = onNavigateToUserProfile,
+                                onImageClick = { fullScreenImageUrl = it }
+                            )
+                        }
                     }
                 }
             } else {
@@ -291,16 +345,10 @@ fun HomeScreen(
                             message = "Para ordenar las dudas públicas por cercanía necesitamos permiso de ubicación aproximada.",
                             primaryLabel = "Permitir ubicación",
                             onPrimaryClick = {
-                                nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                             },
                             secondaryLabel = "Abrir Ajustes",
-                            onSecondaryClick = {
-                                val intent = Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.fromParts("package", context.packageName, null)
-                                )
-                                context.startActivity(intent)
-                            }
+                            onSecondaryClick = openAppSettings
                         )
                     }
 
@@ -330,7 +378,7 @@ fun HomeScreen(
                                 if (hasCoarseLocationPermission(context)) {
                                     viewModel.loadNearbyFeed(isManualRefresh = true)
                                 } else {
-                                    nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                    coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                                 }
                             }
                         )
@@ -394,6 +442,63 @@ private fun hasCoarseLocationPermission(context: Context): Boolean {
         context,
         Manifest.permission.ACCESS_COARSE_LOCATION
     ) == PackageManager.PERMISSION_GRANTED
+}
+
+@Composable
+private fun FriendsLocationPermissionBanner(
+    isPermanentlyDenied: Boolean,
+    onAllowClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = LimeAccent,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Activa ubicación para ver distancias en Amigos",
+            color = Color.White,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        TextButton(
+            onClick = onAllowClick,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = if (isPermanentlyDenied) "Ajustes" else "Activar",
+                color = LimeAccent,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Cerrar aviso",
+                tint = TextSecondary,
+                modifier = Modifier.size(15.dp)
+            )
+        }
+    }
 }
 
 @Composable

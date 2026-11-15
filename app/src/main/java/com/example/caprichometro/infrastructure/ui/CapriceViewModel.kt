@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 enum class HomeFeedTab {
     FRIENDS,
@@ -56,6 +57,8 @@ data class CapriceState(
     val nearbyNeedsLocationPermission: Boolean = false,
     val nearbyNeedsLocationServices: Boolean = false,
     val hasLoadedNearbyFeed: Boolean = false,
+    val isLocationPermissionGranted: Boolean = false,
+    val hasAutoPromptedLocation: Boolean = false,
     val isNearbyDiscoveryEnabled: Boolean = false,
     val isPreparingNearbyLocation: Boolean = false,
     val preparedNearbyCell: String? = null,
@@ -91,6 +94,7 @@ class CapriceViewModel(
         var visiblePageLimit: Int = FEED_PAGE_SIZE
         var revealedCount: Int = 0
         var isSourceComplete: Boolean = false
+        var loadedWithLocationPermission: Boolean = false
         var revealJob: Job? = null
         var loadMoreJob: Job? = null
 
@@ -104,6 +108,7 @@ class CapriceViewModel(
             visiblePageLimit = FEED_PAGE_SIZE
             revealedCount = 0
             isSourceComplete = false
+            loadedWithLocationPermission = false
         }
     }
 
@@ -111,6 +116,7 @@ class CapriceViewModel(
     val state: StateFlow<CapriceState> = _state.asStateFlow()
 
     private var feedLoadJob: Job? = null
+    private var distanceRefreshJob: Job? = null
     private var nearbyFeedLoadJob: Job? = null
     private var nearbyCreationJob: Job? = null
     private var privateLocationJob: Job? = null
@@ -125,6 +131,8 @@ class CapriceViewModel(
     fun reset() {
         feedLoadJob?.cancel()
         feedLoadJob = null
+        distanceRefreshJob?.cancel()
+        distanceRefreshJob = null
         nearbyFeedLoadJob?.cancel()
         nearbyFeedLoadJob = null
         nearbyCreationJob?.cancel()
@@ -161,7 +169,16 @@ class CapriceViewModel(
             capriceBuilder.setVisibleToUserIds(listOf(uid) + visibleToUserIds)
         }
         val normalizedCell = nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
-        val normalizedLocationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
+        var normalizedLocationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
+            ?: normalizedCell
+        if (normalizedLocationCell == null && _state.value.isLocationPermissionGranted && locationRepository != null) {
+            val resolvedLoc = withTimeoutOrNull(800L) {
+                locationRepository.currentApproximateLocation().getOrNull()
+            }
+            if (resolvedLoc != null) {
+                normalizedLocationCell = NearbyCellGrid.cellId(resolvedLoc)
+            }
+        }
         capriceBuilder.setNearbyCell(normalizedCell)
         capriceBuilder.setLocationCell(normalizedLocationCell)
 
@@ -239,6 +256,7 @@ class CapriceViewModel(
         if (uid.isBlank()) return
 
         feedLoadJob?.cancel()
+        distanceRefreshJob?.cancel()
         friendsController.revealJob?.cancel()
         friendsController.loadMoreJob?.cancel()
         if (isManualRefresh) {
@@ -247,6 +265,7 @@ class CapriceViewModel(
             friendsController.visiblePageLimit = FEED_PAGE_SIZE
             friendsController.isSourceComplete = false
         }
+        friendsController.loadedWithLocationPermission = _state.value.isLocationPermissionGranted
         // Marcamos la carga síncronamente para evitar carreras al arrancar entre MainActivity y HomeScreen
         _state.update {
             it.copy(
@@ -298,6 +317,9 @@ class CapriceViewModel(
                     batch.isComplete -> logPerf(
                         "loadFriendsFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=$totalKnown, hydrated=${batch.items.size} en $elapsedMs ms"
                     )
+                }
+                if (batch.isComplete && batch.items.any { it.approximateDistanceMeters != null }) {
+                    friendsController.loadedWithLocationPermission = true
                 }
                 applyProgressiveBatch(
                     controller = friendsController,
@@ -486,6 +508,8 @@ class CapriceViewModel(
                 if (batch.isComplete) {
                     lastNearbyLoadedUserId = uid
                     lastNearbyLoadedAtMillis = clockMillis()
+                    _state.update { it.copy(isLocationPermissionGranted = true) }
+                    refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
                 }
                 val totalKnown = maxOf(batch.totalAvailableCount, batch.items.size)
                 val visibleTarget = minOf(nearbyController.visiblePageLimit, batch.items.size)
@@ -673,9 +697,60 @@ class CapriceViewModel(
         }
     }
 
+    fun markLocationPermissionAutoPrompted() {
+        _state.update { it.copy(hasAutoPromptedLocation = true) }
+    }
+
+    fun onLocationPermissionChanged(granted: Boolean) {
+        _state.update { it.copy(isLocationPermissionGranted = granted) }
+        if (granted) {
+            preparePrivateLocationCellIfPermitted()
+            refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = false)
+        }
+    }
+
+    private fun refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems: Boolean) {
+        val uid = currentUserId
+        val useCase = getFriendsCapricesUseCase ?: return
+        if (uid.isBlank() || !_state.value.hasLoadedFeed) return
+        val hasItemsWithCellMissingDistance = friendsController.loadedItems.any {
+            it.caprice.distanceCell() != null && it.approximateDistanceMeters == null
+        }
+        val needsRefresh = if (onlyIfMissingDistanceOnLoadedItems) {
+            hasItemsWithCellMissingDistance
+        } else {
+            !friendsController.loadedWithLocationPermission || hasItemsWithCellMissingDistance
+        }
+        if (!needsRefresh) return
+        if (distanceRefreshJob?.isActive == true) return
+
+        distanceRefreshJob = viewModelScope.launch(ioDispatcher) {
+            val refreshed = useCase.refreshCachedDistances(uid, friendsController.visiblePageLimit)
+            if (currentUserId != uid) return@launch
+            if (refreshed != null) {
+                friendsController.loadedWithLocationPermission = true
+                applyProgressiveBatch(
+                    controller = friendsController,
+                    batch = refreshed,
+                    uid = uid,
+                    publishState = ::publishFriendsState
+                )
+            } else if (!onlyIfMissingDistanceOnLoadedItems &&
+                !friendsController.loadedWithLocationPermission &&
+                friendsController.isSourceComplete &&
+                feedLoadJob?.isActive != true
+            ) {
+                loadFriendsFeed(isManualRefresh = false)
+            }
+        }
+    }
+
     fun preparePrivateLocationCellIfPermitted() {
         val locRepo = locationRepository ?: return
         if (!locRepo.hasLocationPermission()) return
+        if (!_state.value.isLocationPermissionGranted) {
+            _state.update { it.copy(isLocationPermissionGranted = true) }
+        }
         if (!_state.value.preparedLocationCell.isNullOrBlank()) return
         if (privateLocationJob?.isActive == true) return
 
@@ -683,6 +758,7 @@ class CapriceViewModel(
             locRepo.currentApproximateLocation().onSuccess { location ->
                 val cellId = NearbyCellGrid.cellId(location)
                 _state.update { it.copy(preparedLocationCell = cellId) }
+                refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
             }
         }
     }
@@ -731,6 +807,7 @@ class CapriceViewModel(
                     val cellId = NearbyCellGrid.cellId(location)
                     _state.update {
                         it.copy(
+                            isLocationPermissionGranted = true,
                             isNearbyDiscoveryEnabled = true,
                             isPreparingNearbyLocation = false,
                             preparedNearbyCell = cellId,
@@ -738,6 +815,7 @@ class CapriceViewModel(
                             nearbyCreationError = null
                         )
                     }
+                    refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
                 },
                 onFailure = { e ->
                     if (e is CancellationException) return@fold

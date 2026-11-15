@@ -85,7 +85,11 @@ fun CapriceScreen(
     var isSubmitting by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        viewModel.preparePrivateLocationCellIfPermitted()
+        val hasPerm = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        viewModel.onLocationPermissionChanged(hasPerm)
     }
 
     LaunchedEffect(friends) {
@@ -160,6 +164,7 @@ fun CapriceScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        viewModel.onLocationPermissionChanged(isGranted)
         if (isGranted) {
             viewModel.setNearbyDiscoveryEnabled(true)
         } else {

@@ -55,7 +55,8 @@ fun ResultScreen(
     onCapriceUpdated: ((Caprice) -> Unit)? = null,
     onGoHome: () -> Unit,
     onNavigateToAuthorProfile: ((String) -> Unit)? = null,
-    canOpenAuthorProfileOverride: Boolean = true
+    canOpenAuthorProfileOverride: Boolean = true,
+    approximateDistanceMeters: Double? = null
 ) {
     var isImageExpanded by remember { mutableStateOf(false) }
     val vmState by viewModel?.state?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(null)
@@ -72,10 +73,10 @@ fun ResultScreen(
         ?: displayedCaprice?.userId?.firstOrNull()?.uppercaseChar()?.toString()
         ?: "A"
 
-    LaunchedEffect(caprice?.id, currentUserId) {
+    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters) {
         val effectiveUserId = currentUserId.ifBlank { caprice?.userId.orEmpty() }
         if (caprice != null && viewModel != null && (vmState?.caprice?.id != caprice.id || vmState?.currentUserId != effectiveUserId)) {
-            viewModel.initialize(caprice, effectiveUserId)
+            viewModel.initialize(caprice, effectiveUserId, resolvedUsername, approximateDistanceMeters)
         }
     }
 
@@ -175,36 +176,12 @@ fun ResultScreen(
                 )
             }
 
-            val showNearbyPlace = isPublicNearby
-            if (showNearbyPlace) {
-                Spacer(modifier = Modifier.height(8.dp))
-                val zoneLabel = when {
-                    vmState?.isResolvingPlaceName == true -> "Resolviendo zona aproximada..."
-                    !vmState?.approximatePlaceName.isNullOrBlank() -> "Zona aproximada · ${vmState?.approximatePlaceName}"
-                    else -> "Ubicación aproximada"
-                }
-                Row(
-                    modifier = Modifier
-                        .background(Color(0xFF1A1A1D), RoundedCornerShape(50))
-                        .border(1.dp, Color(0xFF2C2C30), RoundedCornerShape(50))
-                        .padding(horizontal = 12.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = LimeGreen,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = zoneLabel,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+            CapriceLocationPill(
+                distanceMeters = vmState?.approximateDistanceMeters ?: approximateDistanceMeters,
+                placeName = vmState?.approximatePlaceName,
+                isResolvingPlaceName = vmState?.isResolvingPlaceName == true,
+                hasDistanceCell = !displayedCaprice?.distanceCell().isNullOrBlank()
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 

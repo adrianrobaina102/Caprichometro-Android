@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
@@ -53,6 +54,47 @@ private val OptionCardBg = Color(0xFF1A1A1D)
 private val OptionCardBorder = Color(0xFF2C2C30)
 
 @Composable
+internal fun CapriceLocationPill(
+    distanceMeters: Double?,
+    placeName: String?,
+    isResolvingPlaceName: Boolean,
+    hasDistanceCell: Boolean
+) {
+    val distanceLabel = distanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
+    val zoneLabel = when {
+        distanceLabel != null && !placeName.isNullOrBlank() -> "$distanceLabel · $placeName"
+        distanceLabel != null -> distanceLabel
+        isResolvingPlaceName -> "Resolviendo zona aproximada..."
+        !placeName.isNullOrBlank() -> "Zona aproximada · $placeName"
+        hasDistanceCell -> "Ubicación aproximada"
+        else -> null
+    } ?: return
+
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier
+            .background(OptionCardBg, RoundedCornerShape(50))
+            .border(1.dp, OptionCardBorder, RoundedCornerShape(50))
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = LimeGreen,
+            modifier = Modifier.size(13.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = zoneLabel,
+            color = Color.White.copy(alpha = 0.9f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
 fun ActivePollScreen(
     caprice: Caprice?,
     authorUsername: String? = null,
@@ -62,7 +104,8 @@ fun ActivePollScreen(
     onNavigateBack: () -> Unit = {},
     onTimerFinished: () -> Unit = {},
     onNavigateToAuthorProfile: ((String) -> Unit)? = null,
-    canOpenAuthorProfileOverride: Boolean = true
+    canOpenAuthorProfileOverride: Boolean = true,
+    approximateDistanceMeters: Double? = null
 ) {
     val context = LocalContext.current
     val isFriendPoll = when {
@@ -77,9 +120,9 @@ fun ActivePollScreen(
     }
 
     // Inicialización del ViewModel reactivo si está presente
-    LaunchedEffect(caprice?.id, currentUserId) {
+    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters) {
         if (caprice != null && currentUserId.isNotBlank() && viewModel != null) {
-            viewModel.initialize(caprice, currentUserId, authorUsername)
+            viewModel.initialize(caprice, currentUserId, authorUsername, approximateDistanceMeters)
         }
     }
 
@@ -243,35 +286,12 @@ fun ActivePollScreen(
                 )
             }
 
-            if (isPublicNearby) {
-                Spacer(modifier = Modifier.height(8.dp))
-                val zoneLabel = when {
-                    vmState?.isResolvingPlaceName == true -> "Resolviendo zona aproximada..."
-                    !vmState?.approximatePlaceName.isNullOrBlank() -> "Zona aproximada · ${vmState?.approximatePlaceName}"
-                    else -> "Ubicación aproximada"
-                }
-                Row(
-                    modifier = Modifier
-                        .background(OptionCardBg, RoundedCornerShape(50))
-                        .border(1.dp, OptionCardBorder, RoundedCornerShape(50))
-                        .padding(horizontal = 12.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = LimeGreen,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = zoneLabel,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+            CapriceLocationPill(
+                distanceMeters = vmState?.approximateDistanceMeters ?: approximateDistanceMeters,
+                placeName = vmState?.approximatePlaceName,
+                isResolvingPlaceName = vmState?.isResolvingPlaceName == true,
+                hasDistanceCell = !caprice?.distanceCell().isNullOrBlank()
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
