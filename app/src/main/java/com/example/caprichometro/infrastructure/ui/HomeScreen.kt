@@ -43,6 +43,7 @@ import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.NearbyCellGrid
+import com.example.caprichometro.domain.model.splitByDistanceRadius
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
@@ -135,6 +136,11 @@ fun HomeScreen(
     } else {
         state.isNearbyFeedLoading
     }
+    val isCurrentTabBackgroundSyncing = if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+        state.isFriendsBackgroundSyncing
+    } else {
+        state.isNearbyBackgroundSyncing
+    }
     val hasCurrentTabItems = if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
         state.feedItems.isNotEmpty()
     } else {
@@ -213,7 +219,7 @@ fun HomeScreen(
                         .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                 )
 
-                if (isCurrentTabLoading && hasCurrentTabItems) {
+                if ((isCurrentTabLoading || isCurrentTabBackgroundSyncing) && hasCurrentTabItems) {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -640,14 +646,16 @@ private fun FeedItemsList(
     onImageClick: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
+    val sections = remember(items) { splitByDistanceRadius(items) }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // Sección < 50 km sin cabecera ni texto adicional
         items(
-            items = items,
+            items = sections.localItems,
             key = { "${it.author.uid}_${it.caprice.id}_${it.caprice.timestamp}" }
         ) { item ->
             CapriceFeedCard(
@@ -657,6 +665,24 @@ private fun FeedItemsList(
                 onNavigateToUserProfile = onNavigateToUserProfile,
                 onImageClick = onImageClick
             )
+        }
+
+        if (sections.farItems.isNotEmpty()) {
+            item(key = "far_caprices_section_header") {
+                FarCapricesSectionHeader()
+            }
+            items(
+                items = sections.farItems,
+                key = { "far_${it.author.uid}_${it.caprice.id}_${it.caprice.timestamp}" }
+            ) { item ->
+                CapriceFeedCard(
+                    item = item,
+                    nowMillis = nowMillis,
+                    onClick = { onSelectFeedItem(item) },
+                    onNavigateToUserProfile = onNavigateToUserProfile,
+                    onImageClick = onImageClick
+                )
+            }
         }
 
         if (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE) {
@@ -669,6 +695,50 @@ private fun FeedItemsList(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun FarCapricesSectionHeader() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            thickness = 1.dp,
+            color = CardBorder
+        )
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(CardBg)
+                .border(1.dp, CardBorder, RoundedCornerShape(50))
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "Caprichos más lejanos",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "> 50 km",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            thickness = 1.dp,
+            color = CardBorder
+        )
     }
 }
 

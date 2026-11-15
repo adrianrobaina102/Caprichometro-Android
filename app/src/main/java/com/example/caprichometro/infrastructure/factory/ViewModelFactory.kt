@@ -77,7 +77,13 @@ class ViewModelFactory(private val context: Context? = null) {
         val saveUseCase = SaveCapriceUseCase(capriceRepository)
         val getUseCase = GetCapricesUseCase(capriceRepository)
         val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
-        val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(acceptedFriendsUseCase, capriceRepository)
+        val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedFriendsUseCase,
+            capriceRepository = capriceRepository,
+            friendshipRepository = friendshipRepository,
+            userProfileRepository = userProfileRepository,
+            locationRepository = locationRepository
+        )
         val getNearbyCapricesUseCase = locationRepository?.let { locRepo ->
             GetNearbyCapricesUseCase(
                 locationRepository = locRepo,

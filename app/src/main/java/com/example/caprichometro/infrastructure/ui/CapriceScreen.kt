@@ -84,6 +84,10 @@ fun CapriceScreen(
     var customSelectedFriendIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isSubmitting by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        viewModel.preparePrivateLocationCellIfPermitted()
+    }
+
     LaunchedEffect(friends) {
         val validIds = friends.map { it.uid }.toSet()
         customSelectedFriendIds = customSelectedFriendIds.intersect(validIds)
@@ -242,7 +246,8 @@ fun CapriceScreen(
                             answer2 = answer2.trim(),
                             imageBytes = imageBytes,
                             visibleToUserIds = effectiveSelectedFriendIds.toList(),
-                            nearbyCell = if (capriceState.isNearbyDiscoveryEnabled) capriceState.preparedNearbyCell else null
+                            nearbyCell = if (capriceState.isNearbyDiscoveryEnabled) capriceState.preparedNearbyCell else null,
+                            locationCell = capriceState.preparedLocationCell ?: capriceState.preparedNearbyCell
                         )
 
                         isSubmitting = false

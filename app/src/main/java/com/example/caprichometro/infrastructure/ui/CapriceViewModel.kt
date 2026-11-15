@@ -23,6 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,6 +40,7 @@ data class CapriceState(
     val totalFriendsFeedCount: Int = 0,
     val hasMoreFriendsFeed: Boolean = false,
     val isFeedLoading: Boolean = false,
+    val isFriendsBackgroundSyncing: Boolean = false,
     val feedError: String? = null,
     val hasLoadedFeed: Boolean = false,
     val selectedHomeTab: HomeFeedTab = HomeFeedTab.FRIENDS,
@@ -46,6 +48,7 @@ data class CapriceState(
     val totalNearbyFeedCount: Int = 0,
     val hasMoreNearbyFeed: Boolean = false,
     val isNearbyFeedLoading: Boolean = false,
+    val isNearbyBackgroundSyncing: Boolean = false,
     val nearbyFeedError: String? = null,
     val nearbyNeedsLocationPermission: Boolean = false,
     val nearbyNeedsLocationServices: Boolean = false,
@@ -53,6 +56,7 @@ data class CapriceState(
     val isNearbyDiscoveryEnabled: Boolean = false,
     val isPreparingNearbyLocation: Boolean = false,
     val preparedNearbyCell: String? = null,
+    val preparedLocationCell: String? = null,
     val nearbyCreationError: String? = null
 )
 
@@ -72,6 +76,7 @@ class CapriceViewModel(
 
     companion object {
         internal const val NEARBY_CACHE_TTL_MS = 60_000L
+        internal const val INITIAL_FAST_BATCH_SIZE = 5
         internal const val FEED_PAGE_SIZE = 20
         internal const val FRIENDS_FETCH_LIMIT = 200
     }
@@ -82,6 +87,7 @@ class CapriceViewModel(
     private var feedLoadJob: Job? = null
     private var nearbyFeedLoadJob: Job? = null
     private var nearbyCreationJob: Job? = null
+    private var privateLocationJob: Job? = null
     private var lastNearbyLoadedAtMillis: Long? = null
     private var lastNearbyLoadedUserId: String? = null
     private var allFriendsFeedItems: List<CapriceFeedItem> = emptyList()
@@ -99,6 +105,8 @@ class CapriceViewModel(
         nearbyFeedLoadJob = null
         nearbyCreationJob?.cancel()
         nearbyCreationJob = null
+        privateLocationJob?.cancel()
+        privateLocationJob = null
         lastNearbyLoadedAtMillis = null
         lastNearbyLoadedUserId = null
         allFriendsFeedItems = emptyList()
@@ -115,7 +123,8 @@ class CapriceViewModel(
         answer2: String,
         imageBytes: ByteArray? = null,
         visibleToUserIds: List<String>? = null,
-        nearbyCell: String? = null
+        nearbyCell: String? = null,
+        locationCell: String? = null
     ): Result<Caprice> {
         val uid = currentUserId
         if (uid.isBlank()) return Result.failure(IllegalStateException("No hay sesión activa"))
@@ -130,7 +139,9 @@ class CapriceViewModel(
             capriceBuilder.setVisibleToUserIds(listOf(uid) + visibleToUserIds)
         }
         val normalizedCell = nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
+        val normalizedLocationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
         capriceBuilder.setNearbyCell(normalizedCell)
+        capriceBuilder.setLocationCell(normalizedLocationCell)
 
         val preliminaryCaprice = capriceBuilder.build()
         _state.update { it.copy(isLoading = true, error = null) }
@@ -160,6 +171,7 @@ class CapriceViewModel(
                         isNearbyDiscoveryEnabled = false,
                         isPreparingNearbyLocation = false,
                         preparedNearbyCell = null,
+                        preparedLocationCell = null,
                         nearbyCreationError = null
                     )
                 }
@@ -193,7 +205,8 @@ class CapriceViewModel(
     }
 
     fun loadFriendsFeedIfNeeded() {
-        if (!_state.value.hasLoadedFeed && !_state.value.isFeedLoading) {
+        val current = _state.value
+        if (!current.hasLoadedFeed && !current.isFeedLoading && !current.isFriendsBackgroundSyncing) {
             loadFriendsFeed(isManualRefresh = false)
         }
     }
@@ -205,7 +218,13 @@ class CapriceViewModel(
 
         feedLoadJob?.cancel()
         // Marcamos la carga síncronamente para evitar carreras al arrancar entre MainActivity y HomeScreen
-        _state.update { it.copy(isFeedLoading = true, feedError = null) }
+        _state.update {
+            it.copy(
+                isFeedLoading = true,
+                isFriendsBackgroundSyncing = false,
+                feedError = null
+            )
+        }
         feedLoadJob = viewModelScope.launch(ioDispatcher) {
             val startedAt = clockMillis()
             if (isManualRefresh) {
@@ -214,38 +233,55 @@ class CapriceViewModel(
                 capriceCacheControl?.invalidateAll()
             }
 
-            val result = useCase.execute(uid, perFriendLimit = 100, totalLimit = FRIENDS_FETCH_LIMIT)
-            if (currentUserId != uid) return@launch
-
-            result.fold(
-                onSuccess = { items ->
-                    allFriendsFeedItems = items
-                    val visible = items.take(friendsVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
-                    logPerf(
-                        "loadFriendsFeed(uid=$uid, manual=$isManualRefresh) -> total=${items.size}, visible=${visible.size} en ${clockMillis() - startedAt} ms"
+            var loggedFirstServerBatch = false
+            useCase.observeProgressiveFeed(
+                currentUserId = uid,
+                initialBatchSize = INITIAL_FAST_BATCH_SIZE,
+                perFriendLimit = 100,
+                totalLimit = FRIENDS_FETCH_LIMIT,
+                includeCache = !isManualRefresh
+            ).catch { e ->
+                if (e is CancellationException) throw e
+                if (currentUserId != uid) return@catch
+                Log.e("CapriceViewModel", "Error en loadFriendsFeed: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isFeedLoading = false,
+                        isFriendsBackgroundSyncing = false,
+                        feedError = e.message ?: "No se pudo cargar el feed de amigos."
                     )
-                    _state.update {
-                        it.copy(
-                            isFeedLoading = false,
-                            feedItems = visible,
-                            totalFriendsFeedCount = items.size,
-                            hasMoreFriendsFeed = items.size > visible.size,
-                            feedError = null,
-                            hasLoadedFeed = true
-                        )
-                    }
-                },
-                onFailure = { e ->
-                    if (e is CancellationException) return@fold
-                    Log.e("CapriceViewModel", "Error en loadFriendsFeed: ${e.message}", e)
-                    _state.update {
-                        it.copy(
-                            isFeedLoading = false,
-                            feedError = e.message ?: "No se pudo cargar el feed de amigos."
-                        )
-                    }
                 }
-            )
+            }.collect { batch ->
+                if (currentUserId != uid) return@collect
+                allFriendsFeedItems = batch.items
+                val visible = batch.items.take(friendsVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
+                val elapsedMs = clockMillis() - startedAt
+                when {
+                    batch.isFromCache -> logPerf(
+                        "loadFriendsFeed[cache](uid=$uid) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                    )
+                    !batch.isComplete && !loggedFirstServerBatch -> {
+                        loggedFirstServerBatch = true
+                        logPerf(
+                            "loadFriendsFeed[firstBatch](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                        )
+                    }
+                    batch.isComplete -> logPerf(
+                        "loadFriendsFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                    )
+                }
+                _state.update {
+                    it.copy(
+                        isFeedLoading = false,
+                        isFriendsBackgroundSyncing = !batch.isComplete,
+                        feedItems = visible,
+                        totalFriendsFeedCount = batch.items.size,
+                        hasMoreFriendsFeed = batch.items.size > visible.size,
+                        feedError = null,
+                        hasLoadedFeed = true
+                    )
+                }
+            }
         }
     }
 
@@ -270,7 +306,7 @@ class CapriceViewModel(
 
     fun loadNearbyFeedIfNeeded() {
         val uid = currentUserId
-        if (uid.isBlank() || _state.value.isNearbyFeedLoading) return
+        if (uid.isBlank() || _state.value.isNearbyFeedLoading || _state.value.isNearbyBackgroundSyncing) return
 
         val sameUser = lastNearbyLoadedUserId == uid
         val loadedAt = lastNearbyLoadedAtMillis
@@ -295,6 +331,7 @@ class CapriceViewModel(
                     totalNearbyFeedCount = if (sameUser) it.totalNearbyFeedCount else 0,
                     hasMoreNearbyFeed = if (sameUser) it.hasMoreNearbyFeed else false,
                     hasLoadedNearbyFeed = if (sameUser) it.hasLoadedNearbyFeed else false,
+                    isNearbyBackgroundSyncing = false,
                     nearbyNeedsLocationPermission = true,
                     nearbyNeedsLocationServices = false,
                     nearbyFeedError = null
@@ -322,6 +359,7 @@ class CapriceViewModel(
                     totalNearbyFeedCount = 0,
                     hasMoreNearbyFeed = false,
                     hasLoadedNearbyFeed = false,
+                    isNearbyBackgroundSyncing = false,
                     nearbyFeedError = null
                 )
             }
@@ -331,6 +369,7 @@ class CapriceViewModel(
             _state.update {
                 it.copy(
                     isNearbyFeedLoading = false,
+                    isNearbyBackgroundSyncing = false,
                     nearbyNeedsLocationPermission = true,
                     nearbyNeedsLocationServices = false,
                     nearbyFeedError = null
@@ -343,6 +382,7 @@ class CapriceViewModel(
         _state.update {
             it.copy(
                 isNearbyFeedLoading = true,
+                isNearbyBackgroundSyncing = false,
                 nearbyFeedError = null,
                 nearbyNeedsLocationPermission = false,
                 nearbyNeedsLocationServices = false
@@ -356,57 +396,77 @@ class CapriceViewModel(
                 capriceCacheControl?.invalidateAll()
             }
 
-            val result = useCase.execute(uid)
-            if (currentUserId != uid) return@launch
-
-            result.fold(
-                onSuccess = { items ->
-                    lastNearbyLoadedUserId = uid
-                    lastNearbyLoadedAtMillis = clockMillis()
-                    allNearbyFeedItems = items
-                    val visible = items.take(nearbyVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
-                    logPerf(
-                        "loadNearbyFeed(uid=$uid, manual=$isManualRefresh) -> total=${items.size}, visible=${visible.size} en ${clockMillis() - startedAt} ms"
-                    )
-                    _state.update {
-                        it.copy(
+            var loggedFirstServerBatch = false
+            useCase.observeProgressiveFeed(
+                currentUserId = uid,
+                includeCache = !isManualRefresh,
+                initialBatchSize = INITIAL_FAST_BATCH_SIZE,
+                pageSize = FEED_PAGE_SIZE
+            ).catch { e ->
+                if (e is CancellationException) throw e
+                if (currentUserId != uid) return@catch
+                _state.update { current ->
+                    when (e) {
+                        is DeviceLocationException.PermissionDenied -> current.copy(
                             isNearbyFeedLoading = false,
-                            nearbyFeedItems = visible,
-                            totalNearbyFeedCount = items.size,
-                            hasMoreNearbyFeed = items.size > visible.size,
-                            nearbyFeedError = null,
+                            isNearbyBackgroundSyncing = false,
+                            nearbyNeedsLocationPermission = true,
+                            nearbyNeedsLocationServices = false,
+                            nearbyFeedError = null
+                        )
+                        is DeviceLocationException.LocationServicesDisabled -> current.copy(
+                            isNearbyFeedLoading = false,
+                            isNearbyBackgroundSyncing = false,
+                            nearbyNeedsLocationPermission = false,
+                            nearbyNeedsLocationServices = true,
+                            nearbyFeedError = e.message
+                        )
+                        else -> current.copy(
+                            isNearbyFeedLoading = false,
+                            isNearbyBackgroundSyncing = false,
                             nearbyNeedsLocationPermission = false,
                             nearbyNeedsLocationServices = false,
-                            hasLoadedNearbyFeed = true
+                            nearbyFeedError = e.message ?: "No se pudo cargar General."
                         )
                     }
-                },
-                onFailure = { e ->
-                    if (e is CancellationException) return@fold
-                    _state.update { current ->
-                        when (e) {
-                            is DeviceLocationException.PermissionDenied -> current.copy(
-                                isNearbyFeedLoading = false,
-                                nearbyNeedsLocationPermission = true,
-                                nearbyNeedsLocationServices = false,
-                                nearbyFeedError = null
-                            )
-                            is DeviceLocationException.LocationServicesDisabled -> current.copy(
-                                isNearbyFeedLoading = false,
-                                nearbyNeedsLocationPermission = false,
-                                nearbyNeedsLocationServices = true,
-                                nearbyFeedError = e.message
-                            )
-                            else -> current.copy(
-                                isNearbyFeedLoading = false,
-                                nearbyNeedsLocationPermission = false,
-                                nearbyNeedsLocationServices = false,
-                                nearbyFeedError = e.message ?: "No se pudo cargar General."
-                            )
-                        }
-                    }
                 }
-            )
+            }.collect { batch ->
+                if (currentUserId != uid) return@collect
+                if (batch.isComplete) {
+                    lastNearbyLoadedUserId = uid
+                    lastNearbyLoadedAtMillis = clockMillis()
+                }
+                allNearbyFeedItems = batch.items
+                val visible = batch.items.take(nearbyVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
+                val elapsedMs = clockMillis() - startedAt
+                when {
+                    batch.isFromCache -> logPerf(
+                        "loadNearbyFeed[cache](uid=$uid) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                    )
+                    !batch.isComplete && !loggedFirstServerBatch -> {
+                        loggedFirstServerBatch = true
+                        logPerf(
+                            "loadNearbyFeed[firstBatch](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                        )
+                    }
+                    batch.isComplete -> logPerf(
+                        "loadNearbyFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                    )
+                }
+                _state.update {
+                    it.copy(
+                        isNearbyFeedLoading = false,
+                        isNearbyBackgroundSyncing = !batch.isComplete,
+                        nearbyFeedItems = visible,
+                        totalNearbyFeedCount = batch.items.size,
+                        hasMoreNearbyFeed = batch.items.size > visible.size,
+                        nearbyFeedError = null,
+                        nearbyNeedsLocationPermission = false,
+                        nearbyNeedsLocationServices = false,
+                        hasLoadedNearbyFeed = true
+                    )
+                }
+            }
         }
     }
 
@@ -430,10 +490,25 @@ class CapriceViewModel(
         _state.update {
             it.copy(
                 isNearbyFeedLoading = false,
+                isNearbyBackgroundSyncing = false,
                 nearbyNeedsLocationPermission = true,
                 nearbyNeedsLocationServices = false,
                 nearbyFeedError = null
             )
+        }
+    }
+
+    fun preparePrivateLocationCellIfPermitted() {
+        val locRepo = locationRepository ?: return
+        if (!locRepo.hasLocationPermission()) return
+        if (!_state.value.preparedLocationCell.isNullOrBlank()) return
+        if (privateLocationJob?.isActive == true) return
+
+        privateLocationJob = viewModelScope.launch(ioDispatcher) {
+            locRepo.currentApproximateLocation().onSuccess { location ->
+                val cellId = NearbyCellGrid.cellId(location)
+                _state.update { it.copy(preparedLocationCell = cellId) }
+            }
         }
     }
 
@@ -484,6 +559,7 @@ class CapriceViewModel(
                             isNearbyDiscoveryEnabled = true,
                             isPreparingNearbyLocation = false,
                             preparedNearbyCell = cellId,
+                            preparedLocationCell = cellId,
                             nearbyCreationError = null
                         )
                     }
