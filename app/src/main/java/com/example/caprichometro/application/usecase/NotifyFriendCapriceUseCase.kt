@@ -6,6 +6,7 @@ import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -58,6 +59,8 @@ class NotifyFriendCapriceUseCase(
                     }
                 }.awaitAll().filterNotNull()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             emptyList()
         }
@@ -112,6 +115,8 @@ class NotifyFriendCapriceUseCase(
                     }
                 }.awaitAll().filterNotNull()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             emptyList()
         }

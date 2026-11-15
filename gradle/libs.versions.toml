@@ -12,10 +12,13 @@ googleGmsGoogleServices = "4.5.0"
 firebaseFirestore = "27.1.0"
 firebaseStorage = "20.3.0"
 coilCompose = "2.6.0"
-googleid = "1.2.1"
+googleid = "1.1.1"
+credentials = "1.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

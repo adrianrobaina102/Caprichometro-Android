@@ -156,8 +156,27 @@ class AuthUseCasesTest {
     inner class DeleteAccountTests {
         @BeforeEach
         fun setUp() {
+            coEvery { authRepository.ensureRecentLoginForDeletion() } returns Result.success(Unit)
             coEvery { friendshipRepository.deleteBlocksForUser(any()) } returns Result.success(Unit)
             coEvery { friendshipRepository.deleteFriendshipsForUser(any()) } returns Result.success(Unit)
+        }
+
+        @Test
+        fun `aborta sin borrar datos de Firestore si el inicio de sesion no es reciente`() = runTest {
+            val capriceRepo = mockk<CapriceRepository>()
+            coEvery { authRepository.ensureRecentLoginForDeletion() } returns Result.failure(
+                IllegalStateException("Por seguridad, cierra sesión y vuelve a iniciar sesión antes de eliminar tu cuenta.")
+            )
+
+            val useCase = DeleteAccountUseCase(authRepository, userProfileRepository, friendshipRepository, capriceRepo)
+            val result = useCase.execute("uid1", "user1")
+
+            assertTrue(result.isFailure)
+            coVerify(exactly = 0) { capriceRepo.deleteCapricesForUser(any()) }
+            coVerify(exactly = 0) { friendshipRepository.deleteBlocksForUser(any()) }
+            coVerify(exactly = 0) { friendshipRepository.deleteFriendshipsForUser(any()) }
+            coVerify(exactly = 0) { userProfileRepository.deleteProfile(any(), any()) }
+            coVerify(exactly = 0) { authRepository.deleteAccount() }
         }
 
         @Test

@@ -6,6 +6,7 @@ import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.UsernameRules
+import kotlinx.coroutines.CancellationException
 import java.util.Date
 import kotlin.random.Random
 
@@ -55,6 +56,8 @@ class SignInWithGoogleUseCase(
             }
 
             Result.success(user)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

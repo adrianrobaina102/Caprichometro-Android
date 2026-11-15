@@ -24,7 +24,6 @@
             android:name=".infrastructure.ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:label="@string/app_name"
             android:theme="@style/Theme.Caprichometro"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -46,20 +45,27 @@
             </intent-filter>
 
             <!-- Enlace web de invitación: https://caprichometro.app/invite/{username} -->
-            <intent-filter>
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data
-                    android:scheme="https"
-                    android:host="caprichometro.app"
-                    android:pathPrefix="/invite" />
-                <data
-                    android:scheme="https"
-                    android:host="adrianrobaina102.github.io"
-                    android:pathPrefix="/Caprichometro-Android/invite" />
+                <data android:scheme="https" />
+                <data android:host="caprichometro.app" />
+                <data android:pathPrefix="/invite" />
+            </intent-filter>
+
+            <!-- Enlace web de invitación: https://adrianrobaina102.github.io/Caprichometro-Android/invite/{username} -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="https" />
+                <data android:host="adrianrobaina102.github.io" />
+                <data android:pathPrefix="/Caprichometro-Android/invite" />
             </intent-filter>
         </activity>
 

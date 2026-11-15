@@ -105,6 +105,8 @@ class FirestoreFriendshipRepository(
                 photoUrl = photoUrl
             )
             Result.success(profile)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -146,6 +148,8 @@ class FirestoreFriendshipRepository(
             }.await()
 
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -180,6 +184,8 @@ class FirestoreFriendshipRepository(
             }.await()
 
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -209,6 +215,8 @@ class FirestoreFriendshipRepository(
             }.await()
 
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -407,6 +415,8 @@ class FirestoreFriendshipRepository(
             blockedIdsCache.remove(userId)
             blockPairCache.clear()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -433,6 +443,8 @@ class FirestoreFriendshipRepository(
             blockedIdsCache.remove(userId)
             blockPairCache.clear()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -4,6 +4,7 @@ import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.model.AuthRepository
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.example.caprichometro.domain.model.UserProfileRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,6 +18,12 @@ class DeleteAccountUseCase(
 ) {
     suspend fun execute(userId: String, username: String): Result<Unit> = withContext(dispatcher) {
         try {
+            // 0. Comprobación previa de sesión reciente para no vaciar Firestore si Auth exige reautenticación
+            val recentLoginResult = authRepository.ensureRecentLoginForDeletion()
+            if (recentLoginResult.isFailure) {
+                return@withContext recentLoginResult
+            }
+
             // 1. Eliminación en cascada de caprichos y sus subcolecciones de votos
             val capricesResult = capriceRepository?.deleteCapricesForUser(userId)
             if (capricesResult != null && capricesResult.isFailure) {
@@ -48,6 +55,8 @@ class DeleteAccountUseCase(
             }
 
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

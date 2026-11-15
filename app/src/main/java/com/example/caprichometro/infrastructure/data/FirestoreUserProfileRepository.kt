@@ -50,6 +50,8 @@ class FirestoreUserProfileRepository(
         try {
             val document = db.collection("usernames").document(username).get().await()
             Result.success(!document.exists())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -91,6 +93,8 @@ class FirestoreUserProfileRepository(
 
             userProfileCache[profile.uid] = CachedProfileEntry(profile, clockMillis())
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -188,6 +192,8 @@ class FirestoreUserProfileRepository(
                 )
             }
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -208,6 +214,8 @@ class FirestoreUserProfileRepository(
                 )
             }
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -264,6 +272,8 @@ class FirestoreUserProfileRepository(
 
             batch.commit().await()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

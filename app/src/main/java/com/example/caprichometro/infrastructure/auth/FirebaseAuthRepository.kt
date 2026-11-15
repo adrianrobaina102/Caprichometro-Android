@@ -2,11 +2,14 @@ package com.example.caprichometro.infrastructure.auth
 
 import android.content.Context
 import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
 import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -29,6 +32,8 @@ class FirebaseAuthRepository(
             val firebaseUser = authResult.user ?: throw Exception("Error al obtener el usuario de Firebase")
 
             Result.success(mapToDomain(firebaseUser))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -45,6 +50,8 @@ class FirebaseAuthRepository(
             firebaseUser.updateProfile(profileUpdates).await()
 
             Result.success(mapToDomain(firebaseUser, name))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -91,6 +98,12 @@ class FirebaseAuthRepository(
             } else {
                 Result.failure(Exception("Credencial no válida o cancelada"))
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GetCredentialCancellationException) {
+            Result.failure(Exception("Inicio de sesión con Google cancelado", e))
+        } catch (e: NoCredentialException) {
+            Result.failure(Exception("No hay cuentas de Google disponibles en este dispositivo", e))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -100,9 +113,23 @@ class FirebaseAuthRepository(
         try {
             firebaseAuth.signOut()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override suspend fun ensureRecentLoginForDeletion(): Result<Unit> = withContext(ioDispatcher) {
+        val currentUser = firebaseAuth.currentUser
+            ?: return@withContext Result.failure(IllegalStateException("No hay usuario autenticado"))
+        val lastSignInMs = currentUser.metadata?.lastSignInTimestamp ?: 0L
+        if (lastSignInMs > 0L && (System.currentTimeMillis() - lastSignInMs) > RECENT_LOGIN_WINDOW_MS) {
+            return@withContext Result.failure(
+                IllegalStateException("Por seguridad, cierra sesión y vuelve a iniciar sesión antes de eliminar tu cuenta.")
+            )
+        }
+        Result.success(Unit)
     }
 
     override suspend fun deleteAccount(): Result<Unit> = withContext(ioDispatcher) {
@@ -110,9 +137,15 @@ class FirebaseAuthRepository(
             val currentUser = firebaseAuth.currentUser ?: return@withContext Result.failure(Exception("No hay usuario autenticado"))
             currentUser.delete().await()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private companion object {
+        const val RECENT_LOGIN_WINDOW_MS = 4 * 60 * 1000L
     }
 
     override fun getCurrentUser(): User? {
