@@ -20,7 +20,7 @@ sealed class DeviceLocationException(message: String) : Exception(message) {
     ) : DeviceLocationException(message)
 
     class LocationServicesDisabled(
-        message: String = "Activa los servicios de ubicación del dispositivo para usar Para ti."
+        message: String = "Activa los servicios de ubicación del dispositivo para usar General."
     ) : DeviceLocationException(message)
 
     class LocationUnavailable(

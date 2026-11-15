@@ -286,7 +286,7 @@ fun CapriceScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
-                                "Publicar en Para ti"
+                                "Publicar en General"
                             } else {
                                 "Lanzar a mis amigos"
                             },
@@ -574,7 +574,7 @@ fun CapriceScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Mostrar también en Para ti",
+                            text = "Mostrar también en General",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -582,7 +582,7 @@ fun CapriceScreen(
                         Text(
                             text = when {
                                 capriceState.isPreparingNearbyLocation -> "Preparando ubicación aproximada..."
-                                capriceState.isNearbyDiscoveryEnabled -> "Activado · visible también en Para ti"
+                                capriceState.isNearbyDiscoveryEnabled -> "Activado · visible también en General"
                                 else -> "Apagado por defecto"
                             },
                             color = TextGray,
@@ -604,7 +604,7 @@ fun CapriceScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Si lo activas, la tarjeta se publica en Para ti para cualquier usuario autenticado de la app desde cualquier distancia, sin límite de radio. Tu ubicación se guarda solo como zona aproximada. La selección de amigos de arriba sigue controlando quién la ve en Amigos.",
+                    text = "Si lo activas, la tarjeta se publica en General para cualquier usuario autenticado de la app desde cualquier distancia, sin límite de radio. Tu ubicación se guarda solo como zona aproximada. La selección de amigos de arriba sigue controlando quién la ve en Amigos.",
                     color = TextGray,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
@@ -629,7 +629,7 @@ fun CapriceScreen(
                 } else if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "✓ Zona aproximada preparada para Para ti",
+                        text = "✓ Zona aproximada preparada para General",
                         color = LimeGreen,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold

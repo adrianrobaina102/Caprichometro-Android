@@ -9,6 +9,7 @@ import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
 import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.NearbyCellGrid
@@ -27,7 +28,7 @@ import kotlinx.coroutines.launch
 
 enum class HomeFeedTab {
     FRIENDS,
-    FOR_YOU
+    GENERAL
 }
 
 data class CapriceState(
@@ -35,11 +36,15 @@ data class CapriceState(
     val latestCaprices: List<Caprice> = emptyList(),
     val error: String? = null,
     val feedItems: List<CapriceFeedItem> = emptyList(),
+    val totalFriendsFeedCount: Int = 0,
+    val hasMoreFriendsFeed: Boolean = false,
     val isFeedLoading: Boolean = false,
     val feedError: String? = null,
     val hasLoadedFeed: Boolean = false,
     val selectedHomeTab: HomeFeedTab = HomeFeedTab.FRIENDS,
     val nearbyFeedItems: List<CapriceFeedItem> = emptyList(),
+    val totalNearbyFeedCount: Int = 0,
+    val hasMoreNearbyFeed: Boolean = false,
     val isNearbyFeedLoading: Boolean = false,
     val nearbyFeedError: String? = null,
     val nearbyNeedsLocationPermission: Boolean = false,
@@ -61,11 +66,14 @@ class CapriceViewModel(
     private val locationRepository: DeviceLocationRepository? = null,
     private val clockMillis: () -> Long = { System.currentTimeMillis() },
     private val currentUserIdProvider: () -> String = { FirebaseAuth.getInstance().currentUser?.uid ?: "" },
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val capriceCacheControl: CapriceCacheControl? = null
 ) : ViewModel() {
 
     companion object {
         internal const val NEARBY_CACHE_TTL_MS = 60_000L
+        internal const val FEED_PAGE_SIZE = 20
+        internal const val FRIENDS_FETCH_LIMIT = 200
     }
 
     private val _state = MutableStateFlow(CapriceState())
@@ -76,6 +84,10 @@ class CapriceViewModel(
     private var nearbyCreationJob: Job? = null
     private var lastNearbyLoadedAtMillis: Long? = null
     private var lastNearbyLoadedUserId: String? = null
+    private var allFriendsFeedItems: List<CapriceFeedItem> = emptyList()
+    private var friendsVisibleCount: Int = FEED_PAGE_SIZE
+    private var allNearbyFeedItems: List<CapriceFeedItem> = emptyList()
+    private var nearbyVisibleCount: Int = FEED_PAGE_SIZE
 
     private val currentUserId: String
         get() = currentUserIdProvider()
@@ -89,6 +101,10 @@ class CapriceViewModel(
         nearbyCreationJob = null
         lastNearbyLoadedAtMillis = null
         lastNearbyLoadedUserId = null
+        allFriendsFeedItems = emptyList()
+        friendsVisibleCount = FEED_PAGE_SIZE
+        allNearbyFeedItems = emptyList()
+        nearbyVisibleCount = FEED_PAGE_SIZE
         _state.value = CapriceState()
     }
 
@@ -178,29 +194,42 @@ class CapriceViewModel(
 
     fun loadFriendsFeedIfNeeded() {
         if (!_state.value.hasLoadedFeed && !_state.value.isFeedLoading) {
-            loadFriendsFeed()
+            loadFriendsFeed(isManualRefresh = false)
         }
     }
 
-    fun loadFriendsFeed() {
+    fun loadFriendsFeed(isManualRefresh: Boolean = false) {
         val uid = currentUserId
         val useCase = getFriendsCapricesUseCase ?: return
         if (uid.isBlank()) return
 
         feedLoadJob?.cancel()
+        // Marcamos la carga síncronamente para evitar carreras al arrancar entre MainActivity y HomeScreen
+        _state.update { it.copy(isFeedLoading = true, feedError = null) }
         feedLoadJob = viewModelScope.launch(ioDispatcher) {
-            _state.update { it.copy(isFeedLoading = true, feedError = null) }
-            // Limpiamos la caché de perfiles al recargar el feed para recoger fotos o bios recién cambiadas
-            profileCacheControl?.invalidateAll()
+            val startedAt = clockMillis()
+            if (isManualRefresh) {
+                friendsVisibleCount = FEED_PAGE_SIZE
+                profileCacheControl?.invalidateAll()
+                capriceCacheControl?.invalidateAll()
+            }
 
-            val result = useCase.execute(uid, perFriendLimit = 20, totalLimit = 20)
+            val result = useCase.execute(uid, perFriendLimit = 100, totalLimit = FRIENDS_FETCH_LIMIT)
+            if (currentUserId != uid) return@launch
+
             result.fold(
                 onSuccess = { items ->
-                    Log.d("CapriceViewModel", "loadFriendsFeed(uid=$uid) -> ${items.size} items en el feed")
+                    allFriendsFeedItems = items
+                    val visible = items.take(friendsVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
+                    logPerf(
+                        "loadFriendsFeed(uid=$uid, manual=$isManualRefresh) -> total=${items.size}, visible=${visible.size} en ${clockMillis() - startedAt} ms"
+                    )
                     _state.update {
                         it.copy(
                             isFeedLoading = false,
-                            feedItems = items,
+                            feedItems = visible,
+                            totalFriendsFeedCount = items.size,
+                            hasMoreFriendsFeed = items.size > visible.size,
                             feedError = null,
                             hasLoadedFeed = true
                         )
@@ -216,6 +245,21 @@ class CapriceViewModel(
                         )
                     }
                 }
+            )
+        }
+    }
+
+    fun loadMoreFriendsFeed() {
+        if (allFriendsFeedItems.isEmpty()) return
+        val nextCount = (friendsVisibleCount + FEED_PAGE_SIZE).coerceAtMost(allFriendsFeedItems.size)
+        if (nextCount <= friendsVisibleCount) return
+        friendsVisibleCount = nextCount
+        val visible = allFriendsFeedItems.take(friendsVisibleCount)
+        _state.update {
+            it.copy(
+                feedItems = visible,
+                totalFriendsFeedCount = allFriendsFeedItems.size,
+                hasMoreFriendsFeed = allFriendsFeedItems.size > visible.size
             )
         }
     }
@@ -241,9 +285,15 @@ class CapriceViewModel(
         if (isFreshCache) return
 
         if (locationRepository != null && !locationRepository.hasLocationPermission()) {
+            if (!sameUser) {
+                allNearbyFeedItems = emptyList()
+                nearbyVisibleCount = FEED_PAGE_SIZE
+            }
             _state.update {
                 it.copy(
                     nearbyFeedItems = if (sameUser) it.nearbyFeedItems else emptyList(),
+                    totalNearbyFeedCount = if (sameUser) it.totalNearbyFeedCount else 0,
+                    hasMoreNearbyFeed = if (sameUser) it.hasMoreNearbyFeed else false,
                     hasLoadedNearbyFeed = if (sameUser) it.hasLoadedNearbyFeed else false,
                     nearbyNeedsLocationPermission = true,
                     nearbyNeedsLocationServices = false,
@@ -264,9 +314,13 @@ class CapriceViewModel(
         if (lastNearbyLoadedUserId != null && lastNearbyLoadedUserId != uid) {
             lastNearbyLoadedAtMillis = null
             lastNearbyLoadedUserId = null
+            allNearbyFeedItems = emptyList()
+            nearbyVisibleCount = FEED_PAGE_SIZE
             _state.update {
                 it.copy(
                     nearbyFeedItems = emptyList(),
+                    totalNearbyFeedCount = 0,
+                    hasMoreNearbyFeed = false,
                     hasLoadedNearbyFeed = false,
                     nearbyFeedError = null
                 )
@@ -286,17 +340,20 @@ class CapriceViewModel(
         }
 
         nearbyFeedLoadJob?.cancel()
+        _state.update {
+            it.copy(
+                isNearbyFeedLoading = true,
+                nearbyFeedError = null,
+                nearbyNeedsLocationPermission = false,
+                nearbyNeedsLocationServices = false
+            )
+        }
         nearbyFeedLoadJob = viewModelScope.launch(ioDispatcher) {
-            _state.update {
-                it.copy(
-                    isNearbyFeedLoading = true,
-                    nearbyFeedError = null,
-                    nearbyNeedsLocationPermission = false,
-                    nearbyNeedsLocationServices = false
-                )
-            }
+            val startedAt = clockMillis()
             if (isManualRefresh) {
+                nearbyVisibleCount = FEED_PAGE_SIZE
                 profileCacheControl?.invalidateAll()
+                capriceCacheControl?.invalidateAll()
             }
 
             val result = useCase.execute(uid)
@@ -306,10 +363,17 @@ class CapriceViewModel(
                 onSuccess = { items ->
                     lastNearbyLoadedUserId = uid
                     lastNearbyLoadedAtMillis = clockMillis()
+                    allNearbyFeedItems = items
+                    val visible = items.take(nearbyVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
+                    logPerf(
+                        "loadNearbyFeed(uid=$uid, manual=$isManualRefresh) -> total=${items.size}, visible=${visible.size} en ${clockMillis() - startedAt} ms"
+                    )
                     _state.update {
                         it.copy(
                             isNearbyFeedLoading = false,
-                            nearbyFeedItems = items,
+                            nearbyFeedItems = visible,
+                            totalNearbyFeedCount = items.size,
+                            hasMoreNearbyFeed = items.size > visible.size,
                             nearbyFeedError = null,
                             nearbyNeedsLocationPermission = false,
                             nearbyNeedsLocationServices = false,
@@ -337,11 +401,26 @@ class CapriceViewModel(
                                 isNearbyFeedLoading = false,
                                 nearbyNeedsLocationPermission = false,
                                 nearbyNeedsLocationServices = false,
-                                nearbyFeedError = e.message ?: "No se pudo cargar Para ti."
+                                nearbyFeedError = e.message ?: "No se pudo cargar General."
                             )
                         }
                     }
                 }
+            )
+        }
+    }
+
+    fun loadMoreNearbyFeed() {
+        if (allNearbyFeedItems.isEmpty()) return
+        val nextCount = (nearbyVisibleCount + FEED_PAGE_SIZE).coerceAtMost(allNearbyFeedItems.size)
+        if (nextCount <= nearbyVisibleCount) return
+        nearbyVisibleCount = nextCount
+        val visible = allNearbyFeedItems.take(nearbyVisibleCount)
+        _state.update {
+            it.copy(
+                nearbyFeedItems = visible,
+                totalNearbyFeedCount = allNearbyFeedItems.size,
+                hasMoreNearbyFeed = allNearbyFeedItems.size > visible.size
             )
         }
     }
@@ -432,7 +511,7 @@ class CapriceViewModel(
                 isNearbyDiscoveryEnabled = false,
                 isPreparingNearbyLocation = false,
                 preparedNearbyCell = null,
-                nearbyCreationError = "Necesitas permitir la ubicación aproximada para publicar también en Para ti."
+                nearbyCreationError = "Necesitas permitir la ubicación aproximada para publicar también en General."
             )
         }
     }
@@ -451,5 +530,9 @@ class CapriceViewModel(
                 }
             )
         }
+    }
+
+    private fun logPerf(message: String) {
+        runCatching { Log.d("FeedPerf", message) }
     }
 }

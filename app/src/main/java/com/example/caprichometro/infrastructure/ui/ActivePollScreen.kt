@@ -234,7 +234,7 @@ fun ActivePollScreen(
                     text = when {
                         isFriendPoll && cleanAuthor != null -> "@$cleanAuthor · ${(caprice?.type ?: "DUDA").uppercase()}"
                         isFriendPoll -> (caprice?.type ?: "DUDA").uppercase()
-                        isPublicNearby -> "PARA TI · ${(caprice?.type ?: "DUDA").uppercase()}"
+                        isPublicNearby -> "GENERAL · ${(caprice?.type ?: "DUDA").uppercase()}"
                         else -> "SOLO TUS AMIGOS"
                     },
                     color = TextGray,

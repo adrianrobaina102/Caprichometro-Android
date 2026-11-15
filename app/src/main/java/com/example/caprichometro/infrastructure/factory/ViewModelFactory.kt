@@ -92,6 +92,7 @@ class ViewModelFactory(private val context: Context? = null) {
             uploadCapriceImageUseCase = uploadImageUseCase,
             getFriendsCapricesUseCase = getFriendsCapricesUseCase,
             profileCacheControl = userProfileRepository,
+            capriceCacheControl = capriceRepository,
             getNearbyCapricesUseCase = getNearbyCapricesUseCase,
             locationRepository = locationRepository
         )

@@ -8,15 +8,18 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -78,7 +81,7 @@ fun HomeScreen(
         }
     }
 
-    // Si el usuario vuelve desde Ajustes tras conceder ubicación en Para ti, recargamos al instante
+    // Si el usuario vuelve desde Ajustes tras conceder ubicación en General, recargamos al instante
     DisposableEffect(context, state.selectedHomeTab) {
         val lifecycleOwner = context as? LifecycleOwner
         if (lifecycleOwner == null) {
@@ -86,7 +89,7 @@ fun HomeScreen(
         } else {
             val observer = LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME &&
-                    state.selectedHomeTab == HomeFeedTab.FOR_YOU &&
+                    state.selectedHomeTab == HomeFeedTab.GENERAL &&
                     state.nearbyNeedsLocationPermission &&
                     hasCoarseLocationPermission(context)
                 ) {
@@ -105,7 +108,7 @@ fun HomeScreen(
         nowMillis = System.currentTimeMillis()
         when (state.selectedHomeTab) {
             HomeFeedTab.FRIENDS -> viewModel.loadFriendsFeedIfNeeded()
-            HomeFeedTab.FOR_YOU -> {
+            HomeFeedTab.GENERAL -> {
                 if (hasCoarseLocationPermission(context)) {
                     viewModel.loadNearbyFeedIfNeeded()
                 } else if (!hasAutoPromptedNearby) {
@@ -171,7 +174,7 @@ fun HomeScreen(
                         onClick = {
                             nowMillis = System.currentTimeMillis()
                             if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
-                                viewModel.loadFriendsFeed()
+                                viewModel.loadFriendsFeed(isManualRefresh = true)
                             } else if (hasCoarseLocationPermission(context)) {
                                 viewModel.loadNearbyFeed(isManualRefresh = true)
                             } else {
@@ -239,7 +242,7 @@ fun HomeScreen(
                             message = state.feedError ?: "Error desconocido",
                             onRetry = {
                                 nowMillis = System.currentTimeMillis()
-                                viewModel.loadFriendsFeed()
+                                viewModel.loadFriendsFeed(isManualRefresh = true)
                             }
                         )
                     }
@@ -249,7 +252,7 @@ fun HomeScreen(
                             isLoading = state.isFeedLoading,
                             onRefresh = {
                                 nowMillis = System.currentTimeMillis()
-                                viewModel.loadFriendsFeed()
+                                viewModel.loadFriendsFeed(isManualRefresh = true)
                             },
                             onNavigateToFriends = onNavigateToFriends
                         )
@@ -258,6 +261,9 @@ fun HomeScreen(
                     else -> {
                         FeedItemsList(
                             items = state.feedItems,
+                            totalCount = state.totalFriendsFeedCount,
+                            hasMore = state.hasMoreFriendsFeed,
+                            onLoadMore = { viewModel.loadMoreFriendsFeed() },
                             nowMillis = nowMillis,
                             onSelectFeedItem = onSelectFeedItem,
                             onNavigateToUserProfile = onNavigateToUserProfile,
@@ -268,7 +274,7 @@ fun HomeScreen(
             } else {
                 when {
                     state.isNearbyFeedLoading && state.nearbyFeedItems.isEmpty() -> {
-                        FeedLoadingState(message = "Buscando dudas cercanas en Para ti...")
+                        FeedLoadingState(message = "Buscando dudas cercanas en General...")
                     }
 
                     state.nearbyNeedsLocationPermission && state.nearbyFeedItems.isEmpty() -> {
@@ -295,7 +301,7 @@ fun HomeScreen(
                         FeedActionState(
                             emoji = "🧭",
                             title = "Ubicación del dispositivo desactivada",
-                            message = state.nearbyFeedError ?: "Activa los servicios de ubicación del sistema para cargar Para ti.",
+                            message = state.nearbyFeedError ?: "Activa los servicios de ubicación del sistema para cargar General.",
                             primaryLabel = "Reintentar",
                             onPrimaryClick = {
                                 nowMillis = System.currentTimeMillis()
@@ -310,7 +316,7 @@ fun HomeScreen(
 
                     state.nearbyFeedError != null && state.nearbyFeedItems.isEmpty() -> {
                         FeedErrorState(
-                            title = "No se pudo cargar Para ti",
+                            title = "No se pudo cargar General",
                             message = state.nearbyFeedError ?: "Error desconocido",
                             onRetry = {
                                 nowMillis = System.currentTimeMillis()
@@ -326,8 +332,8 @@ fun HomeScreen(
                     state.nearbyFeedItems.isEmpty() -> {
                         FeedActionState(
                             emoji = "🌍",
-                            title = "Nada en Para ti todavía",
-                            message = "Cuando otros usuarios publiquen dudas con Para ti activado, aparecerán aquí ordenadas por cercanía.",
+                            title = "Nada en General todavía",
+                            message = "Cuando otros usuarios publiquen dudas con General activado, aparecerán aquí ordenadas por cercanía.",
                             primaryLabel = "Actualizar",
                             primaryEnabled = !state.isNearbyFeedLoading,
                             onPrimaryClick = {
@@ -351,6 +357,9 @@ fun HomeScreen(
                             }
                             FeedItemsList(
                                 items = state.nearbyFeedItems,
+                                totalCount = state.totalNearbyFeedCount,
+                                hasMore = state.hasMoreNearbyFeed,
+                                onLoadMore = { viewModel.loadMoreNearbyFeed() },
                                 nowMillis = nowMillis,
                                 onSelectFeedItem = onSelectFeedItem,
                                 onNavigateToUserProfile = onNavigateToUserProfile,
@@ -400,9 +409,9 @@ private fun HomeFeedTabBar(
             modifier = Modifier.weight(1f)
         )
         HomeFeedTabPill(
-            label = "Para ti",
-            selected = selectedTab == HomeFeedTab.FOR_YOU,
-            onClick = { onSelectTab(HomeFeedTab.FOR_YOU) },
+            label = "General",
+            selected = selectedTab == HomeFeedTab.GENERAL,
+            onClick = { onSelectTab(HomeFeedTab.GENERAL) },
             modifier = Modifier.weight(1f)
         )
     }
@@ -622,12 +631,17 @@ private fun FeedActionState(
 @Composable
 private fun FeedItemsList(
     items: List<CapriceFeedItem>,
+    totalCount: Int,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit,
     nowMillis: Long,
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToUserProfile: (String) -> Unit,
     onImageClick: (String) -> Unit
 ) {
+    val listState = rememberLazyListState()
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -643,6 +657,76 @@ private fun FeedItemsList(
                 onNavigateToUserProfile = onNavigateToUserProfile,
                 onImageClick = onImageClick
             )
+        }
+
+        if (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE) {
+            item(key = "feed_pagination_footer") {
+                FeedPaginationFooter(
+                    visibleCount = items.size,
+                    totalCount = totalCount,
+                    hasMore = hasMore,
+                    onLoadMore = onLoadMore
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedPaginationFooter(
+    visibleCount: Int,
+    totalCount: Int,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit
+) {
+    val remaining = (totalCount - visibleCount).coerceAtLeast(0)
+    val nextBatch = remaining.coerceAtMost(CapriceViewModel.FEED_PAGE_SIZE)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp, bottom = 12.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = if (hasMore) {
+                "Mostrando $visibleCount de $totalCount caprichos"
+            } else {
+                "Mostrando los $visibleCount caprichos disponibles"
+            },
+            color = TextSecondary,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+        )
+
+        if (hasMore) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = onLoadMore,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LimeAccent.copy(alpha = 0.14f),
+                    contentColor = LimeAccent
+                ),
+                border = BorderStroke(1.dp, LimeAccent)
+            ) {
+                Text(
+                    text = "Cargar $nextBatch más",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -679,7 +763,7 @@ private fun CapriceFeedCard(
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        // Cabecera: Avatar + @username clicables solo si es un perfil accesible (no desconocidos de Para ti)
+        // Cabecera: Avatar + @username clicables solo si es un perfil accesible (no desconocidos de General)
         val canOpenAuthor = item.canOpenAuthorProfile && author.uid.isNotBlank()
         val distanceLabel = remember(item.approximateDistanceMeters) {
             item.approximateDistanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
@@ -722,16 +806,32 @@ private fun CapriceFeedCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (distanceLabel != null) {
-                            "$typeEmoji ${caprice.type} • $distanceLabel • $relativeTime"
-                        } else {
-                            "$typeEmoji ${caprice.type} • $relativeTime"
-                        },
+                        text = "$typeEmoji ${caprice.type} • $relativeTime",
                         color = TextSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (distanceLabel != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = LimeAccent,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = distanceLabel,
+                                color = LimeAccent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
 

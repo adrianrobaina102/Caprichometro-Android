@@ -53,7 +53,9 @@ import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val NavBarBg = Color(0xFF0D0D0D)
 private val NavDivider = Color(0xFF222224)
@@ -203,76 +205,81 @@ fun CapriceApp(
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             profileViewModel.reset()
-            friendshipViewModel.listenToIncomingRequests(currentUserId)
-            capriceViewModel.fetchUserCaprices(limit = 50)
+            val startupStart = System.currentTimeMillis()
+            val foregroundStart = startupStart
+
+            // 1. Priorizamos al 100% la carga inicial del feed para evitar contención en el arranque en frío
             capriceViewModel.loadFriendsFeed()
 
-            val foregroundStart = System.currentTimeMillis()
-
-            // 1. Recuperación al volver a la app: último capricho no notificado por amigo (limit = 1)
+            // 2. Diferimos escuchas secundarias, notificaciones y perfil hasta que el feed inicial haya respondido
             launch {
-                notifyFriendCapriceUseCase.checkAndNotifyUnnotifiedFriendCaprices(currentUserId) { author, caprice ->
-                    PollNotificationHelper.showFriendCapriceNotification(
-                        context = context,
-                        recipientUserId = currentUserId,
-                        authorUsername = author.username,
-                        caprice = caprice
-                    )
+                withTimeoutOrNull(4_000L) {
+                    capriceViewModel.state.first { it.hasLoadedFeed || it.feedError != null }
                 }
-            }
+                android.util.Log.d(
+                    "FeedPerf",
+                    "Startup gate liberado en ${System.currentTimeMillis() - startupStart} ms"
+                )
 
-            // 2. Escucha en vivo de publicaciones nuevas de amigos mientras la sesión está abierta
-            launch {
-                observeFriendCapricesUseCase.execute(currentUserId, foregroundStart)
-                    .catch { e ->
-                        android.util.Log.w("MainActivity", "Error observando caprichos de amigos: ${e.message}")
-                    }
-                    .collect { item ->
+                friendshipViewModel.listenToIncomingRequests(currentUserId)
+                capriceViewModel.fetchUserCaprices(limit = 50)
+
+                // Recuperación al volver a la app: último capricho no notificado y decisiones finales pendientes
+                launch {
+                    notifyFriendCapriceUseCase.checkAndNotifyUnnotifiedFriendCaprices(currentUserId) { author, caprice ->
                         PollNotificationHelper.showFriendCapriceNotification(
                             context = context,
                             recipientUserId = currentUserId,
-                            authorUsername = item.author.username,
-                            caprice = item.caprice
+                            authorUsername = author.username,
+                            caprice = caprice
                         )
-                        // Recargamos el feed social para que aparezca la nueva duda
-                        capriceViewModel.loadFriendsFeed()
                     }
-            }
-
-            // 3. Recuperación al volver a la app: decisiones finales de amigos aún no notificadas
-            launch {
-                notifyFriendCapriceUseCase.checkAndNotifyFriendFinalDecisions(currentUserId) { author, caprice ->
-                    PollNotificationHelper.showFriendFinalDecisionNotification(
-                        context = context,
-                        recipientUserId = currentUserId,
-                        authorUsername = author.username,
-                        caprice = caprice
-                    )
                 }
-            }
-
-            // 4. Escucha en vivo de decisiones finales confirmadas por amigos con la app abierta
-            launch {
-                observeFriendCapricesUseCase.observeFinalDecisions(currentUserId, foregroundStart)
-                    .catch { e ->
-                        android.util.Log.w("MainActivity", "Error observando decisiones de amigos: ${e.message}")
-                    }
-                    .collect { item ->
-                        val decidedAt = item.caprice.finalDecisionAt ?: item.caprice.timestamp
-                        notifyFriendCapriceUseCase.recordDecisionNotification(
-                            recipientUserId = currentUserId,
-                            friendUserId = item.author.uid,
-                            capriceId = item.caprice.id,
-                            timestamp = decidedAt
-                        )
+                launch {
+                    notifyFriendCapriceUseCase.checkAndNotifyFriendFinalDecisions(currentUserId) { author, caprice ->
                         PollNotificationHelper.showFriendFinalDecisionNotification(
                             context = context,
                             recipientUserId = currentUserId,
-                            authorUsername = item.author.username,
-                            caprice = item.caprice
+                            authorUsername = author.username,
+                            caprice = caprice
                         )
-                        capriceViewModel.loadFriendsFeed()
                     }
+                }
+
+                // Única escucha en vivo por amigo (caprichos nuevos + decisiones finales en 1 listener)
+                launch {
+                    observeFriendCapricesUseCase.observeAllUpdates(currentUserId, foregroundStart)
+                        .catch { e ->
+                            android.util.Log.w("MainActivity", "Error observando novedades de amigos: ${e.message}")
+                        }
+                        .collect { update ->
+                            val item = update.feedItem
+                            if (update.isFinalDecision) {
+                                val decidedAt = item.caprice.finalDecisionAt ?: item.caprice.timestamp
+                                notifyFriendCapriceUseCase.recordDecisionNotification(
+                                    recipientUserId = currentUserId,
+                                    friendUserId = item.author.uid,
+                                    capriceId = item.caprice.id,
+                                    timestamp = decidedAt
+                                )
+                                PollNotificationHelper.showFriendFinalDecisionNotification(
+                                    context = context,
+                                    recipientUserId = currentUserId,
+                                    authorUsername = item.author.username,
+                                    caprice = item.caprice
+                                )
+                            } else {
+                                PollNotificationHelper.showFriendCapriceNotification(
+                                    context = context,
+                                    recipientUserId = currentUserId,
+                                    authorUsername = item.author.username,
+                                    caprice = item.caprice
+                                )
+                            }
+                            // Recargamos el feed social invalidando caché para reflejar el nuevo capricho o decisión final
+                            capriceViewModel.loadFriendsFeed(isManualRefresh = true)
+                        }
+                }
             }
         } else {
             profileViewModel.reset()

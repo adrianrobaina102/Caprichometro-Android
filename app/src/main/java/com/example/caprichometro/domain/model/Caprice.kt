@@ -18,7 +18,7 @@ data class Caprice(
 ) {
     /**
      * Comprueba si [viewerUserId] tiene permiso para ver este capricho.
-     * Un `nearbyCell` no vacío lo hace público para cualquier usuario autenticado en Para ti.
+     * Un `nearbyCell` no vacío lo hace público para cualquier usuario autenticado en General.
      * Un `visibleToUserIds` vacío mantiene compatibilidad con documentos antiguos o de iOS.
      */
     fun isVisibleTo(viewerUserId: String): Boolean {
