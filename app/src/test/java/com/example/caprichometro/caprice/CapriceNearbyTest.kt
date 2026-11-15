@@ -116,4 +116,33 @@ class CapriceNearbyTest {
         coEvery { voteRepo.castVote(any()) } returns Result.success(Unit)
         assertThat(useCase.execute(friendsCaprice, "friend", 1).isSuccess).isTrue()
     }
+
+    @Test
+    fun `locationCell aporta distancia en Amigos sin abrir visibilidad publica en General`() {
+        val privateWithLocation = Caprice.Builder()
+            .setUserId("author_1")
+            .setQuestion("¿Solo amigos pero con distancia?")
+            .setOptions("Sí", "No")
+            .setVisibleToUserIds(listOf("author_1", "friend_1"))
+            .setLocationCell("  v1_2608_3525  ")
+            .setNearbyCell(null)
+            .build()
+
+        assertThat(privateWithLocation.nearbyCell).isNull()
+        assertThat(privateWithLocation.locationCell).isEqualTo("v1_2608_3525")
+        assertThat(privateWithLocation.distanceCell()).isEqualTo("v1_2608_3525")
+        assertThat(privateWithLocation.isVisibleTo("stranger_1")).isFalse()
+        assertThat(privateWithLocation.isVisibleTo("friend_1")).isTrue()
+
+        val publicCaprice = Caprice.Builder()
+            .setUserId("author_1")
+            .setQuestion("¿Público?")
+            .setOptions("A", "B")
+            .setNearbyCell("v1_2608_3530")
+            .build()
+
+        assertThat(publicCaprice.locationCell).isNull()
+        assertThat(publicCaprice.distanceCell()).isEqualTo("v1_2608_3530")
+        assertThat(publicCaprice.isVisibleTo("stranger_1")).isTrue()
+    }
 }

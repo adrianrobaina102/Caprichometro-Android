@@ -9,10 +9,14 @@ import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
+import com.example.caprichometro.domain.repository.NearbyCapriceBatch
 import com.example.caprichometro.domain.repository.NearbyCapriceRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -111,5 +115,58 @@ class GetNearbyCapricesUseCaseTest {
 
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()?.message).contains("PERMISSION_DENIED")
+    }
+
+    @Test
+    fun `observeProgressiveFeed emite primero cache local luego tanda inicial de 5 y finalmente el resto ordenado por distancia`() = runTest {
+        val locationRepo = mockk<DeviceLocationRepository>()
+        val nearbyRepo = mockk<NearbyCapriceRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val friendshipRepo = mockk<FriendshipRepository>()
+
+        val cachedTokyo = Caprice(
+            id = "tokyo_cached", userId = "a_tokyo", question = "¿Tokio cache?", answer1 = "A", answer2 = "B",
+            timestamp = 1_000L, nearbyCell = tokyoCell
+        )
+        val valenciaFar = Caprice(
+            id = "valencia_far", userId = "a_val", question = "¿Valencia?", answer1 = "A", answer2 = "B",
+            timestamp = 2_000L, nearbyCell = valenciaCell
+        )
+        val madridClose = Caprice(
+            id = "madrid_close", userId = "a_mad", question = "¿Madrid?", answer1 = "A", answer2 = "B",
+            timestamp = 3_000L, nearbyCell = madridCell
+        )
+
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { userRepo.getCachedUserById("a_tokyo") } returns UserProfile(uid = "a_tokyo", username = "kenji_cache")
+        coEvery { userRepo.getUserById("a_tokyo") } returns Result.success(UserProfile(uid = "a_tokyo", username = "kenji"))
+        coEvery { userRepo.getUserById("a_val") } returns Result.success(UserProfile(uid = "a_val", username = "marta"))
+        coEvery { userRepo.getUserById("a_mad") } returns Result.success(UserProfile(uid = "a_mad", username = "luis"))
+
+        every { nearbyRepo.streamDiscoverableCaprices(5, 20, true) } returns flowOf(
+            NearbyCapriceBatch(listOf(cachedTokyo), isFromCache = true, isComplete = false),
+            NearbyCapriceBatch(listOf(valenciaFar), isFromCache = false, isComplete = false),
+            NearbyCapriceBatch(listOf(cachedTokyo, valenciaFar, madridClose), isFromCache = false, isComplete = true)
+        )
+
+        val useCase = GetNearbyCapricesUseCase(locationRepo, nearbyRepo, userRepo, friendshipRepo)
+        val batches = useCase.observeProgressiveFeed("me", includeCache = true, initialBatchSize = 5, pageSize = 20).toList()
+
+        assertThat(batches).hasSize(3)
+        assertThat(batches[0].isFromCache).isTrue()
+        assertThat(batches[0].isComplete).isFalse()
+        assertThat(batches[0].items.map { it.caprice.id }).containsExactly("tokyo_cached")
+
+        assertThat(batches[1].isFromCache).isFalse()
+        assertThat(batches[1].isComplete).isFalse()
+        assertThat(batches[1].items.map { it.caprice.id }).containsExactly("valencia_far")
+
+        assertThat(batches[2].isFromCache).isFalse()
+        assertThat(batches[2].isComplete).isTrue()
+        assertThat(batches[2].items.map { it.caprice.id }).containsExactly("madrid_close", "valencia_far", "tokyo_cached")
+        // a_tokyo ya estaba resuelto desde caché en stream y a_val en tanda 1: no se repiten llamadas de perfil
+        coVerify(exactly = 1) { userRepo.getUserById("a_val") }
     }
 }

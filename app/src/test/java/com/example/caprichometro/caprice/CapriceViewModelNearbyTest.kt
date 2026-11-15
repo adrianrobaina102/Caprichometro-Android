@@ -10,6 +10,7 @@ import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.ProfileCacheControl
+import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
@@ -23,6 +24,9 @@ import io.mockk.runs
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -86,7 +90,16 @@ class CapriceViewModelNearbyTest {
             approximateDistanceMeters = 1_200.0
         )
         every { locationRepository.hasLocationPermission() } returns true
-        coEvery { getNearbyCapricesUseCase.execute("user_1") } returns Result.success(listOf(sampleItem))
+        every {
+            getNearbyCapricesUseCase.observeProgressiveFeed(
+                currentUserId = "user_1",
+                includeCache = any(),
+                initialBatchSize = 5,
+                pageSize = 20
+            )
+        } answers {
+            flowOf(ProgressiveFeedBatch(listOf(sampleItem), isFromCache = false, isComplete = true))
+        }
 
         val vm = createViewModel()
         vm.selectHomeTab(HomeFeedTab.GENERAL)
@@ -95,25 +108,33 @@ class CapriceViewModelNearbyTest {
 
         assertThat(vm.state.value.nearbyFeedItems).hasSize(1)
         assertThat(vm.state.value.hasLoadedNearbyFeed).isTrue()
-        coVerify(exactly = 1) { getNearbyCapricesUseCase.execute("user_1") }
+        verify(exactly = 1) {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        }
 
         // A los 30s conserva caché sin consultar de nuevo
         currentClock += 30_000L
         vm.loadNearbyFeedIfNeeded()
         advanceUntilIdle()
-        coVerify(exactly = 1) { getNearbyCapricesUseCase.execute("user_1") }
+        verify(exactly = 1) {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = any(), initialBatchSize = 5, pageSize = 20)
+        }
 
         // Al pasar 60s desde la última carga vuelve a consultar
         currentClock += 31_000L
         vm.loadNearbyFeedIfNeeded()
         advanceUntilIdle()
-        coVerify(exactly = 2) { getNearbyCapricesUseCase.execute("user_1") }
+        verify(exactly = 2) {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = any(), initialBatchSize = 5, pageSize = 20)
+        }
 
-        // Refresco manual invalida perfiles y recarga incluso dentro de la ventana
+        // Refresco manual invalida perfiles y recarga sin caché incluso dentro de la ventana
         vm.loadNearbyFeed(isManualRefresh = true)
         advanceUntilIdle()
         verify(exactly = 1) { profileCacheControl.invalidateAll() }
-        coVerify(exactly = 3) { getNearbyCapricesUseCase.execute("user_1") }
+        verify(exactly = 1) {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = false, initialBatchSize = 5, pageSize = 20)
+        }
     }
 
     @Test
@@ -123,18 +144,22 @@ class CapriceViewModelNearbyTest {
 
         vm.loadNearbyFeedIfNeeded()
         assertThat(vm.state.value.nearbyNeedsLocationPermission).isTrue()
-        coVerify(exactly = 0) { getNearbyCapricesUseCase.execute(any()) }
+        verify(exactly = 0) { getNearbyCapricesUseCase.observeProgressiveFeed(any(), any(), any(), any()) }
 
         // Al cambiar a user_2 con permiso concedido, no filtra caché anterior
         every { locationRepository.hasLocationPermission() } returns true
-        coEvery { getNearbyCapricesUseCase.execute("user_2") } returns Result.success(emptyList())
+        every {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_2", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        } returns flowOf(ProgressiveFeedBatch(emptyList(), isFromCache = false, isComplete = true))
         currentUid = "user_2"
         vm.loadNearbyFeedIfNeeded()
         advanceUntilIdle()
 
         assertThat(vm.state.value.nearbyNeedsLocationPermission).isFalse()
         assertThat(vm.state.value.hasLoadedNearbyFeed).isTrue()
-        coVerify(exactly = 1) { getNearbyCapricesUseCase.execute("user_2") }
+        verify(exactly = 1) {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_2", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        }
     }
 
     @Test
@@ -181,7 +206,17 @@ class CapriceViewModelNearbyTest {
 
     @Test
     fun `loadFriendsFeed evita recarga duplicada en arranque y solo invalida caches en refresco manual`() = runTest(testDispatcher) {
-        coEvery { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) } returns Result.success(emptyList())
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed(
+                currentUserId = "user_1",
+                initialBatchSize = 5,
+                perFriendLimit = 100,
+                totalLimit = 200,
+                includeCache = any()
+            )
+        } answers {
+            flowOf(ProgressiveFeedBatch(emptyList(), isFromCache = false, isComplete = true))
+        }
 
         val vm = createViewModel()
         vm.loadFriendsFeed()
@@ -191,14 +226,18 @@ class CapriceViewModelNearbyTest {
         vm.loadFriendsFeedIfNeeded()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) }
+        verify(exactly = 1) {
+            getFriendsCapricesUseCase.observeProgressiveFeed("user_1", 5, 100, 200, includeCache = true)
+        }
         verify(exactly = 0) { profileCacheControl.invalidateAll() }
         verify(exactly = 0) { capriceCacheControl.invalidateAll() }
 
         vm.loadFriendsFeed(isManualRefresh = true)
         advanceUntilIdle()
 
-        coVerify(exactly = 2) { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) }
+        verify(exactly = 1) {
+            getFriendsCapricesUseCase.observeProgressiveFeed("user_1", 5, 100, 200, includeCache = false)
+        }
         verify(exactly = 1) { profileCacheControl.invalidateAll() }
         verify(exactly = 1) { capriceCacheControl.invalidateAll() }
     }
@@ -234,9 +273,13 @@ class CapriceViewModelNearbyTest {
             )
         }
 
-        coEvery { getFriendsCapricesUseCase.execute("user_1", perFriendLimit = 100, totalLimit = 200) } returns Result.success(friendItems)
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed("user_1", 5, 100, 200, any())
+        } returns flowOf(ProgressiveFeedBatch(friendItems, isFromCache = false, isComplete = true))
         every { locationRepository.hasLocationPermission() } returns true
-        coEvery { getNearbyCapricesUseCase.execute("user_1") } returns Result.success(nearbyItems)
+        every {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", any(), 5, 20)
+        } returns flowOf(ProgressiveFeedBatch(nearbyItems, isFromCache = false, isComplete = true))
 
         val vm = createViewModel()
         vm.loadFriendsFeed()
@@ -264,5 +307,79 @@ class CapriceViewModelNearbyTest {
         advanceUntilIdle()
         assertThat(vm.state.value.feedItems).hasSize(20)
         assertThat(vm.state.value.hasMoreFriendsFeed).isTrue()
+    }
+
+    @Test
+    fun `carga progresiva desbloquea isFeedLoading en el primer lote de 5 y sincroniza el resto en segundo plano`() = runTest(testDispatcher) {
+        val allItems = (1..8).map { idx ->
+            CapriceFeedItem(
+                caprice = Caprice(
+                    id = "f_$idx",
+                    userId = "friend_1",
+                    question = "¿Pregunta $idx?",
+                    answer1 = "Sí",
+                    answer2 = "No",
+                    timestamp = 1_000_000L - idx * 1_000L
+                ),
+                author = UserProfile(uid = "friend_1", username = "ana")
+            )
+        }
+
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed("user_1", 5, 100, 200, true)
+        } returns flow {
+            emit(ProgressiveFeedBatch(allItems.take(5), isFromCache = false, isComplete = false))
+            delay(500L)
+            emit(ProgressiveFeedBatch(allItems, isFromCache = false, isComplete = true))
+        }
+
+        val vm = createViewModel()
+        vm.loadFriendsFeed()
+        testScheduler.advanceTimeBy(100L)
+        testScheduler.runCurrent()
+
+        assertThat(vm.state.value.hasLoadedFeed).isTrue()
+        assertThat(vm.state.value.isFeedLoading).isFalse()
+        assertThat(vm.state.value.isFriendsBackgroundSyncing).isTrue()
+        assertThat(vm.state.value.feedItems).hasSize(5)
+
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.isFriendsBackgroundSyncing).isFalse()
+        assertThat(vm.state.value.feedItems).hasSize(8)
+        assertThat(vm.state.value.totalFriendsFeedCount).isEqualTo(8)
+    }
+
+    @Test
+    fun `preparePrivateLocationCellIfPermitted captura locationCell sin activar General y saveCaprice la guarda`() = runTest(testDispatcher) {
+        every { locationRepository.hasLocationPermission() } returns true
+        coEvery { locationRepository.currentApproximateLocation() } returns Result.success(
+            ApproximateLocation(latitude = 40.4168, longitude = -3.7038)
+        )
+        coEvery { saveCapriceUseCase.execute(any()) } returns Result.success("doc_priv_loc_1")
+
+        val vm = createViewModel()
+        vm.preparePrivateLocationCellIfPermitted()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.isNearbyDiscoveryEnabled).isFalse()
+        assertThat(vm.state.value.preparedNearbyCell).isNull()
+        assertThat(vm.state.value.preparedLocationCell).isEqualTo("v1_2608_3525")
+
+        val saved = vm.saveCaprice(
+            type = "Plan",
+            questionText = "¿Café?",
+            answer1 = "Sí",
+            answer2 = "No",
+            visibleToUserIds = listOf("friend_1"),
+            nearbyCell = null,
+            locationCell = vm.state.value.preparedLocationCell
+        ).getOrThrow()
+
+        assertThat(saved.nearbyCell).isNull()
+        assertThat(saved.locationCell).isEqualTo("v1_2608_3525")
+        assertThat(saved.distanceCell()).isEqualTo("v1_2608_3525")
+        assertThat(saved.isVisibleTo("friend_1")).isTrue()
+        assertThat(saved.isVisibleTo("stranger_99")).isFalse()
     }
 }

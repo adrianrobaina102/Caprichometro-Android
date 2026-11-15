@@ -65,6 +65,18 @@ class NearbyCellGridTest {
     }
 
     @Test
+    fun `isBeyondLocalRadius distingue caprichos dentro y fuera del umbral de 50 km`() {
+        assertThat(NearbyCellGrid.LOCAL_RADIUS_METERS).isEqualTo(50_000.0)
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(null)).isFalse()
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(Double.NaN)).isFalse()
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(0.0)).isFalse()
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(49_999.9)).isFalse()
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(50_000.0)).isFalse()
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(50_000.1)).isTrue()
+        assertThat(NearbyCellGrid.isBeyondLocalRadius(300_000.0)).isTrue()
+    }
+
+    @Test
     fun `ApproximateLocation rechaza coordenadas no finitas o fuera de rango`() {
         assertThrows<IllegalArgumentException> { ApproximateLocation(Double.NaN, 0.0) }
         assertThrows<IllegalArgumentException> { ApproximateLocation(90.1, 0.0) }

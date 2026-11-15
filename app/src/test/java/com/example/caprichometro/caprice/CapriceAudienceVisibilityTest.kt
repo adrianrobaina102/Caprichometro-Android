@@ -5,21 +5,30 @@ import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCa
 import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
 import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
+import com.example.caprichometro.domain.friendship.Friendship
+import com.example.caprichometro.domain.friendship.FriendshipRepository
+import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.ApproximateLocation
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.model.splitByDistanceRadius
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository
 import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRepository
 import com.example.caprichometro.domain.repository.CapriceObservationRepository
+import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -204,5 +213,91 @@ class CapriceAudienceVisibilityTest {
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isNull()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `GetFriendsCapricesUseCase calcula distancia en Amigos ordena menor de 50km antes de mayor de 50km y emite progresivo desde cache`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val madrid = ApproximateLocation(40.4168, -3.7038)
+        val madridCell = NearbyCellGrid.cellId(madrid)
+        val valenciaCell = NearbyCellGrid.cellId(ApproximateLocation(39.4699, -0.3763))
+
+        val friendshipRepo = mockk<FriendshipRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val capriceRepo = mockk<CapriceRepository>()
+        val acceptedUseCase = mockk<GetAcceptedFriendsUseCase>()
+        val locationRepo = mockk<DeviceLocationRepository>()
+
+        val friendClose = UserProfile(uid = "f_close", username = "cerca")
+        val friendFar = UserProfile(uid = "f_far", username = "lejos")
+
+        val cachedCaprice = Caprice(
+            id = "c_cache", userId = "f_close", question = "¿En Madrid?", answer1 = "Sí", answer2 = "No",
+            timestamp = 1_000L, locationCell = madridCell
+        )
+        val farNewerCaprice = Caprice(
+            id = "c_far", userId = "f_far", question = "¿Desde Valencia?", answer1 = "Sí", answer2 = "No",
+            timestamp = 5_000L, nearbyCell = valenciaCell
+        )
+        val legacyNoDistance = Caprice(
+            id = "c_legacy", userId = "f_close", question = "¿Sin ubicación?", answer1 = "Sí", answer2 = "No",
+            timestamp = 2_000L, nearbyCell = null, locationCell = null
+        )
+
+        val acceptedFriendships = listOf(
+            Friendship("f_close_me", listOf("me", "f_close"), "me", FriendshipStatus.ACCEPTED),
+            Friendship("f_far_me", listOf("me", "f_far"), "me", FriendshipStatus.ACCEPTED)
+        )
+
+        every { locationRepo.hasLocationPermission() } returns true
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(madrid)
+
+        coEvery { friendshipRepo.getCachedFriendships("me") } returns acceptedFriendships
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.isCachedBlocked("me", any()) } returns false
+        coEvery { userRepo.getCachedUserById("f_close") } returns friendClose
+        coEvery { userRepo.getCachedUserById("f_far") } returns friendFar
+        coEvery { capriceRepo.getCachedCaprices("f_close", 100) } returns listOf(cachedCaprice)
+        coEvery { capriceRepo.getCachedCaprices("f_far", 100) } returns emptyList()
+
+        every { friendshipRepo.getFriendships("me") } returns flowOf(acceptedFriendships)
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked("me", any()) } returns Result.success(false)
+        coEvery { userRepo.getUserById("f_close") } returns Result.success(friendClose)
+        coEvery { userRepo.getUserById("f_far") } returns Result.success(friendFar)
+        coEvery { capriceRepo.getCaprices("f_close", 100) } returns Result.success(listOf(legacyNoDistance, cachedCaprice))
+        coEvery { capriceRepo.getCaprices("f_far", 100) } returns Result.success(listOf(farNewerCaprice))
+
+        val useCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedUseCase,
+            capriceRepository = capriceRepo,
+            defaultDispatcher = testDispatcher,
+            friendshipRepository = friendshipRepo,
+            userProfileRepository = userRepo,
+            locationRepository = locationRepo
+        )
+
+        val batches = useCase.observeProgressiveFeed(
+            currentUserId = "me",
+            initialBatchSize = 2,
+            perFriendLimit = 100,
+            totalLimit = 200,
+            includeCache = true
+        ).toList()
+
+        assertThat(batches.first().isFromCache).isTrue()
+        assertThat(batches.first().items.map { it.caprice.id }).containsExactly("c_cache")
+        assertThat(batches.first().items.first().approximateDistanceMeters).isLessThan(5_000.0)
+
+        val finalBatch = batches.last()
+        assertThat(finalBatch.isComplete).isTrue()
+        assertThat(finalBatch.isFromCache).isFalse()
+        // Los <= 50 km o sin ubicación van arriba por fecha (c_legacy, c_cache); > 50 km va debajo (c_far)
+        assertThat(finalBatch.items.map { it.caprice.id }).containsExactly("c_legacy", "c_cache", "c_far")
+
+        val sections = splitByDistanceRadius(finalBatch.items)
+        assertThat(sections.localItems.map { it.caprice.id }).containsExactly("c_legacy", "c_cache")
+        assertThat(sections.farItems.map { it.caprice.id }).containsExactly("c_far")
     }
 }
