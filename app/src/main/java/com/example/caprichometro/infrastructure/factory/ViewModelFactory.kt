@@ -50,6 +50,7 @@ import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
+import com.example.caprichometro.infrastructure.util.ImageModelHelper
 
 class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
     private val appContext: Context? = context?.applicationContext
@@ -165,6 +166,7 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
     fun invalidateSessionCaches() {
         userProfileRepository.invalidateAll()
         capriceRepository.invalidateAll()
+        ImageModelHelper.clearCache()
     }
 
     companion object {
