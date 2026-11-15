@@ -13,15 +13,18 @@ data class Caprice(
     val timestamp: Long = System.currentTimeMillis(),
     val visibleToUserIds: List<String> = emptyList(),
     val finalDecision: Int? = null,
-    val finalDecisionAt: Long? = null
+    val finalDecisionAt: Long? = null,
+    val nearbyCell: String? = null
 ) {
     /**
      * Comprueba si [viewerUserId] tiene permiso para ver este capricho.
+     * Un `nearbyCell` no vacío lo hace público para cualquier usuario autenticado en Para ti.
      * Un `visibleToUserIds` vacío mantiene compatibilidad con documentos antiguos o de iOS.
      */
     fun isVisibleTo(viewerUserId: String): Boolean {
         if (viewerUserId.isBlank()) return false
         if (userId == viewerUserId) return true
+        if (!nearbyCell.isNullOrBlank()) return true
         return visibleToUserIds.isEmpty() || viewerUserId in visibleToUserIds
     }
 
@@ -37,6 +40,7 @@ data class Caprice(
         private var visibleToUserIds: List<String> = emptyList()
         private var finalDecision: Int? = null
         private var finalDecisionAt: Long? = null
+        private var nearbyCell: String? = null
 
         fun setId(id: String) = apply { this.id = id }
         fun setUserId(userId: String) = apply { this.userId = userId }
@@ -55,6 +59,9 @@ data class Caprice(
             this.finalDecision = decision?.takeIf { it == 1 || it == 2 }
             this.finalDecisionAt = decidedAt
         }
+        fun setNearbyCell(nearbyCell: String?) = apply {
+            this.nearbyCell = nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
+        }
 
         fun build(): Caprice {
             check(question.isNotBlank()) { "La pregunta es obligatoria" }
@@ -70,7 +77,8 @@ data class Caprice(
                 timestamp = timestamp,
                 visibleToUserIds = visibleToUserIds,
                 finalDecision = finalDecision,
-                finalDecisionAt = finalDecisionAt
+                finalDecisionAt = finalDecisionAt,
+                nearbyCell = nearbyCell
             )
         }
     }
