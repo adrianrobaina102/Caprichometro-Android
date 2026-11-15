@@ -382,4 +382,89 @@ class CapriceViewModelNearbyTest {
         assertThat(saved.isVisibleTo("friend_1")).isTrue()
         assertThat(saved.isVisibleTo("stranger_99")).isFalse()
     }
+
+    @Test
+    fun `opcion A revela pagina 1 de 5 en 5 hasta 20 e hidrata pagina 2 bajo demanda de 5 en 5`() = runTest(testDispatcher) {
+        val allItems = (1..35).map { idx ->
+            CapriceFeedItem(
+                caprice = Caprice(
+                    id = "opt_$idx",
+                    userId = "friend_1",
+                    question = "¿Pregunta $idx?",
+                    answer1 = "Sí",
+                    answer2 = "No",
+                    timestamp = 1_000_000L - idx * 1_000L
+                ),
+                author = UserProfile(uid = "friend_1", username = "ana")
+            )
+        }
+
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed("user_1", 5, 100, 200, true)
+        } returns flowOf(
+            ProgressiveFeedBatch(
+                items = allItems.take(20),
+                isFromCache = false,
+                isComplete = true,
+                totalAvailableCount = 35
+            )
+        )
+        every {
+            getFriendsCapricesUseCase.observeNextPage("user_1", 20, 5, 20)
+        } returns flowOf(
+            ProgressiveFeedBatch(
+                items = allItems.take(25),
+                isFromCache = false,
+                isComplete = false,
+                totalAvailableCount = 35
+            ),
+            ProgressiveFeedBatch(
+                items = allItems,
+                isFromCache = false,
+                isComplete = true,
+                totalAvailableCount = 35
+            )
+        )
+
+        val vm = createViewModel()
+        vm.loadFriendsFeed()
+        testScheduler.runCurrent()
+
+        // Primeros 5 visibles de inmediato
+        assertThat(vm.state.value.feedItems).hasSize(5)
+        assertThat(vm.state.value.isFeedLoading).isFalse()
+        assertThat(vm.state.value.isFriendsBackgroundSyncing).isTrue()
+
+        // Resto de página 1 avanza de 5 en 5 (10 -> 15 -> 20)
+        testScheduler.advanceTimeBy(60L)
+        testScheduler.runCurrent()
+        assertThat(vm.state.value.feedItems).hasSize(10)
+
+        testScheduler.advanceTimeBy(60L)
+        testScheduler.runCurrent()
+        assertThat(vm.state.value.feedItems).hasSize(15)
+
+        testScheduler.advanceTimeBy(60L)
+        testScheduler.runCurrent()
+        assertThat(vm.state.value.feedItems).hasSize(20)
+        assertThat(vm.state.value.totalFriendsFeedCount).isEqualTo(35)
+        assertThat(vm.state.value.hasMoreFriendsFeed).isTrue()
+        assertThat(vm.state.value.isFriendsBackgroundSyncing).isFalse()
+
+        // Página 2 bajo demanda llama observeNextPage, revela primeros 5 (25) de inmediato y luego 30 -> 35
+        vm.loadMoreFriendsFeed()
+        testScheduler.runCurrent()
+        assertThat(vm.state.value.feedItems).hasSize(25)
+        verify(exactly = 1) { getFriendsCapricesUseCase.observeNextPage("user_1", 20, 5, 20) }
+
+        testScheduler.advanceTimeBy(60L)
+        testScheduler.runCurrent()
+        assertThat(vm.state.value.feedItems).hasSize(30)
+
+        testScheduler.advanceTimeBy(60L)
+        testScheduler.runCurrent()
+        assertThat(vm.state.value.feedItems).hasSize(35)
+        assertThat(vm.state.value.hasMoreFriendsFeed).isFalse()
+        assertThat(vm.state.value.isFriendsBackgroundSyncing).isFalse()
+    }
 }

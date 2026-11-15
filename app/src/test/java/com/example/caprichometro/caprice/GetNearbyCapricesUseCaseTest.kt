@@ -169,4 +169,70 @@ class GetNearbyCapricesUseCaseTest {
         // a_tokyo ya estaba resuelto desde caché en stream y a_val en tanda 1: no se repiten llamadas de perfil
         coVerify(exactly = 1) { userRepo.getUserById("a_val") }
     }
+
+    @Test
+    fun `opcion A hidrata solo pagina inicial de 20 con 5 primeros de cache y observeNextPage hidrata pagina 2 de 5 en 5`() = runTest {
+        val locationRepo = mockk<DeviceLocationRepository>()
+        val nearbyRepo = mockk<NearbyCapriceRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val friendshipRepo = mockk<FriendshipRepository>()
+
+        val allCaprices = (1..27).map { idx ->
+            Caprice(
+                id = "pub_$idx",
+                userId = "author_$idx",
+                question = "¿Pregunta $idx?",
+                answer1 = "A",
+                answer2 = "B",
+                timestamp = 100_000L - idx * 1_000L,
+                nearbyCell = madridCell
+            )
+        }
+
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { userRepo.getCachedUserById(any()) } answers {
+            val uid = firstArg<String>()
+            UserProfile(uid = uid, username = "cached_$uid")
+        }
+        coEvery { userRepo.getUserById(any()) } answers {
+            val uid = firstArg<String>()
+            Result.success(UserProfile(uid = uid, username = "srv_$uid"))
+        }
+
+        every { nearbyRepo.streamDiscoverableCaprices(5, 20, true) } returns flowOf(
+            NearbyCapriceBatch(allCaprices.take(8), isFromCache = true, isComplete = false),
+            NearbyCapriceBatch(allCaprices.take(5), isFromCache = false, isComplete = false),
+            NearbyCapriceBatch(allCaprices, isFromCache = false, isComplete = true)
+        )
+
+        val useCase = GetNearbyCapricesUseCase(locationRepo, nearbyRepo, userRepo, friendshipRepo)
+        val page1Batches = useCase.observeProgressiveFeed("me", includeCache = true, initialBatchSize = 5, pageSize = 20).toList()
+
+        // El primer lote de caché entrega solo los 5 más relevantes de forma inmediata
+        assertThat(page1Batches.first().isFromCache).isTrue()
+        assertThat(page1Batches.first().items).hasSize(5)
+        assertThat(page1Batches.first().totalAvailableCount).isEqualTo(8)
+
+        // Página 1 completa se topa en 20 ítems con totalAvailableCount = 27 y sin hidratar autores 21..27
+        val finalPage1 = page1Batches.last()
+        assertThat(finalPage1.isComplete).isTrue()
+        assertThat(finalPage1.items).hasSize(20)
+        assertThat(finalPage1.totalAvailableCount).isEqualTo(27)
+        for (idx in 21..27) {
+            coVerify(exactly = 0) { userRepo.getUserById("author_$idx") }
+        }
+
+        // Página 2 bajo demanda hidrata primeros 5 (20 -> 25) y luego los 2 restantes (25 -> 27)
+        val page2Batches = useCase.observeNextPage("me", currentLoadedCount = 20, initialBatchSize = 5, pageSize = 20).toList()
+        assertThat(page2Batches).hasSize(2)
+        assertThat(page2Batches[0].items).hasSize(25)
+        assertThat(page2Batches[0].isComplete).isFalse()
+        assertThat(page2Batches[0].totalAvailableCount).isEqualTo(27)
+        assertThat(page2Batches[1].items).hasSize(27)
+        assertThat(page2Batches[1].isComplete).isTrue()
+        assertThat(page2Batches[1].totalAvailableCount).isEqualTo(27)
+        coVerify(exactly = 1) { userRepo.getUserById("author_27") }
+    }
 }

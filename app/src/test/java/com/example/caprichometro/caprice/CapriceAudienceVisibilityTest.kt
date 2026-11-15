@@ -300,4 +300,107 @@ class CapriceAudienceVisibilityTest {
         assertThat(sections.localItems.map { it.caprice.id }).containsExactly("c_legacy", "c_cache")
         assertThat(sections.farItems.map { it.caprice.id }).containsExactly("c_far")
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `GetFriendsCapricesUseCase opcion A emite 5 primeros de cache pagina en 20 y pospone perfiles de pagina 2 a observeNextPage`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val madrid = ApproximateLocation(40.4168, -3.7038)
+        val madridCell = NearbyCellGrid.cellId(madrid)
+
+        val friendshipRepo = mockk<FriendshipRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val capriceRepo = mockk<CapriceRepository>()
+        val acceptedUseCase = mockk<GetAcceptedFriendsUseCase>()
+        val locationRepo = mockk<DeviceLocationRepository>()
+
+        val requestedServerProfiles = mutableListOf<String>()
+        val friendA = UserProfile(uid = "f_a", username = "ana")
+        val friendB = UserProfile(uid = "f_b", username = "bruno")
+
+        val friendACaprices = (1..20).map { idx ->
+            Caprice(
+                id = "a_$idx", userId = "f_a", question = "¿A $idx?", answer1 = "Sí", answer2 = "No",
+                timestamp = 100_000L - idx * 1_000L, locationCell = madridCell
+            )
+        }
+        val friendBCaprices = (21..27).map { idx ->
+            Caprice(
+                id = "b_$idx", userId = "f_b", question = "¿B $idx?", answer1 = "Sí", answer2 = "No",
+                timestamp = 100_000L - idx * 1_000L, locationCell = madridCell
+            )
+        }
+
+        val acceptedFriendships = listOf(
+            Friendship("f_a_me", listOf("me", "f_a"), "me", FriendshipStatus.ACCEPTED),
+            Friendship("f_b_me", listOf("me", "f_b"), "me", FriendshipStatus.ACCEPTED)
+        )
+
+        every { locationRepo.hasLocationPermission() } returns true
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(madrid)
+
+        coEvery { friendshipRepo.getCachedFriendships("me") } returns acceptedFriendships
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.isCachedBlocked("me", any()) } returns false
+        coEvery { userRepo.getCachedUserById("f_a") } returns friendA
+        coEvery { userRepo.getCachedUserById("f_b") } returns friendB
+        coEvery { capriceRepo.getCachedCaprices("f_a", 100) } returns friendACaprices.take(8)
+        coEvery { capriceRepo.getCachedCaprices("f_b", 100) } returns emptyList()
+
+        every { friendshipRepo.getFriendships("me") } returns flowOf(acceptedFriendships)
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked("me", any()) } returns Result.success(false)
+        coEvery { userRepo.getUserById(any()) } answers {
+            val uid = firstArg<String>()
+            requestedServerProfiles += uid
+            Result.success(if (uid == "f_a") friendA else friendB)
+        }
+        coEvery { capriceRepo.getCaprices("f_a", 100) } returns Result.success(friendACaprices)
+        coEvery { capriceRepo.getCaprices("f_b", 100) } returns Result.success(friendBCaprices)
+
+        val useCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedUseCase,
+            capriceRepository = capriceRepo,
+            defaultDispatcher = testDispatcher,
+            friendshipRepository = friendshipRepo,
+            userProfileRepository = userRepo,
+            locationRepository = locationRepo
+        )
+
+        val page1Batches = useCase.observeProgressiveFeed(
+            currentUserId = "me",
+            initialBatchSize = 5,
+            perFriendLimit = 100,
+            totalLimit = 200,
+            includeCache = true
+        ).toList()
+
+        // Cache entrega 5 rápidos primero y luego completa los 8 en caché
+        assertThat(page1Batches[0].isFromCache).isTrue()
+        assertThat(page1Batches[0].items).hasSize(5)
+        assertThat(page1Batches[0].totalAvailableCount).isEqualTo(8)
+
+        val finalPage1 = page1Batches.last()
+        assertThat(finalPage1.isComplete).isTrue()
+        assertThat(finalPage1.items).hasSize(20)
+        assertThat(finalPage1.totalAvailableCount).isEqualTo(27)
+        assertThat(requestedServerProfiles).containsExactly("f_a")
+
+        // Página 2 bajo demanda hidrata 5 primero (25) y luego 2 restantes (27) consultando f_b solo entonces
+        val page2Batches = useCase.observeNextPage(
+            currentUserId = "me",
+            currentLoadedCount = 20,
+            initialBatchSize = 5,
+            pageSize = 20
+        ).toList()
+
+        assertThat(page2Batches).hasSize(2)
+        assertThat(page2Batches[0].items).hasSize(25)
+        assertThat(page2Batches[0].isComplete).isFalse()
+        assertThat(page2Batches[0].totalAvailableCount).isEqualTo(27)
+        assertThat(page2Batches[1].items).hasSize(27)
+        assertThat(page2Batches[1].isComplete).isTrue()
+        assertThat(page2Batches[1].totalAvailableCount).isEqualTo(27)
+        assertThat(requestedServerProfiles).containsExactly("f_a", "f_b")
+    }
 }
