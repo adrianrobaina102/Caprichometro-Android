@@ -52,6 +52,7 @@ import com.example.caprichometro.domain.validation.NotBlankValidator
 import com.example.caprichometro.domain.validation.ValidationResult
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.util.ImageCompressor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -236,17 +237,30 @@ fun CapriceScreen(
 
                     coroutineScope.launch {
                         isSubmitting = true
+                        val trimmedQuestion = questionText.trim()
                         val imageBytes = selectedImageUri?.let { uri ->
                             try {
                                 ImageCompressor.compressUriToWebP(context, uri)
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (_: Exception) {
                                 null
                             }
                         }
 
+                        if (selectedImageUri != null && imageBytes == null) {
+                            isSubmitting = false
+                            Toast.makeText(
+                                context,
+                                "No se pudo procesar la foto seleccionada. Inténtalo de nuevo o quítala.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@launch
+                        }
+
                         val saveResult = viewModel.saveCaprice(
                             type = typeString,
-                            questionText = questionText.trim(),
+                            questionText = trimmedQuestion,
                             answer1 = answer1.trim(),
                             answer2 = answer2.trim(),
                             imageBytes = imageBytes,
@@ -257,13 +271,19 @@ fun CapriceScreen(
 
                         isSubmitting = false
                         if (saveResult.isSuccess) {
+                            val createdCaprice = saveResult.getOrNull()
                             selectAllFriends = true
                             customSelectedFriendIds = emptySet()
                             questionText = ""
                             answer1 = ""
                             answer2 = ""
                             selectedImageUri = null
-                            PollNotificationHelper.showCapriceCreatedNotification(context, saveResult.getOrNull()?.question ?: questionText.trim())
+                            PollNotificationHelper.showCapriceCreatedNotification(
+                                context = context,
+                                capriceQuestion = createdCaprice?.question ?: trimmedQuestion,
+                                capriceId = createdCaprice?.id.orEmpty(),
+                                recipientUserId = createdCaprice?.userId.orEmpty()
+                            )
                             onNavigateToActivePoll()
                         } else {
                             Toast.makeText(context, "Error al guardar: ${saveResult.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()

@@ -177,7 +177,7 @@ fun ActivePollScreen(
                 localIsExpired = false
                 val minutes = (remainingTime / 1000) / 60
                 val seconds = (remainingTime / 1000) % 60
-                localTimeDisplay = String.format("%02d:%02d", minutes, seconds)
+                localTimeDisplay = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
                 delay(1000L)
             }
         }
@@ -210,17 +210,17 @@ fun ActivePollScreen(
         is PollState.Active -> {
             val mins = (currentPollState.remainingMillis / 1000) / 60
             val secs = (currentPollState.remainingMillis / 1000) % 60
-            String.format("%02d:%02d", mins, secs)
+            String.format(Locale.getDefault(), "%02d:%02d", mins, secs)
         }
         is PollState.Voted -> {
             val mins = (currentPollState.remainingMillis / 1000) / 60
             val secs = (currentPollState.remainingMillis / 1000) % 60
-            String.format("%02d:%02d", mins, secs)
+            String.format(Locale.getDefault(), "%02d:%02d", mins, secs)
         }
         is PollState.Author -> {
             val mins = (currentPollState.remainingMillis / 1000) / 60
             val secs = (currentPollState.remainingMillis / 1000) % 60
-            String.format("%02d:%02d", mins, secs)
+            String.format(Locale.getDefault(), "%02d:%02d", mins, secs)
         }
         is PollState.Expired -> "00:00"
         null -> localTimeDisplay

@@ -61,7 +61,7 @@ fun ResultScreen(
     approximateDistanceMeters: Double? = null
 ) {
     var isImageExpanded by remember { mutableStateOf(false) }
-    val vmState by viewModel?.state?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(null)
+    val vmState by viewModel?.state?.collectAsState() ?: remember { mutableStateOf(null) }
     val displayedCaprice = vmState?.caprice?.takeIf { it.id == caprice?.id } ?: caprice
     val isPublicNearby = !displayedCaprice?.nearbyCell.isNullOrBlank()
 

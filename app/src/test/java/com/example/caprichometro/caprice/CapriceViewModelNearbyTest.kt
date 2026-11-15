@@ -5,6 +5,7 @@ import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
@@ -701,5 +702,38 @@ class CapriceViewModelNearbyTest {
         assertThat(activePollVm.state.value.isResolvingPlaceName).isFalse()
         activePollVm.reset()
         testScheduler.runCurrent()
+    }
+
+    @Test
+    fun `saveCaprice falla y no publica si falla la subida de imagen`() = runTest(testDispatcher) {
+        val uploadUseCase = mockk<UploadCapriceImageUseCase>()
+        val vm = CapriceViewModel(
+            saveCapriceUseCase = saveCapriceUseCase,
+            getCapricesUseCase = getCapricesUseCase,
+            uploadCapriceImageUseCase = uploadUseCase,
+            getFriendsCapricesUseCase = getFriendsCapricesUseCase,
+            profileCacheControl = profileCacheControl,
+            capriceCacheControl = capriceCacheControl,
+            getNearbyCapricesUseCase = getNearbyCapricesUseCase,
+            locationRepository = locationRepository,
+            clockMillis = { currentClock },
+            currentUserIdProvider = { currentUid },
+            ioDispatcher = testDispatcher
+        )
+        every { locationRepository.hasLocationPermission() } returns false
+        coEvery { uploadUseCase.execute(any(), any()) } returns Result.failure(IllegalStateException("Image too large"))
+
+        val result = vm.saveCaprice(
+            type = "Compra",
+            questionText = "¿Compro chaqueta?",
+            answer1 = "Sí",
+            answer2 = "No",
+            imageBytes = byteArrayOf(1, 2, 3)
+        )
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(vm.state.value.error).contains("Image too large")
+        assertThat(vm.state.value.isLoading).isFalse()
+        coVerify(exactly = 0) { saveCapriceUseCase.execute(any()) }
     }
 }

@@ -196,14 +196,18 @@ class CapriceViewModel(
         var finalImageUrl = ""
         if (imageBytes != null && uploadCapriceImageUseCase != null) {
             val uploadResult = uploadCapriceImageUseCase.execute(imageBytes, preliminaryCaprice.id)
-            uploadResult.fold(
-                onSuccess = { url ->
-                    finalImageUrl = url
-                },
-                onFailure = { e ->
-                    Log.e("CapriceViewModel", "Error procesando imagen", e)
+            val uploadError = uploadResult.exceptionOrNull()
+            if (uploadError != null) {
+                runCatching { Log.e("CapriceViewModel", "Error procesando imagen", uploadError) }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = uploadError.message ?: "No se pudo subir la imagen del capricho"
+                    )
                 }
-            )
+                return Result.failure(uploadError)
+            }
+            finalImageUrl = uploadResult.getOrThrow()
         }
 
         val capriceToSave = capriceBuilder.setImageUrl(finalImageUrl).build()

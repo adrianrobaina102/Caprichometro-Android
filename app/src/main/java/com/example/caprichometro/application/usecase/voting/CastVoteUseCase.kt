@@ -3,9 +3,9 @@ package com.example.caprichometro.application.usecase.voting
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import kotlinx.coroutines.flow.first
 
 class CastVoteUseCase(
@@ -22,7 +22,7 @@ class CastVoteUseCase(
         if (!caprice.isVisibleTo(voterId)) {
             return Result.failure(IllegalStateException("No tienes permiso para votar en este capricho"))
         }
-        if (PollNotificationScheduler.isPollExpired(caprice.timestamp)) {
+        if (PollTiming.isPollExpired(caprice.timestamp)) {
             return Result.failure(IllegalStateException("La votación ya ha cerrado (límite de 5 minutos alcanzado)"))
         }
         if (option != 1 && option != 2) {

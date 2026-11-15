@@ -1,5 +1,7 @@
 package com.example.caprichometro.notification
 
+import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import org.assertj.core.api.Assertions.assertThat
@@ -11,7 +13,32 @@ class PollNotificationTest {
     fun `la duracion de la encuesta debe ser de exactamente 5 minutos`() {
         // 5 minutos * 60 segundos * 1000 milisegundos = 300_000 ms
         val expectedMillis = 5 * 60 * 1000L
+        assertThat(PollTiming.POLL_DURATION_MILLIS).isEqualTo(expectedMillis)
         assertThat(PollNotificationScheduler.POLL_DURATION_MILLIS).isEqualTo(expectedMillis)
+    }
+
+    @Test
+    fun `getPollRequestCode coincide entre programar y cancelar para caprichos con id y sin id`() {
+        val withId = Caprice(
+            id = "caprice_abc_123",
+            userId = "user_1",
+            question = "¿Voy al cine?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 1_700_000_123_456L
+        )
+        assertThat(PollNotificationScheduler.getPollRequestCode(withId))
+            .isEqualTo(PollNotificationScheduler.getPollRequestCode(capriceId = withId.id))
+
+        val withoutId = withId.copy(id = "")
+        assertThat(PollNotificationScheduler.getPollRequestCode(withoutId))
+            .isEqualTo(
+                PollNotificationScheduler.getPollRequestCode(
+                    capriceId = "",
+                    timestamp = withoutId.timestamp,
+                    question = withoutId.question
+                )
+            )
     }
 
     @Test

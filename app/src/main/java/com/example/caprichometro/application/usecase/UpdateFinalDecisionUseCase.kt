@@ -2,7 +2,7 @@ package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceRepository
-import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
+import com.example.caprichometro.domain.model.PollTiming
 
 class UpdateFinalDecisionUseCase(
     private val capriceRepository: CapriceRepository,
@@ -27,7 +27,7 @@ class UpdateFinalDecisionUseCase(
         }
 
         val now = clockMillis()
-        if ((now - caprice.timestamp) < PollNotificationScheduler.POLL_DURATION_MILLIS) {
+        if (!PollTiming.isPollExpired(caprice.timestamp, now)) {
             return Result.failure(IllegalStateException("Espera a que termine la votación para confirmar tu decisión"))
         }
 

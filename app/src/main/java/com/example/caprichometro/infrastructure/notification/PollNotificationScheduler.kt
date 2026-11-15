@@ -1,27 +1,35 @@
 package com.example.caprichometro.infrastructure.notification
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.example.caprichometro.domain.model.Caprice
+import com.example.caprichometro.domain.model.PollTiming
 
 object PollNotificationScheduler {
-    const val POLL_DURATION_MILLIS = 5 * 60 * 1000L // 5 minutos acordados para cada duda
+    const val POLL_DURATION_MILLIS = PollTiming.POLL_DURATION_MILLIS
 
-    fun calculateTriggerTime(timestamp: Long): Long {
-        return timestamp + POLL_DURATION_MILLIS
+    fun calculateTriggerTime(timestamp: Long): Long =
+        PollTiming.calculateTriggerTime(timestamp)
+
+    fun isPollExpired(timestamp: Long, currentTimeMillis: Long = System.currentTimeMillis()): Boolean =
+        PollTiming.isPollExpired(timestamp, currentTimeMillis)
+
+    fun getPollRequestCode(caprice: Caprice): Int =
+        getPollRequestCode(caprice.id, caprice.timestamp, caprice.question)
+
+    fun getPollRequestCode(capriceId: String, timestamp: Long = 0L, question: String = ""): Int {
+        return if (capriceId.isNotBlank()) {
+            capriceId.hashCode()
+        } else {
+            (timestamp xor question.hashCode().toLong()).toInt()
+        }
     }
 
-    fun isPollExpired(timestamp: Long, currentTimeMillis: Long = System.currentTimeMillis()): Boolean {
-        return (calculateTriggerTime(timestamp) - currentTimeMillis) <= 0
-    }
-
-    fun getPollRequestCode(caprice: Caprice): Int {
-        return (caprice.timestamp xor caprice.question.hashCode().toLong()).toInt()
-    }
-
+    @SuppressLint("MissingPermission")
     fun schedulePollExpiration(context: Context, caprice: Caprice, recipientUserId: String = "") {
         val triggerAtMillis = calculateTriggerTime(caprice.timestamp)
         val remainingMillis = triggerAtMillis - System.currentTimeMillis()
@@ -61,14 +69,8 @@ object PollNotificationScheduler {
                         pendingIntent
                     )
                 }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
             } else {
-                alarmManager.set(
+                alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     triggerAtMillis,
                     pendingIntent
@@ -76,21 +78,28 @@ object PollNotificationScheduler {
             }
         } catch (_: SecurityException) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAtMillis,
-                        pendingIntent
-                    )
-                }
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
             } catch (_: Exception) {
             }
         }
     }
 
-    fun cancelPollExpiration(context: Context, capriceId: String, timestamp: Long = 0L) {
+    fun cancelPollExpiration(context: Context, caprice: Caprice) {
+        cancelPollExpiration(context, caprice.id, caprice.timestamp, caprice.question)
+    }
+
+    fun cancelPollExpiration(
+        context: Context,
+        capriceId: String,
+        timestamp: Long = 0L,
+        question: String = ""
+    ) {
         val intent = Intent(context, PollExpiredReceiver::class.java)
-        val requestCode = if (capriceId.isNotBlank()) capriceId.hashCode() else timestamp.toInt()
+        val requestCode = getPollRequestCode(capriceId, timestamp, question)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
