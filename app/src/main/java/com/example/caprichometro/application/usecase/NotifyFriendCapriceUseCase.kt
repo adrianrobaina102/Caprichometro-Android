@@ -95,10 +95,9 @@ class NotifyFriendCapriceUseCase(
                             ?: return@async null
 
                         val decidedAt = latestDecided.finalDecisionAt ?: latestDecided.timestamp
-                        val lastId = historyRepository.getLastNotifiedDecisionCapriceId(recipientUserId, friend.uid)
                         val lastTs = historyRepository.getLastNotifiedDecisionTimestamp(recipientUserId, friend.uid)
 
-                        if (latestDecided.id != lastId && decidedAt > lastTs) {
+                        if (decidedAt > lastTs) {
                             onNotify(friend, latestDecided)
                             historyRepository.setLastNotifiedDecision(
                                 recipientUserId = recipientUserId,

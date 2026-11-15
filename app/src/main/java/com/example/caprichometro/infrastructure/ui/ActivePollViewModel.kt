@@ -46,6 +46,10 @@ class ActivePollViewModel(
     private var votesJob: Job? = null
     private var tickerJob: Job? = null
 
+    fun clearError() {
+        _state.update { it.copy(errorMessage = null) }
+    }
+
     fun reset() {
         votesJob?.cancel()
         tickerJob?.cancel()

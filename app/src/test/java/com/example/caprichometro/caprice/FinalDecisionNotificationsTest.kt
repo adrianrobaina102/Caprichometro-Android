@@ -106,4 +106,40 @@ class FinalDecisionNotificationsTest {
 
         assertThat(emitted.map { it.caprice.id }).containsExactly("d_visible")
     }
+
+    @Test
+    fun `checkAndNotifyFriendFinalDecisions renotifica si el amigo rectifica la decision del mismo capricho`() = runTest {
+        val getAcceptedFriendsUseCase = mockk<GetAcceptedFriendsUseCase>()
+        val capriceRepository = mockk<CapriceRepository>()
+        val historyRepository = mockk<CapriceNotificationHistoryRepository>()
+        val friend = UserProfile(uid = "friend_1", username = "carlos")
+
+        val rectifiedCaprice = Caprice(
+            id = "c_rectified",
+            userId = "friend_1",
+            question = "¿Zapas?",
+            answer1 = "Blancas",
+            answer2 = "Negras",
+            timestamp = 1000L,
+            visibleToUserIds = listOf("friend_1", "me"),
+            finalDecision = 1,
+            finalDecisionAt = 6000L
+        )
+
+        every { getAcceptedFriendsUseCase.execute("me") } returns flowOf(listOf(friend))
+        coEvery { capriceRepository.getCaprices("friend_1", 20) } returns Result.success(listOf(rectifiedCaprice))
+        every { historyRepository.getLastNotifiedDecisionCapriceId("me", "friend_1") } returns "c_rectified"
+        every { historyRepository.getLastNotifiedDecisionTimestamp("me", "friend_1") } returns 4000L
+        every { historyRepository.setLastNotifiedDecision("me", "friend_1", "c_rectified", 6000L) } just runs
+
+        val notified = mutableListOf<Int?>()
+        val useCase = NotifyFriendCapriceUseCase(getAcceptedFriendsUseCase, capriceRepository, historyRepository)
+        val result = useCase.checkAndNotifyFriendFinalDecisions("me") { _, caprice ->
+            notified.add(caprice.finalDecision)
+        }
+
+        assertThat(notified).containsExactly(1)
+        assertThat(result).hasSize(1)
+        verify(exactly = 1) { historyRepository.setLastNotifiedDecision("me", "friend_1", "c_rectified", 6000L) }
+    }
 }

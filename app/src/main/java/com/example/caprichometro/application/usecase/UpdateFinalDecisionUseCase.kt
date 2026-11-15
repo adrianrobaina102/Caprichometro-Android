@@ -9,7 +9,7 @@ class UpdateFinalDecisionUseCase(
     private val clockMillis: () -> Long = { System.currentTimeMillis() }
 ) {
     /**
-     * Registra la decisión final del autor (`1` o `2`) una vez cerrado el capricho.
+     * Registra o rectifica la decisión final del autor (`1` o `2`) una vez cerrado el capricho.
      */
     suspend fun execute(
         caprice: Caprice,
@@ -22,8 +22,8 @@ class UpdateFinalDecisionUseCase(
         if (decision != 1 && decision != 2) {
             return Result.failure(IllegalArgumentException("La decisión final debe ser 1 o 2"))
         }
-        if (caprice.finalDecision != null) {
-            return Result.failure(IllegalStateException("La decisión final ya fue confirmada"))
+        if (caprice.finalDecision == decision) {
+            return Result.success(caprice)
         }
 
         val now = clockMillis()

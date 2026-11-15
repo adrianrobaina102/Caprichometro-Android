@@ -58,7 +58,7 @@ class UpdateFinalDecisionUseCaseTest {
     }
 
     @Test
-    fun `rechaza si ya tenia decision final confirmada`() = runTest {
+    fun `autor puede rectificar decision final ya confirmada a la otra opcion`() = runTest {
         val createdAt = 1_000_000L
         val now = createdAt + PollNotificationScheduler.POLL_DURATION_MILLIS + 10_000L
         val decidedCaprice = Caprice(
@@ -71,9 +71,39 @@ class UpdateFinalDecisionUseCaseTest {
             finalDecision = 2,
             finalDecisionAt = now - 1000L
         )
+        coEvery { capriceRepository.updateFinalDecision("cap_1", 1, now) } returns Result.success(Unit)
 
         val useCase = UpdateFinalDecisionUseCase(capriceRepository) { now }
-        assertThat(useCase.execute(decidedCaprice, "author_1", 1).isFailure).isTrue()
+        val result = useCase.execute(decidedCaprice, "author_1", 1)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()?.finalDecision).isEqualTo(1)
+        assertThat(result.getOrNull()?.finalDecisionAt).isEqualTo(now)
+        coVerify(exactly = 1) { capriceRepository.updateFinalDecision("cap_1", 1, now) }
+    }
+
+    @Test
+    fun `si elige la misma decision ya confirmada no reescribe en repositorio`() = runTest {
+        val createdAt = 1_000_000L
+        val previousDecisionAt = createdAt + PollNotificationScheduler.POLL_DURATION_MILLIS + 5_000L
+        val now = previousDecisionAt + 10_000L
+        val decidedCaprice = Caprice(
+            id = "cap_1",
+            userId = "author_1",
+            question = "¿Me compro las zapatillas?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = createdAt,
+            finalDecision = 2,
+            finalDecisionAt = previousDecisionAt
+        )
+
+        val useCase = UpdateFinalDecisionUseCase(capriceRepository) { now }
+        val result = useCase.execute(decidedCaprice, "author_1", 2)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()?.finalDecision).isEqualTo(2)
+        assertThat(result.getOrNull()?.finalDecisionAt).isEqualTo(previousDecisionAt)
         coVerify(exactly = 0) { capriceRepository.updateFinalDecision(any(), any(), any()) }
     }
 }

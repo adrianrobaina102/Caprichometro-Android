@@ -1,5 +1,6 @@
 ﻿package com.example.caprichometro.infrastructure.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -282,6 +285,7 @@ fun ResultScreen(
                     finalDecision = finalDecision,
                     isSaving = isSavingDecision,
                     errorMessage = vmState?.errorMessage,
+                    onClearError = { viewModel?.clearError() },
                     onSelectDecision = { option ->
                         viewModel?.confirmFinalDecision(option) { updated ->
                             onCapriceUpdated?.invoke(updated)
@@ -410,8 +414,11 @@ private fun FinalDecisionCard(
     finalDecision: Int?,
     isSaving: Boolean,
     errorMessage: String?,
+    onClearError: () -> Unit,
     onSelectDecision: (Int) -> Unit
 ) {
+    var isRectifying by remember(caprice.id, finalDecision) { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -425,7 +432,7 @@ private fun FinalDecisionCard(
             .padding(16.dp)
     ) {
         when {
-            finalDecision != null -> {
+            finalDecision != null && !(isAuthor && isRectifying) -> {
                 val label = if (finalDecision == 1) "A" else "B"
                 val answerText = if (finalDecision == 1) caprice.answer1 else caprice.answer2
                 Text(
@@ -441,6 +448,65 @@ private fun FinalDecisionCard(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
+                if (isAuthor) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            onClearError()
+                            isRectifying = true
+                        },
+                        enabled = !isSaving,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, LimeGreen.copy(alpha = 0.6f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = LimeGreen),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Rectificar opinión final",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            finalDecision != null && isAuthor && isRectifying -> {
+                Text(
+                    text = "RECTIFICAR TU DECISIÓN FINAL",
+                    color = Color(0xFFFFD54F),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Elige la nueva opción (tus amigos recibirán un nuevo aviso):",
+                    color = TextGray,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                DecisionOptionButtons(
+                    caprice = caprice,
+                    currentDecision = finalDecision,
+                    isSaving = isSaving,
+                    errorMessage = errorMessage,
+                    onSelectDecision = onSelectDecision
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                TextButton(
+                    onClick = {
+                        onClearError()
+                        isRectifying = false
+                    },
+                    enabled = !isSaving,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Cancelar", color = TextGray, fontSize = 13.sp)
+                }
             }
             totalVotes <= 0 -> {
                 Text(
@@ -470,52 +536,13 @@ private fun FinalDecisionCard(
                     fontSize = 13.sp
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onSelectDecision(1) },
-                        enabled = !isSaving,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                    ) {
-                        Text(
-                            text = "A · ${caprice.answer1}",
-                            maxLines = 1,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { onSelectDecision(2) },
-                        enabled = !isSaving,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                    ) {
-                        Text(
-                            text = "B · ${caprice.answer2}",
-                            maxLines = 1,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-                if (isSaving) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = LimeGreen
-                    )
-                }
-                if (!errorMessage.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = errorMessage,
-                        color = Color(0xFFFF6B6B),
-                        fontSize = 12.sp
-                    )
-                }
+                DecisionOptionButtons(
+                    caprice = caprice,
+                    currentDecision = null,
+                    isSaving = isSaving,
+                    errorMessage = errorMessage,
+                    onSelectDecision = onSelectDecision
+                )
             }
             else -> {
                 Text(
@@ -532,5 +559,60 @@ private fun FinalDecisionCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DecisionOptionButtons(
+    caprice: Caprice,
+    currentDecision: Int?,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onSelectDecision: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        listOf(1 to caprice.answer1, 2 to caprice.answer2).forEach { (option, answerText) ->
+            val label = if (option == 1) "A" else "B"
+            val isCurrent = currentDecision == option
+            OutlinedButton(
+                onClick = { onSelectDecision(option) },
+                enabled = !isSaving && !isCurrent,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (isCurrent) LimeGreen.copy(alpha = 0.7f) else Color(0xFF4A4A50)
+                ),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White,
+                    disabledContentColor = if (isCurrent) LimeGreen else Color.Gray
+                )
+            ) {
+                Text(
+                    text = if (isCurrent) "$label · $answerText ✓" else "$label · $answerText",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+    if (isSaving) {
+        Spacer(modifier = Modifier.height(10.dp))
+        LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth(),
+            color = LimeGreen
+        )
+    }
+    if (!errorMessage.isNullOrBlank()) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = errorMessage,
+            color = Color(0xFFFF6B6B),
+            fontSize = 12.sp
+        )
     }
 }
