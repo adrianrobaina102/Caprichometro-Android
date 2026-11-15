@@ -14,12 +14,15 @@ import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProfileCacheControl
+import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,6 +82,29 @@ class CapriceViewModel(
         internal const val INITIAL_FAST_BATCH_SIZE = 5
         internal const val FEED_PAGE_SIZE = 20
         internal const val FRIENDS_FETCH_LIMIT = 200
+        internal const val FEED_REVEAL_STEP_DELAY_MS = 60L
+    }
+
+    private class PagedFeedController {
+        var loadedItems: List<CapriceFeedItem> = emptyList()
+        var totalAvailableCount: Int = 0
+        var visiblePageLimit: Int = FEED_PAGE_SIZE
+        var revealedCount: Int = 0
+        var isSourceComplete: Boolean = false
+        var revealJob: Job? = null
+        var loadMoreJob: Job? = null
+
+        fun reset() {
+            revealJob?.cancel()
+            revealJob = null
+            loadMoreJob?.cancel()
+            loadMoreJob = null
+            loadedItems = emptyList()
+            totalAvailableCount = 0
+            visiblePageLimit = FEED_PAGE_SIZE
+            revealedCount = 0
+            isSourceComplete = false
+        }
     }
 
     private val _state = MutableStateFlow(CapriceState())
@@ -90,10 +116,8 @@ class CapriceViewModel(
     private var privateLocationJob: Job? = null
     private var lastNearbyLoadedAtMillis: Long? = null
     private var lastNearbyLoadedUserId: String? = null
-    private var allFriendsFeedItems: List<CapriceFeedItem> = emptyList()
-    private var friendsVisibleCount: Int = FEED_PAGE_SIZE
-    private var allNearbyFeedItems: List<CapriceFeedItem> = emptyList()
-    private var nearbyVisibleCount: Int = FEED_PAGE_SIZE
+    private val friendsController = PagedFeedController()
+    private val nearbyController = PagedFeedController()
 
     private val currentUserId: String
         get() = currentUserIdProvider()
@@ -109,10 +133,8 @@ class CapriceViewModel(
         privateLocationJob = null
         lastNearbyLoadedAtMillis = null
         lastNearbyLoadedUserId = null
-        allFriendsFeedItems = emptyList()
-        friendsVisibleCount = FEED_PAGE_SIZE
-        allNearbyFeedItems = emptyList()
-        nearbyVisibleCount = FEED_PAGE_SIZE
+        friendsController.reset()
+        nearbyController.reset()
         _state.value = CapriceState()
     }
 
@@ -217,6 +239,14 @@ class CapriceViewModel(
         if (uid.isBlank()) return
 
         feedLoadJob?.cancel()
+        friendsController.revealJob?.cancel()
+        friendsController.loadMoreJob?.cancel()
+        if (isManualRefresh) {
+            friendsController.reset()
+        } else {
+            friendsController.visiblePageLimit = FEED_PAGE_SIZE
+            friendsController.isSourceComplete = false
+        }
         // Marcamos la carga síncronamente para evitar carreras al arrancar entre MainActivity y HomeScreen
         _state.update {
             it.copy(
@@ -228,7 +258,6 @@ class CapriceViewModel(
         feedLoadJob = viewModelScope.launch(ioDispatcher) {
             val startedAt = clockMillis()
             if (isManualRefresh) {
-                friendsVisibleCount = FEED_PAGE_SIZE
                 profileCacheControl?.invalidateAll()
                 capriceCacheControl?.invalidateAll()
             }
@@ -253,49 +282,66 @@ class CapriceViewModel(
                 }
             }.collect { batch ->
                 if (currentUserId != uid) return@collect
-                allFriendsFeedItems = batch.items
-                val visible = batch.items.take(friendsVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
+                val totalKnown = maxOf(batch.totalAvailableCount, batch.items.size)
+                val visibleTarget = minOf(friendsController.visiblePageLimit, batch.items.size)
                 val elapsedMs = clockMillis() - startedAt
                 when {
                     batch.isFromCache -> logPerf(
-                        "loadFriendsFeed[cache](uid=$uid) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                        "loadFriendsFeed[cache](uid=$uid) -> total=$totalKnown, hydrated=${batch.items.size}, pageCap=$visibleTarget en $elapsedMs ms"
                     )
                     !batch.isComplete && !loggedFirstServerBatch -> {
                         loggedFirstServerBatch = true
                         logPerf(
-                            "loadFriendsFeed[firstBatch](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                            "loadFriendsFeed[firstBatch](uid=$uid, manual=$isManualRefresh) -> total=$totalKnown, hydrated=${batch.items.size} en $elapsedMs ms"
                         )
                     }
                     batch.isComplete -> logPerf(
-                        "loadFriendsFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                        "loadFriendsFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=$totalKnown, hydrated=${batch.items.size} en $elapsedMs ms"
                     )
                 }
-                _state.update {
-                    it.copy(
-                        isFeedLoading = false,
-                        isFriendsBackgroundSyncing = !batch.isComplete,
-                        feedItems = visible,
-                        totalFriendsFeedCount = batch.items.size,
-                        hasMoreFriendsFeed = batch.items.size > visible.size,
-                        feedError = null,
-                        hasLoadedFeed = true
-                    )
-                }
+                applyProgressiveBatch(
+                    controller = friendsController,
+                    batch = batch,
+                    uid = uid,
+                    publishState = ::publishFriendsState
+                )
             }
         }
     }
 
     fun loadMoreFriendsFeed() {
-        if (allFriendsFeedItems.isEmpty()) return
-        val nextCount = (friendsVisibleCount + FEED_PAGE_SIZE).coerceAtMost(allFriendsFeedItems.size)
-        if (nextCount <= friendsVisibleCount) return
-        friendsVisibleCount = nextCount
-        val visible = allFriendsFeedItems.take(friendsVisibleCount)
+        val useCase = getFriendsCapricesUseCase
+        loadNextFeedPage(
+            controller = friendsController,
+            nextPageFlowProvider = useCase?.let { uc ->
+                { loadedCount ->
+                    uc.observeNextPage(
+                        currentUserId = currentUserId,
+                        currentLoadedCount = loadedCount,
+                        initialBatchSize = INITIAL_FAST_BATCH_SIZE,
+                        pageSize = FEED_PAGE_SIZE
+                    )
+                }
+            },
+            publishState = ::publishFriendsState
+        )
+    }
+
+    private fun publishFriendsState(
+        visibleItems: List<CapriceFeedItem>,
+        totalCount: Int,
+        hasMore: Boolean,
+        isBackgroundSyncing: Boolean
+    ) {
         _state.update {
             it.copy(
-                feedItems = visible,
-                totalFriendsFeedCount = allFriendsFeedItems.size,
-                hasMoreFriendsFeed = allFriendsFeedItems.size > visible.size
+                isFeedLoading = false,
+                isFriendsBackgroundSyncing = isBackgroundSyncing,
+                feedItems = visibleItems,
+                totalFriendsFeedCount = totalCount,
+                hasMoreFriendsFeed = hasMore,
+                feedError = null,
+                hasLoadedFeed = true
             )
         }
     }
@@ -322,8 +368,7 @@ class CapriceViewModel(
 
         if (locationRepository != null && !locationRepository.hasLocationPermission()) {
             if (!sameUser) {
-                allNearbyFeedItems = emptyList()
-                nearbyVisibleCount = FEED_PAGE_SIZE
+                nearbyController.reset()
             }
             _state.update {
                 it.copy(
@@ -351,8 +396,7 @@ class CapriceViewModel(
         if (lastNearbyLoadedUserId != null && lastNearbyLoadedUserId != uid) {
             lastNearbyLoadedAtMillis = null
             lastNearbyLoadedUserId = null
-            allNearbyFeedItems = emptyList()
-            nearbyVisibleCount = FEED_PAGE_SIZE
+            nearbyController.reset()
             _state.update {
                 it.copy(
                     nearbyFeedItems = emptyList(),
@@ -379,6 +423,14 @@ class CapriceViewModel(
         }
 
         nearbyFeedLoadJob?.cancel()
+        nearbyController.revealJob?.cancel()
+        nearbyController.loadMoreJob?.cancel()
+        if (isManualRefresh) {
+            nearbyController.reset()
+        } else {
+            nearbyController.visiblePageLimit = FEED_PAGE_SIZE
+            nearbyController.isSourceComplete = false
+        }
         _state.update {
             it.copy(
                 isNearbyFeedLoading = true,
@@ -391,7 +443,6 @@ class CapriceViewModel(
         nearbyFeedLoadJob = viewModelScope.launch(ioDispatcher) {
             val startedAt = clockMillis()
             if (isManualRefresh) {
-                nearbyVisibleCount = FEED_PAGE_SIZE
                 profileCacheControl?.invalidateAll()
                 capriceCacheControl?.invalidateAll()
             }
@@ -436,53 +487,177 @@ class CapriceViewModel(
                     lastNearbyLoadedUserId = uid
                     lastNearbyLoadedAtMillis = clockMillis()
                 }
-                allNearbyFeedItems = batch.items
-                val visible = batch.items.take(nearbyVisibleCount.coerceAtLeast(FEED_PAGE_SIZE))
+                val totalKnown = maxOf(batch.totalAvailableCount, batch.items.size)
+                val visibleTarget = minOf(nearbyController.visiblePageLimit, batch.items.size)
                 val elapsedMs = clockMillis() - startedAt
                 when {
                     batch.isFromCache -> logPerf(
-                        "loadNearbyFeed[cache](uid=$uid) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                        "loadNearbyFeed[cache](uid=$uid) -> total=$totalKnown, hydrated=${batch.items.size}, pageCap=$visibleTarget en $elapsedMs ms"
                     )
                     !batch.isComplete && !loggedFirstServerBatch -> {
                         loggedFirstServerBatch = true
                         logPerf(
-                            "loadNearbyFeed[firstBatch](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                            "loadNearbyFeed[firstBatch](uid=$uid, manual=$isManualRefresh) -> total=$totalKnown, hydrated=${batch.items.size} en $elapsedMs ms"
                         )
                     }
                     batch.isComplete -> logPerf(
-                        "loadNearbyFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=${batch.items.size}, visible=${visible.size} en $elapsedMs ms"
+                        "loadNearbyFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=$totalKnown, hydrated=${batch.items.size} en $elapsedMs ms"
                     )
                 }
-                _state.update {
-                    it.copy(
-                        isNearbyFeedLoading = false,
-                        isNearbyBackgroundSyncing = !batch.isComplete,
-                        nearbyFeedItems = visible,
-                        totalNearbyFeedCount = batch.items.size,
-                        hasMoreNearbyFeed = batch.items.size > visible.size,
-                        nearbyFeedError = null,
-                        nearbyNeedsLocationPermission = false,
-                        nearbyNeedsLocationServices = false,
-                        hasLoadedNearbyFeed = true
-                    )
-                }
+                applyProgressiveBatch(
+                    controller = nearbyController,
+                    batch = batch,
+                    uid = uid,
+                    publishState = ::publishNearbyState
+                )
             }
         }
     }
 
     fun loadMoreNearbyFeed() {
-        if (allNearbyFeedItems.isEmpty()) return
-        val nextCount = (nearbyVisibleCount + FEED_PAGE_SIZE).coerceAtMost(allNearbyFeedItems.size)
-        if (nextCount <= nearbyVisibleCount) return
-        nearbyVisibleCount = nextCount
-        val visible = allNearbyFeedItems.take(nearbyVisibleCount)
+        val useCase = getNearbyCapricesUseCase
+        loadNextFeedPage(
+            controller = nearbyController,
+            nextPageFlowProvider = useCase?.let { uc ->
+                { loadedCount ->
+                    uc.observeNextPage(
+                        currentUserId = currentUserId,
+                        currentLoadedCount = loadedCount,
+                        initialBatchSize = INITIAL_FAST_BATCH_SIZE,
+                        pageSize = FEED_PAGE_SIZE
+                    )
+                }
+            },
+            publishState = ::publishNearbyState
+        )
+    }
+
+    private fun publishNearbyState(
+        visibleItems: List<CapriceFeedItem>,
+        totalCount: Int,
+        hasMore: Boolean,
+        isBackgroundSyncing: Boolean
+    ) {
         _state.update {
             it.copy(
-                nearbyFeedItems = visible,
-                totalNearbyFeedCount = allNearbyFeedItems.size,
-                hasMoreNearbyFeed = allNearbyFeedItems.size > visible.size
+                isNearbyFeedLoading = false,
+                isNearbyBackgroundSyncing = isBackgroundSyncing,
+                nearbyFeedItems = visibleItems,
+                totalNearbyFeedCount = totalCount,
+                hasMoreNearbyFeed = hasMore,
+                nearbyFeedError = null,
+                nearbyNeedsLocationPermission = false,
+                nearbyNeedsLocationServices = false,
+                hasLoadedNearbyFeed = true
             )
         }
+    }
+
+    private fun applyProgressiveBatch(
+        controller: PagedFeedController,
+        batch: ProgressiveFeedBatch,
+        uid: String,
+        publishState: (List<CapriceFeedItem>, Int, Boolean, Boolean) -> Unit
+    ) {
+        controller.loadedItems = batch.items
+        controller.totalAvailableCount = maxOf(batch.totalAvailableCount, batch.items.size)
+        if (batch.isComplete) {
+            controller.isSourceComplete = true
+        }
+        val targetInWindow = minOf(controller.visiblePageLimit, controller.loadedItems.size)
+        val currentPageIndex = ((controller.visiblePageLimit - 1).coerceAtLeast(0)) / FEED_PAGE_SIZE
+        val pageStart = currentPageIndex * FEED_PAGE_SIZE
+        val instantEnd = minOf(pageStart + INITIAL_FAST_BATCH_SIZE, targetInWindow)
+        controller.revealedCount = when {
+            controller.revealedCount < instantEnd -> instantEnd
+            controller.revealedCount > targetInWindow -> targetInWindow
+            else -> controller.revealedCount
+        }
+        scheduleProgressiveReveal(controller, uid, publishState)
+    }
+
+    private fun loadNextFeedPage(
+        controller: PagedFeedController,
+        nextPageFlowProvider: ((Int) -> Flow<ProgressiveFeedBatch>)?,
+        publishState: (List<CapriceFeedItem>, Int, Boolean, Boolean) -> Unit
+    ) {
+        val uid = currentUserId
+        if (uid.isBlank()) return
+        val knownTotal = maxOf(controller.totalAvailableCount, controller.loadedItems.size)
+        if (knownTotal == 0) return
+
+        val nextLimit = (controller.visiblePageLimit + FEED_PAGE_SIZE).coerceAtMost(knownTotal)
+        if (nextLimit <= controller.visiblePageLimit &&
+            controller.revealedCount >= minOf(controller.visiblePageLimit, controller.loadedItems.size)
+        ) {
+            return
+        }
+        controller.visiblePageLimit = nextLimit
+
+        if (controller.loadedItems.size >= nextLimit || nextPageFlowProvider == null) {
+            val targetInWindow = minOf(nextLimit, controller.loadedItems.size)
+            controller.revealedCount = (controller.revealedCount + INITIAL_FAST_BATCH_SIZE)
+                .coerceAtMost(targetInWindow)
+            scheduleProgressiveReveal(controller, uid, publishState)
+            return
+        }
+
+        if (controller.loadMoreJob?.isActive == true) return
+        controller.isSourceComplete = false
+        publishControllerSnapshot(controller, publishState)
+        controller.loadMoreJob = viewModelScope.launch(ioDispatcher) {
+            nextPageFlowProvider(controller.loadedItems.size)
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    controller.isSourceComplete = true
+                    publishControllerSnapshot(controller, publishState)
+                }
+                .collect { batch ->
+                    if (currentUserId != uid) return@collect
+                    applyProgressiveBatch(controller, batch, uid, publishState)
+                }
+        }
+    }
+
+    private fun scheduleProgressiveReveal(
+        controller: PagedFeedController,
+        uid: String,
+        publishState: (List<CapriceFeedItem>, Int, Boolean, Boolean) -> Unit
+    ) {
+        controller.revealJob?.cancel()
+        controller.revealJob = null
+        publishControllerSnapshot(controller, publishState)
+
+        val targetInWindow = minOf(controller.visiblePageLimit, controller.loadedItems.size)
+        if (controller.revealedCount < targetInWindow) {
+            controller.revealJob = viewModelScope.launch(ioDispatcher) {
+                while (controller.revealedCount < minOf(controller.visiblePageLimit, controller.loadedItems.size)) {
+                    delay(FEED_REVEAL_STEP_DELAY_MS)
+                    if (currentUserId != uid) return@launch
+                    val cap = minOf(controller.visiblePageLimit, controller.loadedItems.size)
+                    controller.revealedCount = (controller.revealedCount + INITIAL_FAST_BATCH_SIZE).coerceAtMost(cap)
+                    publishControllerSnapshot(controller, publishState)
+                }
+            }
+        }
+    }
+
+    private fun publishControllerSnapshot(
+        controller: PagedFeedController,
+        publishState: (List<CapriceFeedItem>, Int, Boolean, Boolean) -> Unit
+    ) {
+        val cap = minOf(controller.visiblePageLimit, controller.loadedItems.size)
+        val visibleCount = controller.revealedCount.coerceAtMost(cap)
+        val total = maxOf(controller.totalAvailableCount, controller.loadedItems.size)
+        val stillStepping = visibleCount < cap
+        val hasMore = total > visibleCount && !stillStepping
+        val isBackgroundSyncing = !controller.isSourceComplete || stillStepping
+        publishState(
+            controller.loadedItems.take(visibleCount),
+            total,
+            hasMore,
+            isBackgroundSyncing
+        )
     }
 
     fun onNearbyFeedPermissionDenied() {

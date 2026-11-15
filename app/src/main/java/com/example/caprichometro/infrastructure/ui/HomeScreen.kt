@@ -269,6 +269,7 @@ fun HomeScreen(
                             items = state.feedItems,
                             totalCount = state.totalFriendsFeedCount,
                             hasMore = state.hasMoreFriendsFeed,
+                            isBackgroundSyncing = state.isFriendsBackgroundSyncing,
                             onLoadMore = { viewModel.loadMoreFriendsFeed() },
                             nowMillis = nowMillis,
                             onSelectFeedItem = onSelectFeedItem,
@@ -365,6 +366,7 @@ fun HomeScreen(
                                 items = state.nearbyFeedItems,
                                 totalCount = state.totalNearbyFeedCount,
                                 hasMore = state.hasMoreNearbyFeed,
+                                isBackgroundSyncing = state.isNearbyBackgroundSyncing,
                                 onLoadMore = { viewModel.loadMoreNearbyFeed() },
                                 nowMillis = nowMillis,
                                 onSelectFeedItem = onSelectFeedItem,
@@ -639,6 +641,7 @@ private fun FeedItemsList(
     items: List<CapriceFeedItem>,
     totalCount: Int,
     hasMore: Boolean,
+    isBackgroundSyncing: Boolean,
     onLoadMore: () -> Unit,
     nowMillis: Long,
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
@@ -647,6 +650,8 @@ private fun FeedItemsList(
 ) {
     val listState = rememberLazyListState()
     val sections = remember(items) { splitByDistanceRadius(items) }
+    val showPaginationFooter = (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE) &&
+        (!isBackgroundSyncing || !hasMore || (items.size >= CapriceViewModel.FEED_PAGE_SIZE && items.size % CapriceViewModel.FEED_PAGE_SIZE == 0))
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -685,7 +690,7 @@ private fun FeedItemsList(
             }
         }
 
-        if (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE) {
+        if (showPaginationFooter) {
             item(key = "feed_pagination_footer") {
                 FeedPaginationFooter(
                     visibleCount = items.size,
