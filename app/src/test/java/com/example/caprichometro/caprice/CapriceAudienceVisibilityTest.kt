@@ -403,4 +403,77 @@ class CapriceAudienceVisibilityTest {
         assertThat(page2Batches[1].totalAvailableCount).isEqualTo(27)
         assertThat(requestedServerProfiles).containsExactly("f_a", "f_b")
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `GetFriendsCapricesUseCase refreshCachedDistances recalcula distancias y reordena sin reconsultar Firestore`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val madrid = ApproximateLocation(40.4168, -3.7038)
+        val madridCell = NearbyCellGrid.cellId(madrid)
+        val valenciaCell = NearbyCellGrid.cellId(ApproximateLocation(39.4699, -0.3763))
+
+        val friendshipRepo = mockk<FriendshipRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val capriceRepo = mockk<CapriceRepository>()
+        val acceptedUseCase = mockk<GetAcceptedFriendsUseCase>()
+        val locationRepo = mockk<DeviceLocationRepository>()
+
+        val friendA = UserProfile(uid = "f_a", username = "ana")
+        val friendB = UserProfile(uid = "f_b", username = "bruno")
+
+        val localOlder = Caprice(
+            id = "local_old", userId = "f_a", question = "¿Cerca?", answer1 = "Sí", answer2 = "No",
+            timestamp = 1_000L, locationCell = madridCell
+        )
+        val farNewer = Caprice(
+            id = "far_new", userId = "f_b", question = "¿Lejos?", answer1 = "Sí", answer2 = "No",
+            timestamp = 5_000L, locationCell = valenciaCell
+        )
+        val friendships = listOf(
+            Friendship("fa", listOf("me", "f_a"), "me", FriendshipStatus.ACCEPTED),
+            Friendship("fb", listOf("me", "f_b"), "me", FriendshipStatus.ACCEPTED)
+        )
+
+        var permissionGranted = false
+        every { locationRepo.hasLocationPermission() } answers { permissionGranted }
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(madrid)
+
+        every { friendshipRepo.getFriendships("me") } returns flowOf(friendships)
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked("me", any()) } returns Result.success(false)
+        coEvery { userRepo.getUserById("f_a") } returns Result.success(friendA)
+        coEvery { userRepo.getUserById("f_b") } returns Result.success(friendB)
+        coEvery { capriceRepo.getCaprices("f_a", 100) } returns Result.success(listOf(localOlder))
+        coEvery { capriceRepo.getCaprices("f_b", 100) } returns Result.success(listOf(farNewer))
+
+        val useCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedUseCase,
+            capriceRepository = capriceRepo,
+            defaultDispatcher = testDispatcher,
+            friendshipRepository = friendshipRepo,
+            userProfileRepository = userRepo,
+            locationRepository = locationRepo
+        )
+
+        // Arranque inicial sin permiso: ordena solo por timestamp (far_new arriba) sin distancias
+        val initialBatch = useCase.observeProgressiveFeed(
+            currentUserId = "me",
+            initialBatchSize = 5,
+            perFriendLimit = 100,
+            totalLimit = 200,
+            includeCache = false
+        ).toList().last()
+        assertThat(initialBatch.items.map { it.caprice.id }).containsExactly("far_new", "local_old")
+        assertThat(initialBatch.items).allMatch { it.approximateDistanceMeters == null }
+
+        // Al concederse permiso, recalcula distancias en memoria sin volver a consultar Firestore
+        permissionGranted = true
+        val refreshed = useCase.refreshCachedDistances(currentUserId = "me", visiblePageLimit = 20)
+        assertThat(refreshed).isNotNull
+        assertThat(refreshed!!.items.map { it.caprice.id }).containsExactly("local_old", "far_new")
+        assertThat(refreshed.items[0].approximateDistanceMeters).isLessThan(5_000.0)
+        assertThat(refreshed.items[1].approximateDistanceMeters).isGreaterThan(50_000.0)
+        io.mockk.coVerify(exactly = 1) { capriceRepo.getCaprices("f_a", 100) }
+        io.mockk.coVerify(exactly = 1) { capriceRepo.getCaprices("f_b", 100) }
+    }
 }
