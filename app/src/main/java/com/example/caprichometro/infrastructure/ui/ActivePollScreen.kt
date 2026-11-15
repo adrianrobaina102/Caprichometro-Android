@@ -53,6 +53,29 @@ private val TextGray = Color(0xFFAAAAAA)
 private val OptionCardBg = Color(0xFF1A1A1D)
 private val OptionCardBorder = Color(0xFF2C2C30)
 
+/**
+ * Resuelve la acción al pulsar la cabecera/avatar del autor sin exponer perfiles ajenos no amigos.
+ */
+internal fun resolveAuthorTapAction(
+    authorUserId: String?,
+    fallbackUserId: String? = null,
+    canOpenAuthorProfile: Boolean,
+    onNavigateToAuthorProfile: ((String) -> Unit)?,
+    onOpenPublicAuthorInfo: (() -> Unit)?
+): (() -> Unit)? {
+    val resolvedTargetId = authorUserId?.takeIf { it.isNotBlank() }
+        ?: fallbackUserId?.takeIf { it.isNotBlank() }
+    return when {
+        canOpenAuthorProfile && resolvedTargetId != null && onNavigateToAuthorProfile != null -> {
+            { onNavigateToAuthorProfile(resolvedTargetId) }
+        }
+        !canOpenAuthorProfile && onOpenPublicAuthorInfo != null -> {
+            onOpenPublicAuthorInfo
+        }
+        else -> null
+    }
+}
+
 @Composable
 internal fun CapriceLocationPill(
     distanceMeters: Double?,
@@ -105,7 +128,9 @@ fun ActivePollScreen(
     onTimerFinished: () -> Unit = {},
     onNavigateToAuthorProfile: ((String) -> Unit)? = null,
     canOpenAuthorProfileOverride: Boolean = true,
-    approximateDistanceMeters: Double? = null
+    approximateDistanceMeters: Double? = null,
+    authorLocationCell: String? = null,
+    onOpenPublicAuthorInfo: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isFriendPoll = when {
@@ -120,9 +145,9 @@ fun ActivePollScreen(
     }
 
     // Inicialización del ViewModel reactivo si está presente
-    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters) {
+    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters, authorLocationCell) {
         if (caprice != null && currentUserId.isNotBlank() && viewModel != null) {
-            viewModel.initialize(caprice, currentUserId, authorUsername, approximateDistanceMeters)
+            viewModel.initialize(caprice, currentUserId, authorUsername, approximateDistanceMeters, authorLocationCell)
         }
     }
 
@@ -206,6 +231,13 @@ fun ActivePollScreen(
     val avatarUsername = cleanAuthor
         ?: caprice?.userId?.takeIf { it.isNotBlank() }
         ?: "C"
+    val authorTapAction = resolveAuthorTapAction(
+        authorUserId = caprice?.userId,
+        fallbackUserId = currentUserId.takeIf { !isFriendPoll },
+        canOpenAuthorProfile = canOpenAuthorProfileOverride,
+        onNavigateToAuthorProfile = onNavigateToAuthorProfile,
+        onOpenPublicAuthorInfo = onOpenPublicAuthorInfo
+    )
 
     Scaffold(
         containerColor = DarkBackground,
@@ -223,11 +255,6 @@ fun ActivePollScreen(
                         tint = Color.White
                     )
                 }
-                val canOpenAuthorProfile = canOpenAuthorProfileOverride &&
-                    isFriendPoll &&
-                    !caprice?.userId.isNullOrBlank() &&
-                    onNavigateToAuthorProfile != null
-
                 Text(
                     text = headerTitle,
                     color = Color.White,
@@ -236,8 +263,8 @@ fun ActivePollScreen(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (canOpenAuthorProfile) {
-                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                            if (authorTapAction != null) {
+                                Modifier.clickable { authorTapAction() }
                             } else Modifier
                         ),
                     textAlign = TextAlign.Center
@@ -248,8 +275,8 @@ fun ActivePollScreen(
                     size = 32.dp,
                     backgroundColor = LimeGreen,
                     fontSize = 14.sp,
-                    modifier = if (canOpenAuthorProfile) {
-                        Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                    modifier = if (authorTapAction != null) {
+                        Modifier.clickable { authorTapAction() }
                     } else {
                         Modifier
                     }
@@ -270,7 +297,15 @@ fun ActivePollScreen(
             val isPublicNearby = !caprice?.nearbyCell.isNullOrBlank()
             Box(
                 modifier = Modifier
+                    .clip(RoundedCornerShape(50))
                     .background(Color(0xFF1A1A1A), RoundedCornerShape(50))
+                    .then(
+                        if (authorTapAction != null) {
+                            Modifier.clickable { authorTapAction() }
+                        } else {
+                            Modifier
+                        }
+                    )
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -290,7 +325,7 @@ fun ActivePollScreen(
                 distanceMeters = vmState?.approximateDistanceMeters ?: approximateDistanceMeters,
                 placeName = vmState?.approximatePlaceName,
                 isResolvingPlaceName = vmState?.isResolvingPlaceName == true,
-                hasDistanceCell = !caprice?.distanceCell().isNullOrBlank()
+                hasDistanceCell = !caprice?.effectiveDistanceCell(authorLocationCell).isNullOrBlank()
             )
 
             Spacer(modifier = Modifier.height(16.dp))

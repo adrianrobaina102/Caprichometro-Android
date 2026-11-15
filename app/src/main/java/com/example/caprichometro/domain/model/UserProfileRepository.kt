@@ -7,5 +7,6 @@ interface UserProfileRepository {
     suspend fun getCachedUserById(userId: String): UserProfile? = null
     suspend fun updateBio(userId: String, bio: String): Result<Unit>
     suspend fun updatePhotoUrl(userId: String, photoUrl: String): Result<Unit> = Result.success(Unit)
+    suspend fun updateLocationCell(userId: String, locationCell: String?): Result<Unit> = Result.success(Unit)
     suspend fun deleteProfile(userId: String, username: String): Result<Unit>
 }

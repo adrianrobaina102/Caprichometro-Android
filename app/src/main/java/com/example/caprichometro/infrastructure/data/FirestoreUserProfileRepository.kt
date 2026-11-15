@@ -76,6 +76,10 @@ class FirestoreUserProfileRepository(
                 if (profile.photoUrl.isNotBlank()) {
                     userData["photoUrl"] = profile.photoUrl
                 }
+                val normalizedLocationCell = profile.locationCell?.trim()?.takeIf { it.isNotEmpty() }
+                if (normalizedLocationCell != null) {
+                    userData["locationCell"] = normalizedLocationCell
+                }
 
                 val usernameData = mapOf(
                     "uid" to profile.uid
@@ -149,6 +153,7 @@ class FirestoreUserProfileRepository(
 
         val bio = (get("bio") as? String)?.trim().orEmpty()
         val photoUrl = (get("photoUrl") as? String)?.trim().orEmpty()
+        val locationCell = (get("locationCell") as? String)?.trim()?.takeIf { it.isNotEmpty() }
         val createdAt = try {
             getTimestamp("createdAt")?.toDate()
                 ?: getDate("createdAt")
@@ -163,7 +168,8 @@ class FirestoreUserProfileRepository(
             username = username,
             createdAt = createdAt,
             bio = bio,
-            photoUrl = photoUrl
+            photoUrl = photoUrl,
+            locationCell = locationCell
         )
     }
 
@@ -206,6 +212,35 @@ class FirestoreUserProfileRepository(
             Result.failure(e)
         }
     }
+
+    override suspend fun updateLocationCell(userId: String, locationCell: String?): Result<Unit> =
+        withContext(ioDispatcher) {
+            if (userId.isBlank()) {
+                return@withContext Result.failure(IllegalArgumentException("El userId no puede estar vacío."))
+            }
+            val normalizedCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return@withContext Result.success(Unit)
+            if (userProfileCache[userId]?.profile?.locationCell == normalizedCell) {
+                return@withContext Result.success(Unit)
+            }
+            try {
+                db.collection("users").document(userId)
+                    .update("locationCell", normalizedCell)
+                    .await()
+
+                userProfileCache[userId]?.let { entry ->
+                    userProfileCache[userId] = CachedProfileEntry(
+                        profile = entry.profile.copy(locationCell = normalizedCell),
+                        cachedAtMillis = clockMillis()
+                    )
+                }
+                Result.success(Unit)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
     override suspend fun deleteProfile(userId: String, username: String): Result<Unit> = withContext(ioDispatcher) {
         try {

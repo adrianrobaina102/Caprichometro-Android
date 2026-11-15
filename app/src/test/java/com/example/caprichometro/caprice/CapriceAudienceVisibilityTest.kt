@@ -476,4 +476,80 @@ class CapriceAudienceVisibilityTest {
         io.mockk.coVerify(exactly = 1) { capriceRepo.getCaprices("f_a", 100) }
         io.mockk.coVerify(exactly = 1) { capriceRepo.getCaprices("f_b", 100) }
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `GetFriendsCapricesUseCase usa author locationCell como respaldo sin pisar la celda propia del capricho`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val madrid = ApproximateLocation(40.4168, -3.7038)
+        val madridCell = NearbyCellGrid.cellId(madrid)
+        val valenciaCell = NearbyCellGrid.cellId(ApproximateLocation(39.4699, -0.3763))
+
+        val friendshipRepo = mockk<FriendshipRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val capriceRepo = mockk<CapriceRepository>()
+        val acceptedUseCase = mockk<GetAcceptedFriendsUseCase>()
+        val locationRepo = mockk<DeviceLocationRepository>()
+
+        val friendA = UserProfile(uid = "f_a", username = "ana", locationCell = madridCell)
+        val friendB = UserProfile(uid = "f_b", username = "bruno", locationCell = madridCell)
+
+        val legacyWithoutCapriceCell = Caprice(
+            id = "legacy_friend",
+            userId = "f_a",
+            question = "¿Capricho histórico sin celda?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 2_000L,
+            locationCell = null,
+            nearbyCell = null
+        )
+        val explicitCapriceCell = Caprice(
+            id = "explicit_cell",
+            userId = "f_b",
+            question = "¿Capricho publicado desde otra ciudad?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 3_000L,
+            locationCell = valenciaCell,
+            nearbyCell = null
+        )
+
+        val friendships = listOf(
+            Friendship("fa", listOf("me", "f_a"), "me", FriendshipStatus.ACCEPTED),
+            Friendship("fb", listOf("me", "f_b"), "me", FriendshipStatus.ACCEPTED)
+        )
+
+        every { locationRepo.hasLocationPermission() } returns true
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(madrid)
+        every { friendshipRepo.getFriendships("me") } returns flowOf(friendships)
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked("me", any()) } returns Result.success(false)
+        coEvery { userRepo.getUserById("f_a") } returns Result.success(friendA)
+        coEvery { userRepo.getUserById("f_b") } returns Result.success(friendB)
+        coEvery { capriceRepo.getCaprices("f_a", 100) } returns Result.success(listOf(legacyWithoutCapriceCell))
+        coEvery { capriceRepo.getCaprices("f_b", 100) } returns Result.success(listOf(explicitCapriceCell))
+
+        val useCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedUseCase,
+            capriceRepository = capriceRepo,
+            defaultDispatcher = testDispatcher,
+            friendshipRepository = friendshipRepo,
+            userProfileRepository = userRepo,
+            locationRepository = locationRepo
+        )
+
+        val finalBatch = useCase.observeProgressiveFeed(
+            currentUserId = "me",
+            initialBatchSize = 5,
+            perFriendLimit = 100,
+            totalLimit = 200,
+            includeCache = false
+        ).toList().last()
+
+        assertThat(finalBatch.hasViewerLocation).isTrue()
+        assertThat(finalBatch.items.map { it.caprice.id }).containsExactly("legacy_friend", "explicit_cell")
+        assertThat(finalBatch.items[0].approximateDistanceMeters).isLessThan(5_000.0)
+        assertThat(finalBatch.items[1].approximateDistanceMeters).isGreaterThan(50_000.0)
+    }
 }

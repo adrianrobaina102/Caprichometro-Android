@@ -37,6 +37,13 @@ data class Caprice(
         locationCell?.trim()?.takeIf { it.isNotEmpty() }
             ?: nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
 
+    /**
+     * Celda efectiva para mostrar distancia en Amigos, usando como respaldo opcional la celda
+     * aproximada del autor cuando el capricho antiguo/iOS aún no incluye `locationCell`.
+     */
+    fun effectiveDistanceCell(authorLocationCell: String? = null): String? =
+        distanceCell() ?: authorLocationCell?.trim()?.takeIf { it.isNotEmpty() }
+
     class Builder {
         private var id: String = UUID.randomUUID().toString()
         private var userId: String = ""

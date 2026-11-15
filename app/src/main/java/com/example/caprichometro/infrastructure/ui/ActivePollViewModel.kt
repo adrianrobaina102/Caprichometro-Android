@@ -71,7 +71,8 @@ class ActivePollViewModel(
         caprice: Caprice,
         currentUserId: String,
         authorUsername: String? = null,
-        approximateDistanceMeters: Double? = null
+        approximateDistanceMeters: Double? = null,
+        authorLocationCell: String? = null
     ) {
         val previousCaprice = _state.value.caprice
         val isSameUserAndCaprice = previousCaprice?.id == caprice.id && _state.value.currentUserId == currentUserId
@@ -86,7 +87,7 @@ class ActivePollViewModel(
         tickerJob?.cancel()
         placeNameJob?.cancel()
 
-        val cell = caprice.distanceCell()
+        val cell = caprice.effectiveDistanceCell(authorLocationCell)
         _state.value = ActivePollUiState(
             caprice = caprice,
             authorUsername = authorUsername,

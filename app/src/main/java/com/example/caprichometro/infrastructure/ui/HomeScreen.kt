@@ -46,6 +46,7 @@ import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.NearbyCellGrid
+import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.splitByDistanceRadius
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
@@ -66,7 +67,8 @@ fun HomeScreen(
     viewModel: CapriceViewModel,
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToFriends: () -> Unit = {},
-    onNavigateToUserProfile: (String) -> Unit = {}
+    onNavigateToUserProfile: (String) -> Unit = {},
+    onOpenNonFriendProfile: (UserProfile) -> Unit = {}
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -327,6 +329,7 @@ fun HomeScreen(
                                 nowMillis = nowMillis,
                                 onSelectFeedItem = onSelectFeedItem,
                                 onNavigateToUserProfile = onNavigateToUserProfile,
+                                onOpenNonFriendProfile = onOpenNonFriendProfile,
                                 onImageClick = { fullScreenImageUrl = it }
                             )
                         }
@@ -419,6 +422,7 @@ fun HomeScreen(
                                 nowMillis = nowMillis,
                                 onSelectFeedItem = onSelectFeedItem,
                                 onNavigateToUserProfile = onNavigateToUserProfile,
+                                onOpenNonFriendProfile = onOpenNonFriendProfile,
                                 onImageClick = { fullScreenImageUrl = it }
                             )
                         }
@@ -751,6 +755,7 @@ private fun FeedItemsList(
     nowMillis: Long,
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToUserProfile: (String) -> Unit,
+    onOpenNonFriendProfile: (UserProfile) -> Unit,
     onImageClick: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -773,6 +778,7 @@ private fun FeedItemsList(
                 nowMillis = nowMillis,
                 onClick = { onSelectFeedItem(item) },
                 onNavigateToUserProfile = onNavigateToUserProfile,
+                onOpenNonFriendProfile = onOpenNonFriendProfile,
                 onImageClick = onImageClick
             )
         }
@@ -790,6 +796,7 @@ private fun FeedItemsList(
                     nowMillis = nowMillis,
                     onClick = { onSelectFeedItem(item) },
                     onNavigateToUserProfile = onNavigateToUserProfile,
+                    onOpenNonFriendProfile = onOpenNonFriendProfile,
                     onImageClick = onImageClick
                 )
             }
@@ -917,6 +924,7 @@ private fun CapriceFeedCard(
     nowMillis: Long,
     onClick: () -> Unit,
     onNavigateToUserProfile: (String) -> Unit = {},
+    onOpenNonFriendProfile: (UserProfile) -> Unit = {},
     onImageClick: (String) -> Unit = {}
 ) {
     val caprice = item.caprice
@@ -943,8 +951,9 @@ private fun CapriceFeedCard(
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        // Cabecera: Avatar + @username clicables solo si es un perfil accesible (no desconocidos de General)
+        // Cabecera: Avatar + @username siempre reactivos (perfil si amigo/propio, ficha añadir si desconocido)
         val canOpenAuthor = item.canOpenAuthorProfile && author.uid.isNotBlank()
+        val hasAuthorTapAction = author.uid.isNotBlank()
         val distanceLabel = remember(item.approximateDistanceMeters) {
             item.approximateDistanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
         }
@@ -957,8 +966,14 @@ private fun CapriceFeedCard(
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .then(
-                        if (canOpenAuthor) {
-                            Modifier.clickable { onNavigateToUserProfile(author.uid) }
+                        if (hasAuthorTapAction) {
+                            Modifier.clickable {
+                                if (canOpenAuthor) {
+                                    onNavigateToUserProfile(author.uid)
+                                } else {
+                                    onOpenNonFriendProfile(author)
+                                }
+                            }
                         } else {
                             Modifier
                         }

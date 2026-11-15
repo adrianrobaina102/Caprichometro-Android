@@ -10,8 +10,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -27,13 +30,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
 import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
@@ -41,12 +48,14 @@ import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCas
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.InviteDeepLink
+import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.security.AppCheckInstaller
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
@@ -153,6 +162,31 @@ fun CapriceApp(
     var previousScreenBeforeProfile by remember { mutableStateOf("home") }
     var selectedFeedItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
     var selectedProfileCaprice by remember { mutableStateOf<Caprice?>(null) }
+    var selectedPublicAuthor by remember { mutableStateOf<UserProfile?>(null) }
+
+    val openProfile: (String, String) -> Unit = { authorId, fromScreen ->
+        if (authorId.isNotBlank()) {
+            viewingProfileUserId = authorId
+            previousScreenBeforeProfile = fromScreen
+            currentScreen = "profile"
+        }
+    }
+    val canOpenAuthorProfileFor: (String?, Boolean) -> Boolean = { authorId, feedCanOpen ->
+        feedCanOpen ||
+            (!authorId.isNullOrBlank() && (
+                authorId == currentUserId ||
+                    friendshipState.friends.any { it.uid == authorId }
+                ))
+    }
+    val resolveAuthorForCaprice: (Caprice?, CapriceFeedItem?) -> UserProfile? = { targetCaprice, feedItem ->
+        when {
+            targetCaprice == null -> null
+            targetCaprice.userId == currentUserId -> ownUserProfile
+            feedItem?.caprice?.id == targetCaprice.id -> feedItem.author
+            profileState.profile?.uid == targetCaprice.userId -> profileState.profile
+            else -> friendshipState.friends.firstOrNull { it.uid == targetCaprice.userId }
+        }
+    }
 
     // Intercepta enlaces de invitación (Deep Links) y notificaciones pulsadas
     LaunchedEffect(pendingIntent, authState.isAuthSuccessful, currentUserId) {
@@ -319,18 +353,25 @@ fun CapriceApp(
                                         currentScreen = "add_friend"
                                     },
                                     onNavigateToUserProfile = { authorId ->
-                                        viewingProfileUserId = authorId
-                                        previousScreenBeforeProfile = "home"
-                                        currentScreen = "profile"
+                                        openProfile(authorId, "home")
+                                    },
+                                    onOpenNonFriendProfile = { author ->
+                                        selectedPublicAuthor = author
                                     }
                                 )
                             }
                             "friend_poll" -> {
                                 val item = selectedFeedItem
+                                val pollAuthor = resolveAuthorForCaprice(item?.caprice, item) ?: item?.author
+                                val canOpenProfile = canOpenAuthorProfileFor(
+                                    item?.caprice?.userId,
+                                    item?.canOpenAuthorProfile != false
+                                )
                                 ActivePollScreen(
                                     caprice = item?.caprice,
-                                    authorUsername = item?.author?.username,
-                                    authorPhotoUrl = item?.author?.photoUrl,
+                                    authorUsername = pollAuthor?.username,
+                                    authorPhotoUrl = pollAuthor?.photoUrl,
+                                    authorLocationCell = pollAuthor?.locationCell,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     onNavigateBack = { currentScreen = "home" },
@@ -339,11 +380,12 @@ fun CapriceApp(
                                         currentScreen = "result"
                                     },
                                     onNavigateToAuthorProfile = { authorId ->
-                                        viewingProfileUserId = authorId
-                                        previousScreenBeforeProfile = "friend_poll"
-                                        currentScreen = "profile"
+                                        openProfile(authorId, "friend_poll")
                                     },
-                                    canOpenAuthorProfileOverride = item?.canOpenAuthorProfile != false,
+                                    onOpenPublicAuthorInfo = pollAuthor?.let { author ->
+                                        { selectedPublicAuthor = author }
+                                    },
+                                    canOpenAuthorProfileOverride = canOpenProfile,
                                     approximateDistanceMeters = item?.approximateDistanceMeters
                                 )
                             }
@@ -359,15 +401,20 @@ fun CapriceApp(
                             }
                             "active" -> {
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
-                                val activeAuthor = when {
-                                    capriceToShow == null -> null
-                                    capriceToShow.userId == currentUserId -> ownUserProfile
-                                    else -> friendshipState.friends.firstOrNull { it.uid == capriceToShow.userId }
-                                }
+                                val activeAuthor = resolveAuthorForCaprice(capriceToShow, selectedFeedItem)
+                                val canOpenProfile = canOpenAuthorProfileFor(
+                                    capriceToShow?.userId,
+                                    if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
+                                        selectedFeedItem?.canOpenAuthorProfile != false
+                                    } else {
+                                        true
+                                    }
+                                )
                                 ActivePollScreen(
                                     caprice = capriceToShow,
                                     authorUsername = activeAuthor?.username,
                                     authorPhotoUrl = activeAuthor?.photoUrl,
+                                    authorLocationCell = activeAuthor?.locationCell,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     onNavigateBack = {
@@ -378,24 +425,39 @@ fun CapriceApp(
                                             currentScreen = "create"
                                         }
                                     },
-                                    onTimerFinished = { currentScreen = "result" }
+                                    onTimerFinished = { currentScreen = "result" },
+                                    onNavigateToAuthorProfile = { authorId ->
+                                        openProfile(authorId, "active")
+                                    },
+                                    onOpenPublicAuthorInfo = activeAuthor?.let { author ->
+                                        { selectedPublicAuthor = author }
+                                    },
+                                    canOpenAuthorProfileOverride = canOpenProfile,
+                                    approximateDistanceMeters = if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
+                                        selectedFeedItem?.approximateDistanceMeters
+                                    } else {
+                                        null
+                                    }
                                 )
                             }
                             "result" -> {
                                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
-                                val resultAuthor = when {
-                                    capriceToShow == null -> null
-                                    capriceToShow.userId == currentUserId -> ownUserProfile
-                                    selectedFeedItem?.caprice?.id == capriceToShow.id -> selectedFeedItem?.author
-                                    profileState.profile?.uid == capriceToShow.userId -> profileState.profile
-                                    else -> friendshipState.friends.firstOrNull { it.uid == capriceToShow.userId }
-                                }
+                                val resultAuthor = resolveAuthorForCaprice(capriceToShow, selectedFeedItem)
+                                val canOpenProfile = canOpenAuthorProfileFor(
+                                    capriceToShow?.userId,
+                                    if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
+                                        selectedFeedItem?.canOpenAuthorProfile != false
+                                    } else {
+                                        true
+                                    }
+                                )
                                 ResultScreen(
                                     caprice = capriceToShow,
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     authorUsername = resultAuthor?.username,
                                     authorPhotoUrl = resultAuthor?.photoUrl,
+                                    authorLocationCell = resultAuthor?.locationCell,
                                     onCapriceUpdated = { updated ->
                                         selectedProfileCaprice = updated
                                         val decision = updated.finalDecision
@@ -412,15 +474,12 @@ fun CapriceApp(
                                         currentScreen = if (wasFromProfile) "profile" else "home"
                                     },
                                     onNavigateToAuthorProfile = { authorId ->
-                                        viewingProfileUserId = authorId
-                                        previousScreenBeforeProfile = "result"
-                                        currentScreen = "profile"
+                                        openProfile(authorId, "result")
                                     },
-                                    canOpenAuthorProfileOverride = if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
-                                        selectedFeedItem?.canOpenAuthorProfile != false
-                                    } else {
-                                        true
+                                    onOpenPublicAuthorInfo = resultAuthor?.let { author ->
+                                        { selectedPublicAuthor = author }
                                     },
+                                    canOpenAuthorProfileOverride = canOpenProfile,
                                     approximateDistanceMeters = if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
                                         selectedFeedItem?.approximateDistanceMeters
                                     } else {
@@ -436,10 +495,11 @@ fun CapriceApp(
                                         viewingProfileUserId = currentUserId
                                         currentScreen = "profile"
                                     },
+                                    onOpenOwnProfile = {
+                                        openProfile(currentUserId, "add_friend")
+                                    },
                                     onViewProfile = { friendUserId ->
-                                        viewingProfileUserId = friendUserId
-                                        previousScreenBeforeProfile = "add_friend"
-                                        currentScreen = "profile"
+                                        openProfile(friendUserId, "add_friend")
                                     }
                                 )
                             }
@@ -472,6 +532,7 @@ fun CapriceApp(
                                         viewingProfileUserId = ""
                                         selectedFeedItem = null
                                         selectedProfileCaprice = null
+                                        selectedPublicAuthor = null
                                         currentScreen = "home"
                                     }
                                 )
@@ -539,6 +600,107 @@ fun CapriceApp(
                         }
                     }
                 }
+
+                selectedPublicAuthor?.let { author ->
+                    val cleanUsername = author.username.trim().removePrefix("@").ifBlank { "usuario" }
+                    val isSelfAuthor = author.uid.isNotBlank() && author.uid == currentUserId
+                    val isFriendAuthor = author.uid.isNotBlank() && friendshipState.friends.any { it.uid == author.uid }
+                    GeneralAuthorProfileSheet(
+                        author = author,
+                        cleanUsername = cleanUsername,
+                        isSelfOrFriend = isSelfAuthor || isFriendAuthor,
+                        onDismiss = { selectedPublicAuthor = null },
+                        onOpenFullProfile = {
+                            selectedPublicAuthor = null
+                            if (author.uid.isNotBlank()) {
+                                openProfile(author.uid, currentScreen)
+                            }
+                        },
+                        onSearchFriend = {
+                            selectedPublicAuthor = null
+                            currentScreen = "add_friend"
+                            friendshipViewModel.openInviteForUsername(cleanUsername)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GeneralAuthorProfileSheet(
+    author: UserProfile,
+    cleanUsername: String,
+    isSelfOrFriend: Boolean,
+    onDismiss: () -> Unit,
+    onOpenFullProfile: () -> Unit,
+    onSearchFriend: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF141416),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF3A3A3C)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            UserAvatar(
+                photoUrl = author.photoUrl,
+                username = cleanUsername,
+                size = 68.dp,
+                backgroundColor = ActiveLime,
+                fontSize = 26.sp,
+                modifier = Modifier.border(1.5.dp, ActiveLime.copy(alpha = 0.45f), CircleShape)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "@$cleanUsername",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = author.bio.takeIf { it.isNotBlank() }
+                    ?: if (isSelfOrFriend) {
+                        "Publicó este capricho cerca de ti."
+                    } else {
+                        "Publicó este capricho en General cerca de ti. Los perfiles completos solo se abren entre amigos."
+                    },
+                color = Color(0xFF9E9EA6),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = if (isSelfOrFriend) onOpenFullProfile else onSearchFriend,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ActiveLime,
+                    contentColor = Color.Black
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text(
+                    text = if (isSelfOrFriend) "Ver perfil completo" else "Buscar y añadir a Amigos",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
             }
         }
     }

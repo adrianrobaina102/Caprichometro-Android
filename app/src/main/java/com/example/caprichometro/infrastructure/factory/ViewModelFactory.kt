@@ -100,7 +100,8 @@ class ViewModelFactory(private val context: Context? = null) {
             profileCacheControl = userProfileRepository,
             capriceCacheControl = capriceRepository,
             getNearbyCapricesUseCase = getNearbyCapricesUseCase,
-            locationRepository = locationRepository
+            locationRepository = locationRepository,
+            userProfileRepository = userProfileRepository
         )
     }
 

@@ -15,6 +15,7 @@ import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
+import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 
 enum class HomeFeedTab {
     FRIENDS,
@@ -77,7 +79,8 @@ class CapriceViewModel(
     private val clockMillis: () -> Long = { System.currentTimeMillis() },
     private val currentUserIdProvider: () -> String = { FirebaseAuth.getInstance().currentUser?.uid ?: "" },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val capriceCacheControl: CapriceCacheControl? = null
+    private val capriceCacheControl: CapriceCacheControl? = null,
+    private val userProfileRepository: UserProfileRepository? = null
 ) : ViewModel() {
 
     companion object {
@@ -124,6 +127,7 @@ class CapriceViewModel(
     private var lastNearbyLoadedUserId: String? = null
     private val friendsController = PagedFeedController()
     private val nearbyController = PagedFeedController()
+    private val syncedLocationCells = ConcurrentHashMap<String, String>()
 
     private val currentUserId: String
         get() = currentUserIdProvider()
@@ -141,6 +145,7 @@ class CapriceViewModel(
         privateLocationJob = null
         lastNearbyLoadedAtMillis = null
         lastNearbyLoadedUserId = null
+        syncedLocationCells.clear()
         friendsController.reset()
         nearbyController.reset()
         _state.value = CapriceState()
@@ -171,14 +176,17 @@ class CapriceViewModel(
         val normalizedCell = nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
         var normalizedLocationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
             ?: normalizedCell
-        if (normalizedLocationCell == null && _state.value.isLocationPermissionGranted && locationRepository != null) {
-            val resolvedLoc = withTimeoutOrNull(800L) {
+        val hasPermNow = _state.value.isLocationPermissionGranted ||
+            (locationRepository?.hasLocationPermission() == true)
+        if (normalizedLocationCell == null && hasPermNow && locationRepository != null) {
+            val resolvedLoc = withTimeoutOrNull(1_500L) {
                 locationRepository.currentApproximateLocation().getOrNull()
             }
             if (resolvedLoc != null) {
                 normalizedLocationCell = NearbyCellGrid.cellId(resolvedLoc)
             }
         }
+        normalizedLocationCell?.let { syncUserLocationCellInBackground(uid, it) }
         capriceBuilder.setNearbyCell(normalizedCell)
         capriceBuilder.setLocationCell(normalizedLocationCell)
 
@@ -265,7 +273,8 @@ class CapriceViewModel(
             friendsController.visiblePageLimit = FEED_PAGE_SIZE
             friendsController.isSourceComplete = false
         }
-        friendsController.loadedWithLocationPermission = _state.value.isLocationPermissionGranted
+        val startedWithPermission = _state.value.isLocationPermissionGranted
+        friendsController.loadedWithLocationPermission = startedWithPermission
         // Marcamos la carga síncronamente para evitar carreras al arrancar entre MainActivity y HomeScreen
         _state.update {
             it.copy(
@@ -318,8 +327,10 @@ class CapriceViewModel(
                         "loadFriendsFeed[complete](uid=$uid, manual=$isManualRefresh) -> total=$totalKnown, hydrated=${batch.items.size} en $elapsedMs ms"
                     )
                 }
-                if (batch.isComplete && batch.items.any { it.approximateDistanceMeters != null }) {
-                    friendsController.loadedWithLocationPermission = true
+                val resolvedWithLocation = batch.hasViewerLocation ||
+                    batch.items.any { it.approximateDistanceMeters != null }
+                if (batch.isComplete) {
+                    friendsController.loadedWithLocationPermission = resolvedWithLocation
                 }
                 applyProgressiveBatch(
                     controller = friendsController,
@@ -327,6 +338,15 @@ class CapriceViewModel(
                     uid = uid,
                     publishState = ::publishFriendsState
                 )
+                if (batch.isComplete && _state.value.isLocationPermissionGranted) {
+                    val grantedDuringLoad = !startedWithPermission
+                    if (userProfileRepository != null && (resolvedWithLocation || grantedDuringLoad)) {
+                        preparePrivateLocationCellIfPermitted()
+                    }
+                    if (!resolvedWithLocation && grantedDuringLoad) {
+                        refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = false)
+                    }
+                }
             }
         }
     }
@@ -534,6 +554,9 @@ class CapriceViewModel(
                     uid = uid,
                     publishState = ::publishNearbyState
                 )
+                if (batch.isComplete && userProfileRepository != null) {
+                    preparePrivateLocationCellIfPermitted()
+                }
             }
         }
     }
@@ -714,7 +737,7 @@ class CapriceViewModel(
         val useCase = getFriendsCapricesUseCase ?: return
         if (uid.isBlank() || !_state.value.hasLoadedFeed) return
         val hasItemsWithCellMissingDistance = friendsController.loadedItems.any {
-            it.caprice.distanceCell() != null && it.approximateDistanceMeters == null
+            it.caprice.effectiveDistanceCell(it.author.locationCell) != null && it.approximateDistanceMeters == null
         }
         val needsRefresh = if (onlyIfMissingDistanceOnLoadedItems) {
             hasItemsWithCellMissingDistance
@@ -735,12 +758,6 @@ class CapriceViewModel(
                     uid = uid,
                     publishState = ::publishFriendsState
                 )
-            } else if (!onlyIfMissingDistanceOnLoadedItems &&
-                !friendsController.loadedWithLocationPermission &&
-                friendsController.isSourceComplete &&
-                feedLoadJob?.isActive != true
-            ) {
-                loadFriendsFeed(isManualRefresh = false)
             }
         }
     }
@@ -751,14 +768,37 @@ class CapriceViewModel(
         if (!_state.value.isLocationPermissionGranted) {
             _state.update { it.copy(isLocationPermissionGranted = true) }
         }
-        if (!_state.value.preparedLocationCell.isNullOrBlank()) return
+        val uid = currentUserId
+        val existingPrepared = _state.value.preparedLocationCell?.takeIf { it.isNotBlank() }
+        if (existingPrepared != null) {
+            syncUserLocationCellInBackground(uid, existingPrepared)
+            return
+        }
         if (privateLocationJob?.isActive == true) return
 
         privateLocationJob = viewModelScope.launch(ioDispatcher) {
             locRepo.currentApproximateLocation().onSuccess { location ->
                 val cellId = NearbyCellGrid.cellId(location)
                 _state.update { it.copy(preparedLocationCell = cellId) }
-                refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
+                syncUserLocationCellInBackground(uid, cellId)
+                refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = friendsController.loadedWithLocationPermission)
+            }
+        }
+    }
+
+    private fun syncUserLocationCellInBackground(uid: String, cellId: String) {
+        if (uid.isBlank() || cellId.isBlank()) return
+        if (syncedLocationCells[uid] == cellId) return
+        val repo = userProfileRepository ?: return
+
+        viewModelScope.launch(ioDispatcher) {
+            val cachedCell = runCatching { repo.getCachedUserById(uid)?.locationCell }.getOrNull()
+            if (cachedCell == cellId) {
+                syncedLocationCells[uid] = cellId
+                return@launch
+            }
+            repo.updateLocationCell(uid, cellId).onSuccess {
+                syncedLocationCells[uid] = cellId
             }
         }
     }
@@ -815,7 +855,8 @@ class CapriceViewModel(
                             nearbyCreationError = null
                         )
                     }
-                    refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
+                    syncUserLocationCellInBackground(currentUserId, cellId)
+                    refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = friendsController.loadedWithLocationPermission)
                 },
                 onFailure = { e ->
                     if (e is CancellationException) return@fold

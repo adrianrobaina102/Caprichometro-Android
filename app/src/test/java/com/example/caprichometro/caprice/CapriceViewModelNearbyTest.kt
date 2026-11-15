@@ -16,6 +16,7 @@ import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
@@ -72,7 +73,9 @@ class CapriceViewModelNearbyTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(): CapriceViewModel {
+    private fun createViewModel(
+        userProfileRepository: UserProfileRepository? = null
+    ): CapriceViewModel {
         return CapriceViewModel(
             saveCapriceUseCase = saveCapriceUseCase,
             getCapricesUseCase = getCapricesUseCase,
@@ -81,6 +84,7 @@ class CapriceViewModelNearbyTest {
             capriceCacheControl = capriceCacheControl,
             getNearbyCapricesUseCase = getNearbyCapricesUseCase,
             locationRepository = locationRepository,
+            userProfileRepository = userProfileRepository,
             clockMillis = { currentClock },
             currentUserIdProvider = { currentUid },
             ioDispatcher = testDispatcher
@@ -579,6 +583,120 @@ class CapriceViewModelNearbyTest {
         testScheduler.runCurrent()
 
         assertThat(activePollVm.state.value.approximateDistanceMeters).isEqualTo(90_000.0)
+        assertThat(activePollVm.state.value.approximatePlaceName).isEqualTo("Madrid")
+        assertThat(activePollVm.state.value.isResolvingPlaceName).isFalse()
+        activePollVm.reset()
+        testScheduler.runCurrent()
+    }
+
+    @Test
+    fun `loadFriendsFeed recalcula distancias si se concede permiso en mitad de la carga y sincroniza locationCell del perfil`() = runTest(testDispatcher) {
+        val madrid = ApproximateLocation(40.4168, -3.7038)
+        val userProfileRepo = mockk<UserProfileRepository>()
+        val authorWithCell = UserProfile(uid = "friend_1", username = "ana", locationCell = "v1_2608_3525")
+        val legacyCaprice = Caprice(
+            id = "f_race",
+            userId = "friend_1",
+            question = "¿Con distancia tras permiso?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 1_000L,
+            locationCell = null,
+            nearbyCell = null
+        )
+        val rawItem = CapriceFeedItem(
+            caprice = legacyCaprice,
+            author = authorWithCell,
+            canOpenAuthorProfile = true,
+            approximateDistanceMeters = null
+        )
+        val itemWithDistance = rawItem.copy(approximateDistanceMeters = 1_500.0)
+
+        var permissionGranted = false
+        var snapshotReady = false
+        every { locationRepository.hasLocationPermission() } answers { permissionGranted }
+        coEvery { locationRepository.currentApproximateLocation() } returns Result.success(madrid)
+        coEvery { userProfileRepo.getCachedUserById("user_1") } returns null
+        coEvery { userProfileRepo.updateLocationCell("user_1", "v1_2608_3525") } returns Result.success(Unit)
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed("user_1", 5, 100, 200, any())
+        } returns flow {
+            emit(ProgressiveFeedBatch(listOf(rawItem), isFromCache = false, isComplete = false, hasViewerLocation = false))
+            delay(50)
+            snapshotReady = true
+            emit(ProgressiveFeedBatch(listOf(rawItem), isFromCache = false, isComplete = true, hasViewerLocation = false))
+        }
+        coEvery {
+            getFriendsCapricesUseCase.refreshCachedDistances("user_1", 20)
+        } answers {
+            if (snapshotReady) {
+                ProgressiveFeedBatch(listOf(itemWithDistance), isFromCache = false, isComplete = true, hasViewerLocation = true)
+            } else {
+                null
+            }
+        }
+
+        val vm = createViewModel(userProfileRepository = userProfileRepo)
+        vm.loadFriendsFeed()
+        testScheduler.advanceTimeBy(10)
+        testScheduler.runCurrent()
+
+        // El usuario concede permiso en mitad de la carga, antes de que cachedSnapshots esté listo
+        permissionGranted = true
+        vm.onLocationPermissionChanged(true)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.feedItems.single().approximateDistanceMeters).isEqualTo(1_500.0)
+        assertThat(vm.state.value.isLocationPermissionGranted).isTrue()
+        coVerify(atLeast = 1) { getFriendsCapricesUseCase.refreshCachedDistances("user_1", 20) }
+        coVerify(exactly = 1) { userProfileRepo.updateLocationCell("user_1", "v1_2608_3525") }
+
+        // Una recarga posterior sin cambio de celda no vuelve a escribir en users/{uid}
+        vm.loadFriendsFeed(isManualRefresh = true)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { userProfileRepo.updateLocationCell("user_1", "v1_2608_3525") }
+    }
+
+    @Test
+    fun `ActivePollViewModel usa authorLocationCell como respaldo cuando el capricho no tiene locationCell`() = runTest(testDispatcher) {
+        val castVote = mockk<CastVoteUseCase>()
+        val observeVotes = mockk<ObserveVotesUseCase>()
+        val calculateVerdict = CalculateVerdictUseCase()
+        val voteRepo = mockk<VoteRepository>()
+        val placeNameUseCase = mockk<GetApproximatePlaceNameUseCase>()
+
+        coEvery { voteRepo.getUserVote("priv_legacy", "user_1") } returns Result.success(null)
+        every { observeVotes.execute("priv_legacy") } returns flowOf(emptyList())
+        coEvery { placeNameUseCase.execute("v1_2608_3525") } returns "Madrid"
+
+        val activePollVm = ActivePollViewModel(
+            castVoteUseCase = castVote,
+            observeVotesUseCase = observeVotes,
+            calculateVerdictUseCase = calculateVerdict,
+            voteRepository = voteRepo,
+            getApproximatePlaceNameUseCase = placeNameUseCase
+        )
+        val legacyFriendCaprice = Caprice(
+            id = "priv_legacy",
+            userId = "friend_1",
+            question = "¿Antigua duda?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = System.currentTimeMillis(),
+            nearbyCell = null,
+            locationCell = null
+        )
+
+        activePollVm.initialize(
+            caprice = legacyFriendCaprice,
+            currentUserId = "user_1",
+            authorUsername = "ana",
+            approximateDistanceMeters = 1_800.0,
+            authorLocationCell = "v1_2608_3525"
+        )
+        testScheduler.runCurrent()
+
+        assertThat(activePollVm.state.value.approximateDistanceMeters).isEqualTo(1_800.0)
         assertThat(activePollVm.state.value.approximatePlaceName).isEqualTo("Madrid")
         assertThat(activePollVm.state.value.isResolvingPlaceName).isFalse()
         activePollVm.reset()

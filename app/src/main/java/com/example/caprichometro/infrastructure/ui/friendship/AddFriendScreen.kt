@@ -75,6 +75,7 @@ fun AddFriendScreen(
     viewModel: FriendshipViewModel,
     currentUserId: String,
     onBack: () -> Unit,
+    onOpenOwnProfile: () -> Unit = onBack,
     onViewProfile: (userId: String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
@@ -246,7 +247,27 @@ fun AddFriendScreen(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            when {
+                                isSelf -> onOpenOwnProfile()
+                                isAlreadyFriend -> onViewProfile(user.uid)
+                                state.isFriendRequestBlocked -> Toast.makeText(
+                                    context,
+                                    "Este usuario no está disponible para solicitudes.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                else -> Toast.makeText(
+                                    context,
+                                    "Pulsa «Añadir» para enviar solicitud y ver el perfil de @${user.username}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                        .padding(end = 8.dp)
                 ) {
                     UserAvatar(
                         photoUrl = user.photoUrl,
@@ -369,7 +390,17 @@ fun AddFriendScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                Toast.makeText(
+                                    context,
+                                    "Acepta la solicitud de @${request.sender.username} para ver su perfil",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            .padding(end = 8.dp)
                     ) {
                         UserAvatar(
                             photoUrl = request.sender.photoUrl,
@@ -598,6 +629,10 @@ fun AddFriendScreen(
             username = usernameToShare,
             photoUrl = state.currentUserProfile?.photoUrl.orEmpty(),
             onDismiss = { showInviteSheet = false },
+            onOpenOwnProfile = {
+                showInviteSheet = false
+                onOpenOwnProfile()
+            },
             onShareInvite = {
                 val shareText = InviteDeepLink.buildShareMessage(usernameToShare)
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -627,6 +662,7 @@ private fun InviteFriendBottomSheet(
     username: String?,
     photoUrl: String = "",
     onDismiss: () -> Unit,
+    onOpenOwnProfile: () -> Unit = {},
     onShareInvite: () -> Unit,
     onCopyDirectLink: () -> Unit
 ) {
@@ -680,7 +716,10 @@ private fun InviteFriendBottomSheet(
                     username = cleanUsername.ifEmpty { "C" },
                     size = 44.dp,
                     backgroundColor = avatarColorFor(cleanUsername.ifEmpty { "capricho" }),
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable { onOpenOwnProfile() }
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))

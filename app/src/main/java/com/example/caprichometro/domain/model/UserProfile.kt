@@ -7,5 +7,6 @@ data class UserProfile(
     val username: String,
     val createdAt: Date = Date(),
     val bio: String = "",
-    val photoUrl: String = ""
+    val photoUrl: String = "",
+    val locationCell: String? = null
 )

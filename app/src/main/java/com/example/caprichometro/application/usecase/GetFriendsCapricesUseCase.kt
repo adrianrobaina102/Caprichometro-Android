@@ -11,6 +11,7 @@ import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.model.sortFriendsFeedItems
 import com.example.caprichometro.domain.model.sortedByFriendsFeedOrder
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import kotlinx.coroutines.CancellationException
@@ -65,6 +66,7 @@ class GetFriendsCapricesUseCase(
         val candidates: List<RawFriendCaprice>,
         val resolvedProfiles: ConcurrentHashMap<String, UserProfile>,
         val missingProfileIds: MutableSet<String>,
+        val viewerLocation: ApproximateLocation? = null,
         val hasViewerLocation: Boolean = false
     )
 
@@ -117,6 +119,7 @@ class GetFriendsCapricesUseCase(
 
         val mutex = Mutex()
         val capricesByFriend = linkedMapOf<String, List<Pair<Caprice, UserProfile?>>>()
+        val cachedProfiles = ConcurrentHashMap<String, UserProfile>()
         val resolvedServerProfiles = ConcurrentHashMap<String, UserProfile>()
         val missingServerProfiles = ConcurrentHashMap.newKeySet<String>()
         var emittedCacheBatch = false
@@ -135,12 +138,13 @@ class GetFriendsCapricesUseCase(
                 val fastLocation = withTimeoutOrNull(CACHE_LOCATION_TIMEOUT_MS) {
                     viewerLocationDeferred.await()
                 }
+                resolveCachedFriendProfiles(capricesByFriend.keys.toList(), cachedProfiles)
                 val sortedCached = buildSortedCandidates(
                     rawByFriend = capricesByFriend,
                     viewerLocation = fastLocation,
-                    totalLimit = totalLimit
+                    totalLimit = totalLimit,
+                    resolvedProfiles = cachedProfiles
                 )
-                val cachedProfiles = ConcurrentHashMap<String, UserProfile>()
                 val visibleTarget = minOf(pageLimit, sortedCached.size)
                 var prevCursor = 0
                 var cursor = minOf(stepSize, visibleTarget)
@@ -150,19 +154,25 @@ class GetFriendsCapricesUseCase(
                         resolvedProfiles = cachedProfiles
                     )
                     val sliceItems = sortedCached.subList(0, cursor).map { candidate ->
+                        val author = cachedProfiles[candidate.caprice.userId]
+                        val distance = candidate.distanceMeters
+                            ?: resolveDistanceMeters(fastLocation, candidate.caprice, author)
                         CapriceFeedItem(
                             caprice = candidate.caprice,
-                            author = cachedProfiles[candidate.caprice.userId]
+                            author = author
                                 ?: UserProfile(uid = candidate.caprice.userId, username = "usuario"),
-                            approximateDistanceMeters = candidate.distanceMeters
+                            approximateDistanceMeters = distance
                         )
+                    }.let { items ->
+                        if (fastLocation != null) sortFriendsFeedItems(items) else items
                     }
                     send(
                         ProgressiveFeedBatch(
                             items = sliceItems,
                             isFromCache = true,
                             isComplete = false,
-                            totalAvailableCount = sortedCached.size
+                            totalAvailableCount = sortedCached.size,
+                            hasViewerLocation = fastLocation != null
                         )
                     )
                     if (cursor >= visibleTarget) break
@@ -178,7 +188,7 @@ class GetFriendsCapricesUseCase(
             // En refresco manual (includeCache = false) evitamos emitir un subconjunto parcial
             // de un solo amigo que encoja temporalmente la lista ya visible.
             if (!includeCache) return
-            val candidatesSnapshot = mutex.withLock {
+            val partialSnapshot = mutex.withLock {
                 val totalRaw = capricesByFriend.values.sumOf { it.size }
                 if (totalRaw == 0) return@withLock null
                 val now = clockMillis()
@@ -195,13 +205,19 @@ class GetFriendsCapricesUseCase(
                     val locationSnapshot = if (viewerLocationDeferred.isCompleted) {
                         runCatching { viewerLocationDeferred.getCompleted() }.getOrNull()
                     } else null
-                    buildSortedCandidates(
+                    val sortingProfiles = HashMap<String, UserProfile>(cachedProfiles).apply {
+                        putAll(resolvedServerProfiles)
+                    }
+                    val candidates = buildSortedCandidates(
                         rawByFriend = capricesByFriend,
                         viewerLocation = locationSnapshot,
-                        totalLimit = totalLimit
+                        totalLimit = totalLimit,
+                        resolvedProfiles = sortingProfiles
                     )
+                    candidates to locationSnapshot
                 } else null
             } ?: return
+            val (candidatesSnapshot, locationSnapshot) = partialSnapshot
 
             val batchTarget = if (!emittedCacheBatch) {
                 minOf(stepSize, candidatesSnapshot.size)
@@ -212,14 +228,16 @@ class GetFriendsCapricesUseCase(
                 candidates = candidatesSnapshot,
                 limit = batchTarget,
                 resolvedProfiles = resolvedServerProfiles,
-                missingProfileIds = missingServerProfiles
+                missingProfileIds = missingServerProfiles,
+                viewerLocation = locationSnapshot
             )
             send(
                 ProgressiveFeedBatch(
                     items = items,
                     isFromCache = false,
                     isComplete = false,
-                    totalAvailableCount = candidatesSnapshot.size
+                    totalAvailableCount = candidatesSnapshot.size,
+                    hasViewerLocation = locationSnapshot != null
                 )
             )
         }
@@ -299,24 +317,36 @@ class GetFriendsCapricesUseCase(
 
         earlyFlushJob?.cancel()
         val finalLocation = viewerLocationDeferred.await()
-        val sortedFinalCandidates = mutex.withLock {
+        val friendIdsToPrecheck = mutex.withLock {
             capricesByFriend.keys.retainAll(confirmedFriendIds)
+            capricesByFriend.keys.toList()
+        }
+        if (includeCache) {
+            resolveCachedFriendProfiles(friendIdsToPrecheck, cachedProfiles)
+        }
+        val finalSortingProfiles = HashMap<String, UserProfile>(cachedProfiles).apply {
+            putAll(resolvedServerProfiles)
+        }
+        val sortedFinalCandidates = mutex.withLock {
             buildSortedCandidates(
                 rawByFriend = capricesByFriend,
                 viewerLocation = finalLocation,
-                totalLimit = totalLimit
+                totalLimit = totalLimit,
+                resolvedProfiles = finalSortingProfiles
             )
         }
         val (page1Items, validCandidates) = hydrateValidFriendsSlice(
             candidates = sortedFinalCandidates,
             limit = pageLimit,
             resolvedProfiles = resolvedServerProfiles,
-            missingProfileIds = missingServerProfiles
+            missingProfileIds = missingServerProfiles,
+            viewerLocation = finalLocation
         )
         cachedSnapshots[currentUserId] = FriendsPageSnapshot(
             candidates = validCandidates,
             resolvedProfiles = resolvedServerProfiles,
             missingProfileIds = missingServerProfiles,
+            viewerLocation = finalLocation,
             hasViewerLocation = finalLocation != null
         )
         send(
@@ -324,7 +354,8 @@ class GetFriendsCapricesUseCase(
                 items = page1Items,
                 isFromCache = false,
                 isComplete = true,
-                totalAvailableCount = validCandidates.size
+                totalAvailableCount = validCandidates.size,
+                hasViewerLocation = finalLocation != null
             )
         )
     }.flowOn(defaultDispatcher)
@@ -341,12 +372,8 @@ class GetFriendsCapricesUseCase(
         val viewerLocation = resolveViewerLocationOrNull() ?: return@withContext null
         val recalculated = sortedByFriendsFeedOrder(
             items = snapshot.candidates.map { candidate ->
-                val cell = candidate.caprice.distanceCell()
-                val distanceMeters = if (cell != null) {
-                    NearbyCellGrid.distanceInMeters(viewerLocation, cell)
-                } else {
-                    null
-                }
+                val authorProfile = candidate.fallbackAuthor ?: snapshot.resolvedProfiles[candidate.caprice.userId]
+                val distanceMeters = resolveDistanceMeters(viewerLocation, candidate.caprice, authorProfile)
                 candidate.copy(distanceMeters = distanceMeters)
             },
             distanceOf = { it.distanceMeters },
@@ -357,17 +384,20 @@ class GetFriendsCapricesUseCase(
             candidates = recalculated,
             limit = safeLimit,
             resolvedProfiles = snapshot.resolvedProfiles,
-            missingProfileIds = snapshot.missingProfileIds
+            missingProfileIds = snapshot.missingProfileIds,
+            viewerLocation = viewerLocation
         )
         cachedSnapshots[currentUserId] = snapshot.copy(
             candidates = validCandidates,
+            viewerLocation = viewerLocation,
             hasViewerLocation = true
         )
         ProgressiveFeedBatch(
             items = hydratedItems,
             isFromCache = false,
             isComplete = true,
-            totalAvailableCount = validCandidates.size
+            totalAvailableCount = validCandidates.size,
+            hasViewerLocation = true
         )
     }
 
@@ -388,7 +418,8 @@ class GetFriendsCapricesUseCase(
                     candidates = it.candidates,
                     limit = it.candidates.size,
                     resolvedProfiles = it.resolvedProfiles,
-                    missingProfileIds = it.missingProfileIds
+                    missingProfileIds = it.missingProfileIds,
+                    viewerLocation = it.viewerLocation
                 ).first
             }.orEmpty()
             emit(
@@ -396,7 +427,8 @@ class GetFriendsCapricesUseCase(
                     items = currentItems,
                     isFromCache = false,
                     isComplete = true,
-                    totalAvailableCount = currentItems.size
+                    totalAvailableCount = currentItems.size,
+                    hasViewerLocation = snapshot?.hasViewerLocation == true
                 )
             )
             return@flow
@@ -412,7 +444,8 @@ class GetFriendsCapricesUseCase(
                 candidates = workingCandidates,
                 limit = targetCount,
                 resolvedProfiles = snapshot.resolvedProfiles,
-                missingProfileIds = snapshot.missingProfileIds
+                missingProfileIds = snapshot.missingProfileIds,
+                viewerLocation = snapshot.viewerLocation
             )
             workingCandidates = prunedCandidates
             cachedSnapshots[currentUserId] = snapshot.copy(candidates = prunedCandidates)
@@ -424,7 +457,8 @@ class GetFriendsCapricesUseCase(
                     items = hydratedItems,
                     isFromCache = false,
                     isComplete = isLast,
-                    totalAvailableCount = prunedCandidates.size
+                    totalAvailableCount = prunedCandidates.size,
+                    hasViewerLocation = snapshot.hasViewerLocation
                 )
             )
             if (isLast) break
@@ -489,19 +523,24 @@ class GetFriendsCapricesUseCase(
         candidates: List<RawFriendCaprice>,
         limit: Int,
         resolvedProfiles: ConcurrentHashMap<String, UserProfile>,
-        missingProfileIds: MutableSet<String>
+        missingProfileIds: MutableSet<String>,
+        viewerLocation: ApproximateLocation? = null
     ): Pair<List<CapriceFeedItem>, List<RawFriendCaprice>> {
         val uRepo = userProfileRepository
         if (uRepo == null) {
             val valid = candidates.filter { it.fallbackAuthor != null }
-            val items = valid.take(limit).map {
+            val items = valid.take(limit).map { candidate ->
+                val author = candidate.fallbackAuthor!!
+                val distance = candidate.distanceMeters
+                    ?: resolveDistanceMeters(viewerLocation, candidate.caprice, author)
                 CapriceFeedItem(
-                    caprice = it.caprice,
-                    author = it.fallbackAuthor!!,
-                    approximateDistanceMeters = it.distanceMeters
+                    caprice = candidate.caprice,
+                    author = author,
+                    approximateDistanceMeters = distance
                 )
             }
-            return items to valid
+            val ordered = if (viewerLocation != null) sortFriendsFeedItems(items) else items
+            return ordered to valid
         }
 
         val working = candidates.filter { it.caprice.userId !in missingProfileIds }.toMutableList()
@@ -536,31 +575,31 @@ class GetFriendsCapricesUseCase(
 
         val hydrated = working.take(limit).mapNotNull { candidate ->
             val profile = resolvedProfiles[candidate.caprice.userId] ?: return@mapNotNull null
+            val distance = candidate.distanceMeters
+                ?: resolveDistanceMeters(viewerLocation, candidate.caprice, profile)
             CapriceFeedItem(
                 caprice = candidate.caprice,
                 author = profile,
-                approximateDistanceMeters = candidate.distanceMeters
+                approximateDistanceMeters = distance
             )
         }
-        return hydrated to working
+        val ordered = if (viewerLocation != null) sortFriendsFeedItems(hydrated) else hydrated
+        return ordered to working
     }
 
     private fun buildSortedCandidates(
         rawByFriend: Map<String, List<Pair<Caprice, UserProfile?>>>,
         viewerLocation: ApproximateLocation?,
-        totalLimit: Int
+        totalLimit: Int,
+        resolvedProfiles: Map<String, UserProfile> = emptyMap()
     ): List<RawFriendCaprice> {
         val seenIds = HashSet<String>()
         val raw = mutableListOf<RawFriendCaprice>()
         for (list in rawByFriend.values) {
             for ((caprice, fallbackAuthor) in list) {
                 if (!seenIds.add(caprice.id)) continue
-                val cell = caprice.distanceCell()
-                val distanceMeters = if (viewerLocation != null && cell != null) {
-                    NearbyCellGrid.distanceInMeters(viewerLocation, cell)
-                } else {
-                    null
-                }
+                val knownAuthor = fallbackAuthor ?: resolvedProfiles[caprice.userId]
+                val distanceMeters = resolveDistanceMeters(viewerLocation, caprice, knownAuthor)
                 raw.add(
                     RawFriendCaprice(
                         caprice = caprice,
@@ -575,6 +614,16 @@ class GetFriendsCapricesUseCase(
             distanceOf = { it.distanceMeters },
             capriceOf = { it.caprice }
         ).take(totalLimit.coerceAtLeast(1))
+    }
+
+    private fun resolveDistanceMeters(
+        viewerLocation: ApproximateLocation?,
+        caprice: Caprice,
+        author: UserProfile?
+    ): Double? {
+        val loc = viewerLocation ?: return null
+        val cell = caprice.effectiveDistanceCell(author?.locationCell) ?: return null
+        return NearbyCellGrid.distanceInMeters(loc, cell)
     }
 
     private suspend fun resolveViewerLocationOrNull(): ApproximateLocation? {

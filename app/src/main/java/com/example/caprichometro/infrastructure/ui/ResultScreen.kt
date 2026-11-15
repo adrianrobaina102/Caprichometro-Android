@@ -52,9 +52,11 @@ fun ResultScreen(
     currentUserId: String = "",
     authorUsername: String? = null,
     authorPhotoUrl: String? = null,
+    authorLocationCell: String? = null,
     onCapriceUpdated: ((Caprice) -> Unit)? = null,
     onGoHome: () -> Unit,
     onNavigateToAuthorProfile: ((String) -> Unit)? = null,
+    onOpenPublicAuthorInfo: (() -> Unit)? = null,
     canOpenAuthorProfileOverride: Boolean = true,
     approximateDistanceMeters: Double? = null
 ) {
@@ -73,10 +75,10 @@ fun ResultScreen(
         ?: displayedCaprice?.userId?.firstOrNull()?.uppercaseChar()?.toString()
         ?: "A"
 
-    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters) {
+    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters, authorLocationCell) {
         val effectiveUserId = currentUserId.ifBlank { caprice?.userId.orEmpty() }
         if (caprice != null && viewModel != null && (vmState?.caprice?.id != caprice.id || vmState?.currentUserId != effectiveUserId)) {
-            viewModel.initialize(caprice, effectiveUserId, resolvedUsername, approximateDistanceMeters)
+            viewModel.initialize(caprice, effectiveUserId, resolvedUsername, approximateDistanceMeters, authorLocationCell)
         }
     }
 
@@ -86,6 +88,16 @@ fun ResultScreen(
             expiredVerdict ?: CalculateVerdictUseCase().execute(caprice, vmState?.votes.orEmpty())
         } else null
     }
+    val avatarUsername = resolvedUsername
+        ?: displayedCaprice?.userId?.takeIf { it.isNotBlank() }
+        ?: authorInitial
+    val authorTapAction = resolveAuthorTapAction(
+        authorUserId = displayedCaprice?.userId ?: caprice?.userId,
+        fallbackUserId = currentUserId,
+        canOpenAuthorProfile = canOpenAuthorProfileOverride,
+        onNavigateToAuthorProfile = onNavigateToAuthorProfile,
+        onOpenPublicAuthorInfo = onOpenPublicAuthorInfo
+    )
 
     Scaffold(
         containerColor = DarkBackground,
@@ -103,9 +115,6 @@ fun ResultScreen(
                         tint = Color.White
                     )
                 }
-                val canOpenAuthorProfile = canOpenAuthorProfileOverride &&
-                    !caprice?.userId.isNullOrBlank() &&
-                    onNavigateToAuthorProfile != null
                 Text(
                     text = "El veredicto",
                     color = Color.White,
@@ -114,20 +123,20 @@ fun ResultScreen(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (canOpenAuthorProfile) {
-                                Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                            if (authorTapAction != null) {
+                                Modifier.clickable { authorTapAction() }
                             } else Modifier
                         ),
                     textAlign = TextAlign.Center
                 )
                 UserAvatar(
                     photoUrl = authorPhotoUrl.orEmpty(),
-                    username = resolvedUsername ?: authorInitial,
+                    username = avatarUsername,
                     size = 32.dp,
                     backgroundColor = LimeGreen,
                     fontSize = 14.sp,
-                    modifier = if (canOpenAuthorProfile) {
-                        Modifier.clickable { onNavigateToAuthorProfile?.invoke(caprice!!.userId) }
+                    modifier = if (authorTapAction != null) {
+                        Modifier.clickable { authorTapAction() }
                     } else {
                         Modifier
                     }
@@ -176,11 +185,33 @@ fun ResultScreen(
                 )
             }
 
+            if (resolvedUsername != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF1A1A1A))
+                        .then(
+                            if (authorTapAction != null) {
+                                Modifier.clickable { authorTapAction() }
+                            } else Modifier
+                        )
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = "@$resolvedUsername",
+                        color = if (authorTapAction != null) LimeGreen else TextGray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
             CapriceLocationPill(
                 distanceMeters = vmState?.approximateDistanceMeters ?: approximateDistanceMeters,
                 placeName = vmState?.approximatePlaceName,
                 isResolvingPlaceName = vmState?.isResolvingPlaceName == true,
-                hasDistanceCell = !displayedCaprice?.distanceCell().isNullOrBlank()
+                hasDistanceCell = !displayedCaprice?.effectiveDistanceCell(authorLocationCell).isNullOrBlank()
             )
 
             Spacer(modifier = Modifier.height(24.dp))

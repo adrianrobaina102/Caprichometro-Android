@@ -8,5 +8,6 @@ data class ProgressiveFeedBatch(
     val items: List<CapriceFeedItem>,
     val isFromCache: Boolean,
     val isComplete: Boolean,
-    val totalAvailableCount: Int = items.size
+    val totalAvailableCount: Int = items.size,
+    val hasViewerLocation: Boolean = false
 )

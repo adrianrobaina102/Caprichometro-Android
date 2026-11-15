@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.util.ImageCompressor
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
@@ -167,6 +168,7 @@ fun ProfileScreen(
     var showFriendOptionsSheet by remember { mutableStateOf(false) }
     var showRemoveFriendDialog by remember { mutableStateOf(false) }
     var showBlockFriendDialog by remember { mutableStateOf(false) }
+    var isProfilePhotoExpanded by remember { mutableStateOf(false) }
 
     val handleSelectedAvatarUri: (Uri) -> Unit = { uri ->
         coroutineScope.launch {
@@ -820,7 +822,17 @@ fun ProfileScreen(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            Toast.makeText(
+                                                context,
+                                                "@${blockedUser.username} está bloqueado. Pulsa «Desbloquear» si quieres volver a interactuar.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                        .padding(end = 8.dp)
                                 ) {
                                     UserAvatar(
                                         photoUrl = blockedUser.photoUrl,
@@ -1038,12 +1050,14 @@ fun ProfileScreen(
                 size = 104.dp,
                 backgroundColor = avatarColorFor(rawUsername),
                 fontSize = 38.sp,
-                modifier = if (state.isOwnProfile) {
-                    Modifier.clickable(enabled = !state.isSavingPhoto) {
+                modifier = Modifier.clickable(enabled = !state.isOwnProfile || !state.isSavingPhoto) {
+                    if (state.isOwnProfile) {
                         showAvatarOptionsSheet = true
+                    } else if (!state.profile?.photoUrl.isNullOrBlank()) {
+                        isProfilePhotoExpanded = true
+                    } else {
+                        Toast.makeText(context, "@$rawUsername aún no tiene foto de perfil", Toast.LENGTH_SHORT).show()
                     }
-                } else {
-                    Modifier
                 }
             )
 
@@ -1385,6 +1399,14 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+
+    if (isProfilePhotoExpanded && !state.profile?.photoUrl.isNullOrBlank()) {
+        FullScreenImageViewer(
+            imageUrl = state.profile!!.photoUrl,
+            contentDescription = "Foto de perfil de @$rawUsername",
+            onDismiss = { isProfilePhotoExpanded = false }
+        )
     }
 }
 
