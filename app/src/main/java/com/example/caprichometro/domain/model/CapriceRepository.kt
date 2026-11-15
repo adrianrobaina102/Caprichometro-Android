@@ -5,6 +5,8 @@ interface CapriceRepository {
 
     suspend fun getCaprices(userId: String, limit: Int): Result<List<Caprice>>
 
+    suspend fun getCachedCaprices(userId: String, limit: Int): List<Caprice> = emptyList()
+
     suspend fun deleteCapricesForUser(userId: String): Result<Unit> = Result.success(Unit)
 
     suspend fun updateFinalDecision(

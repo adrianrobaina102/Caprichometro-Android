@@ -15,9 +15,13 @@ import com.example.caprichometro.domain.model.ApproximateLocation
 import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -30,7 +34,7 @@ class AndroidLocationRepository(
         // Para celdas aproximadas de ~5.5 km una lectura reciente de 10 minutos evita esperas de GPS en General
         private const val MAX_CACHED_LOCATION_AGE_MS = 10 * 60_000L
         private const val MAX_ACCEPTABLE_ACCURACY_METERS = 20_000f
-        private const val CURRENT_LOCATION_TIMEOUT_MS = 1_800L
+        private const val CURRENT_LOCATION_TIMEOUT_MS = 2_500L
     }
 
     private val appContext = context.applicationContext
@@ -61,43 +65,61 @@ class AndroidLocationRepository(
             return Result.failure(DeviceLocationException.LocationServicesDisabled())
         }
 
-        if (!requestMutex.tryLock()) {
-            return Result.failure(DeviceLocationException.RequestInProgress())
+        findCachedLocation(locationManager, checkFreshness = true)?.let { cached ->
+            return Result.success(cached)
         }
 
-        return try {
-            findCachedLocation(locationManager, checkFreshness = true)?.let { cached ->
-                return Result.success(cached)
-            }
-
-            val fallbackCached = findCachedLocation(locationManager, checkFreshness = false)
-            val providersToQuery = if (fallbackCached != null) {
-                providers.take(1)
-            } else {
-                providers
-            }
-
-            for (provider in providersToQuery) {
-                val fixed = fetchCurrentLocationFromProvider(locationManager, provider)
-                val validated = fixed?.toApproximateLocationOrNull(checkFreshness = false)
-                if (validated != null) {
-                    return Result.success(validated)
+        return requestMutex.withLock {
+            try {
+                findCachedLocation(locationManager, checkFreshness = true)?.let { cached ->
+                    return@withLock Result.success(cached)
                 }
-            }
 
-            fallbackCached?.let { fallback ->
-                return Result.success(fallback)
-            }
+                val fallbackCached = findCachedLocation(locationManager, checkFreshness = false)
+                val firstFresh = fetchFirstAvailableLocation(locationManager, providers)
+                if (firstFresh != null) {
+                    return@withLock Result.success(firstFresh)
+                }
 
-            Result.failure(DeviceLocationException.LocationUnavailable())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: SecurityException) {
-            Result.failure(DeviceLocationException.PermissionDenied())
-        } catch (e: Exception) {
-            Result.failure(DeviceLocationException.LocationUnavailable())
-        } finally {
-            requestMutex.unlock()
+                fallbackCached?.let { fallback ->
+                    return@withLock Result.success(fallback)
+                }
+
+                Result.failure(DeviceLocationException.LocationUnavailable())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SecurityException) {
+                Result.failure(DeviceLocationException.PermissionDenied())
+            } catch (e: Exception) {
+                Result.failure(DeviceLocationException.LocationUnavailable())
+            }
+        }
+    }
+
+    private suspend fun fetchFirstAvailableLocation(
+        locationManager: LocationManager,
+        providers: List<String>
+    ): ApproximateLocation? {
+        return withTimeoutOrNull(CURRENT_LOCATION_TIMEOUT_MS) {
+            coroutineScope {
+                val winner = CompletableDeferred<ApproximateLocation?>()
+                val jobs = providers.map { provider ->
+                    launch {
+                        val raw = fetchCurrentLocationFromProvider(locationManager, provider)
+                        val validated = raw?.toApproximateLocationOrNull(checkFreshness = false)
+                        if (validated != null) {
+                            winner.complete(validated)
+                        }
+                    }
+                }
+                launch {
+                    jobs.forEach { it.join() }
+                    winner.complete(null)
+                }
+                val result = winner.await()
+                jobs.forEach { it.cancel() }
+                result
+            }
         }
     }
 

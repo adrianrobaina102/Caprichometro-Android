@@ -14,11 +14,13 @@ data class Caprice(
     val visibleToUserIds: List<String> = emptyList(),
     val finalDecision: Int? = null,
     val finalDecisionAt: Long? = null,
-    val nearbyCell: String? = null
+    val nearbyCell: String? = null,
+    val locationCell: String? = null
 ) {
     /**
      * Comprueba si [viewerUserId] tiene permiso para ver este capricho.
      * Un `nearbyCell` no vacío lo hace público para cualquier usuario autenticado en General.
+     * `locationCell` solo aporta ubicación aproximada en Amigos y nunca abre visibilidad pública.
      * Un `visibleToUserIds` vacío mantiene compatibilidad con documentos antiguos o de iOS.
      */
     fun isVisibleTo(viewerUserId: String): Boolean {
@@ -27,6 +29,13 @@ data class Caprice(
         if (!nearbyCell.isNullOrBlank()) return true
         return visibleToUserIds.isEmpty() || viewerUserId in visibleToUserIds
     }
+
+    /**
+     * Celda aproximada usada para calcular distancia tanto en Amigos como en General.
+     */
+    fun distanceCell(): String? =
+        locationCell?.trim()?.takeIf { it.isNotEmpty() }
+            ?: nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
 
     class Builder {
         private var id: String = UUID.randomUUID().toString()
@@ -41,6 +50,7 @@ data class Caprice(
         private var finalDecision: Int? = null
         private var finalDecisionAt: Long? = null
         private var nearbyCell: String? = null
+        private var locationCell: String? = null
 
         fun setId(id: String) = apply { this.id = id }
         fun setUserId(userId: String) = apply { this.userId = userId }
@@ -62,6 +72,9 @@ data class Caprice(
         fun setNearbyCell(nearbyCell: String?) = apply {
             this.nearbyCell = nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
         }
+        fun setLocationCell(locationCell: String?) = apply {
+            this.locationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
+        }
 
         fun build(): Caprice {
             check(question.isNotBlank()) { "La pregunta es obligatoria" }
@@ -78,7 +91,8 @@ data class Caprice(
                 visibleToUserIds = visibleToUserIds,
                 finalDecision = finalDecision,
                 finalDecisionAt = finalDecisionAt,
-                nearbyCell = nearbyCell
+                nearbyCell = nearbyCell,
+                locationCell = locationCell
             )
         }
     }

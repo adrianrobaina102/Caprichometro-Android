@@ -6,6 +6,7 @@ import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +77,10 @@ class FirestoreCapriceRepository(
             if (normalizedNearbyCell != null) {
                 data["nearbyCell"] = normalizedNearbyCell
             }
+            val normalizedLocationCell = caprice.locationCell?.trim()?.takeIf { it.isNotEmpty() }
+            if (normalizedLocationCell != null) {
+                data["locationCell"] = normalizedLocationCell
+            }
             val document = db.collection(collectionName).add(data).await()
             invalidateUser(caprice.userId)
             Result.success(document.id)
@@ -102,10 +107,7 @@ class FirestoreCapriceRepository(
                 }
                 try {
                     val startedAt = clockMillis()
-                    val documents = fetchCapriceDocuments(userId)
-                    val allSorted = documents
-                        .mapNotNull { doc -> doc.toCapriceOrNull("FirestoreCapriceRepo") }
-                        .sortedByDescending { it.timestamp }
+                    val allSorted = fetchSortedCaprices(userId = userId, source = null)
                     userCapricesCache[userId] = CachedCapricesEntry(allSorted, clockMillis())
                     Log.d(
                         "FeedPerf",
@@ -118,6 +120,21 @@ class FirestoreCapriceRepository(
                     Log.e("FirestoreCapriceRepo", "Error obteniendo caprichos para $userId: ${e.message}", e)
                     Result.failure(e)
                 }
+            }
+        }
+
+    override suspend fun getCachedCaprices(userId: String, limit: Int): List<Caprice> =
+        withContext(ioDispatcher) {
+            if (userId.isBlank() || limit <= 0) return@withContext emptyList()
+            userCapricesCache[userId]?.let { entry ->
+                return@withContext entry.caprices.take(limit)
+            }
+            try {
+                fetchSortedCaprices(userId = userId, source = Source.CACHE).take(limit)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
             }
         }
 
@@ -186,9 +203,15 @@ class FirestoreCapriceRepository(
         }
     }
 
-    private suspend fun fetchCapriceDocuments(userId: String): List<DocumentSnapshot> {
+    private suspend fun fetchSortedCaprices(userId: String, source: Source?): List<Caprice> {
         val query = db.collection(collectionName).whereEqualTo("userId", userId)
-        val snapshot = query.get().await()
+        val snapshot = if (source != null) {
+            query.get(source).await()
+        } else {
+            query.get().await()
+        }
         return snapshot.documents
+            .mapNotNull { doc -> doc.toCapriceOrNull("FirestoreCapriceRepo") }
+            .sortedByDescending { it.timestamp }
     }
 }

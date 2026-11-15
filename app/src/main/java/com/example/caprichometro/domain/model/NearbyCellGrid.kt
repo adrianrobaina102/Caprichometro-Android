@@ -15,8 +15,12 @@ import kotlin.math.sqrt
 object NearbyCellGrid {
     const val CELL_SIZE_DEGREES = 0.05
     const val EARTH_RADIUS_METERS = 6_371_000.0
+    const val LOCAL_RADIUS_METERS = 50_000.0
     private const val LATITUDE_CELL_COUNT = 3_600
     private const val LONGITUDE_CELL_COUNT = 7_200
+
+    fun isBeyondLocalRadius(distanceMeters: Double?): Boolean =
+        distanceMeters != null && distanceMeters.isFinite() && distanceMeters > LOCAL_RADIUS_METERS
 
     fun cellId(location: ApproximateLocation): String {
         val latitudeIndex = min(

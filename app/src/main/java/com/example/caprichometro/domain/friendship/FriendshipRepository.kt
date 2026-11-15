@@ -12,6 +12,9 @@ interface FriendshipRepository {
     suspend fun unblockUser(blockerId: String, blockedUserId: String): Result<Unit>
     suspend fun getBlockedUserIds(userId: String): Result<List<String>>
     suspend fun isBlocked(userId: String, otherUserId: String): Result<Boolean>
+    suspend fun getCachedFriendships(userId: String): List<Friendship> = emptyList()
+    suspend fun getCachedBlockedUserIds(userId: String): List<String> = emptyList()
+    suspend fun isCachedBlocked(userId: String, otherUserId: String): Boolean = false
     suspend fun deleteFriendshipsForUser(userId: String): Result<Unit>
     suspend fun deleteBlocksForUser(userId: String): Result<Unit> = Result.success(Unit)
     fun getFriendships(userId: String): Flow<List<Friendship>>

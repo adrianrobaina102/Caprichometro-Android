@@ -3,8 +3,10 @@ package com.example.caprichometro.infrastructure.data
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -113,34 +115,8 @@ class FirestoreUserProfileRepository(
 
             try {
                 val userDoc = db.collection("users").document(userId).get().await()
-                if (!userDoc.exists()) {
-                    return@withLock Result.success(null)
-                }
-
-                val username = userDoc.getString("username")?.trim()
-                if (username.isNullOrBlank()) {
-                    return@withLock Result.success(null)
-                }
-
-                val bio = (userDoc.get("bio") as? String)?.trim().orEmpty()
-                val photoUrl = (userDoc.get("photoUrl") as? String)?.trim().orEmpty()
-
-                val createdAt = try {
-                    userDoc.getTimestamp("createdAt")?.toDate()
-                        ?: userDoc.getDate("createdAt")
-                        ?: userDoc.getLong("createdAt")?.let { Date(it) }
-                        ?: Date()
-                } catch (e: Exception) {
-                    Date()
-                }
-
-                val profile = UserProfile(
-                    uid = userId,
-                    username = username,
-                    createdAt = createdAt,
-                    bio = bio,
-                    photoUrl = photoUrl
-                )
+                val profile = userDoc.toUserProfileOrNull(userId)
+                    ?: return@withLock Result.success(null)
                 userProfileCache[userId] = CachedProfileEntry(profile, clockMillis())
                 Result.success(profile)
             } catch (e: CancellationException) {
@@ -149,6 +125,46 @@ class FirestoreUserProfileRepository(
                 Result.failure(e)
             }
         }
+    }
+
+    override suspend fun getCachedUserById(userId: String): UserProfile? = withContext(ioDispatcher) {
+        if (userId.isBlank()) return@withContext null
+        userProfileCache[userId]?.profile?.let { return@withContext it }
+        try {
+            val doc = db.collection("users").document(userId).get(Source.CACHE).await()
+            doc.toUserProfileOrNull(userId)?.also { profile ->
+                userProfileCache.putIfAbsent(userId, CachedProfileEntry(profile, clockMillis()))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun DocumentSnapshot.toUserProfileOrNull(userId: String): UserProfile? {
+        if (!exists()) return null
+        val username = getString("username")?.trim()
+        if (username.isNullOrBlank()) return null
+
+        val bio = (get("bio") as? String)?.trim().orEmpty()
+        val photoUrl = (get("photoUrl") as? String)?.trim().orEmpty()
+        val createdAt = try {
+            getTimestamp("createdAt")?.toDate()
+                ?: getDate("createdAt")
+                ?: getLong("createdAt")?.let { Date(it) }
+                ?: Date()
+        } catch (_: Exception) {
+            Date()
+        }
+
+        return UserProfile(
+            uid = userId,
+            username = username,
+            createdAt = createdAt,
+            bio = bio,
+            photoUrl = photoUrl
+        )
     }
 
     override suspend fun updateBio(userId: String, bio: String): Result<Unit> = withContext(ioDispatcher) {

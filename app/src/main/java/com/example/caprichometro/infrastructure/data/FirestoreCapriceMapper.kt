@@ -37,6 +37,7 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
             else -> null
         }
         val nearbyCell = getString("nearbyCell")?.trim()?.takeIf { it.isNotEmpty() }
+        val locationCell = getString("locationCell")?.trim()?.takeIf { it.isNotEmpty() }
 
         Caprice(
             id = id,
@@ -50,7 +51,8 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
             visibleToUserIds = visibleToUserIds,
             finalDecision = finalDecision,
             finalDecisionAt = finalDecisionAt,
-            nearbyCell = nearbyCell
+            nearbyCell = nearbyCell,
+            locationCell = locationCell
         )
     } catch (e: Exception) {
         Log.e(logTag, "Documento caprice inválido $id: ${e.message}", e)

@@ -5,8 +5,10 @@ import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.UserProfile
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.Transaction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -338,6 +340,54 @@ class FirestoreFriendshipRepository(
         }
     }
 
+    override suspend fun getCachedBlockedUserIds(userId: String): List<String> = withContext(ioDispatcher) {
+        if (userId.isBlank()) return@withContext emptyList()
+        blockedIdsCache[userId]?.value?.let { return@withContext it }
+        try {
+            db.collection("userBlocks")
+                .document(userId)
+                .collection("blockedUsers")
+                .get(Source.CACHE)
+                .await()
+                .documents
+                .map { it.id }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    override suspend fun isCachedBlocked(userId: String, otherUserId: String): Boolean = withContext(ioDispatcher) {
+        if (userId.isBlank() || otherUserId.isBlank()) return@withContext false
+        blockPairCache[pairCacheKey(userId, otherUserId)]?.value?.let { return@withContext it }
+        try {
+            val outgoing = blockReference(userId, otherUserId).get(Source.CACHE).await().exists()
+            val incoming = if (outgoing) false else blockReference(otherUserId, userId).get(Source.CACHE).await().exists()
+            outgoing || incoming
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    override suspend fun getCachedFriendships(userId: String): List<Friendship> = withContext(ioDispatcher) {
+        if (userId.isBlank()) return@withContext emptyList()
+        try {
+            db.collection("friendships")
+                .whereArrayContains("memberIDs", userId)
+                .get(Source.CACHE)
+                .await()
+                .documents
+                .mapNotNull { it.toFriendshipOrNull() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     override suspend fun deleteFriendshipsForUser(userId: String): Result<Unit> = withContext(ioDispatcher) {
         try {
             val snapshot = db.collection("friendships")
@@ -403,56 +453,58 @@ class FirestoreFriendshipRepository(
                     return@addSnapshotListener
                 }
                 if (snapshot != null) {
-                    val friendships = snapshot.documents.mapNotNull { doc ->
-                        try {
-                            val id = doc.getString("id")?.takeIf { it.isNotBlank() } ?: doc.id
-
-                            val rawMembers = doc.get("memberIDs") as? List<*>
-                            val memberIDs = rawMembers
-                                ?.mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotEmpty) }
-                                ?.takeIf { it.size == 2 && it[0] != it[1] }
-                                ?: return@mapNotNull null
-
-                            val requestedBy = doc.getString("requestedBy")?.trim()
-                                ?.takeIf { it.isNotEmpty() && memberIDs.contains(it) }
-                                ?: return@mapNotNull null
-
-                            val statusString = doc.getString("status")?.trim() ?: return@mapNotNull null
-                            val mappedStatus = when (statusString.lowercase()) {
-                                "pending" -> FriendshipStatus.PENDING
-                                "accepted" -> FriendshipStatus.ACCEPTED
-                                "declined", "rejected" -> FriendshipStatus.DECLINED
-                                else -> return@mapNotNull null
-                            }
-
-                            val createdAt = try {
-                                doc.getDate("createdAt") ?: doc.getLong("createdAt")?.let { Date(it) }
-                            } catch (e: Exception) {
-                                null
-                            } ?: return@mapNotNull null
-
-                            val updatedAt = try {
-                                doc.getDate("updatedAt") ?: doc.getLong("updatedAt")?.let { Date(it) }
-                            } catch (e: Exception) {
-                                null
-                            } ?: createdAt
-
-                            Friendship(
-                                id = id,
-                                memberIDs = memberIDs,
-                                requestedBy = requestedBy,
-                                status = mappedStatus,
-                                createdAt = createdAt,
-                                updatedAt = updatedAt
-                            )
-                        } catch (e: Exception) {
-                            android.util.Log.e("FirestoreFriendship", "Error parseando amistad ${doc.id}: ${e.message}", e)
-                            null
-                        }
-                    }
+                    val friendships = snapshot.documents.mapNotNull { it.toFriendshipOrNull() }
                     trySend(friendships).isSuccess
                 }
             }
         awaitClose { subscription.remove() }
     }.flowOn(ioDispatcher)
+
+    private fun DocumentSnapshot.toFriendshipOrNull(): Friendship? {
+        return try {
+            val docId = getString("id")?.takeIf { it.isNotBlank() } ?: id
+
+            val rawMembers = get("memberIDs") as? List<*>
+            val memberIDs = rawMembers
+                ?.mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotEmpty) }
+                ?.takeIf { it.size == 2 && it[0] != it[1] }
+                ?: return null
+
+            val requestedBy = getString("requestedBy")?.trim()
+                ?.takeIf { it.isNotEmpty() && memberIDs.contains(it) }
+                ?: return null
+
+            val statusString = getString("status")?.trim() ?: return null
+            val mappedStatus = when (statusString.lowercase()) {
+                "pending" -> FriendshipStatus.PENDING
+                "accepted" -> FriendshipStatus.ACCEPTED
+                "declined", "rejected" -> FriendshipStatus.DECLINED
+                else -> return null
+            }
+
+            val createdAt = try {
+                getDate("createdAt") ?: getLong("createdAt")?.let { Date(it) }
+            } catch (_: Exception) {
+                null
+            } ?: return null
+
+            val updatedAt = try {
+                getDate("updatedAt") ?: getLong("updatedAt")?.let { Date(it) }
+            } catch (_: Exception) {
+                null
+            } ?: createdAt
+
+            Friendship(
+                id = docId,
+                memberIDs = memberIDs,
+                requestedBy = requestedBy,
+                status = mappedStatus,
+                createdAt = createdAt,
+                updatedAt = updatedAt
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("FirestoreFriendship", "Error parseando amistad $id: ${e.message}", e)
+            null
+        }
+    }
 }
