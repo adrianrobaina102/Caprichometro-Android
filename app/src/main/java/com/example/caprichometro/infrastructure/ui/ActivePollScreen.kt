@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,7 +61,8 @@ fun ActivePollScreen(
     currentUserId: String = "",
     onNavigateBack: () -> Unit = {},
     onTimerFinished: () -> Unit = {},
-    onNavigateToAuthorProfile: ((String) -> Unit)? = null
+    onNavigateToAuthorProfile: ((String) -> Unit)? = null,
+    canOpenAuthorProfileOverride: Boolean = true
 ) {
     val context = LocalContext.current
     val isFriendPoll = when {
@@ -178,7 +180,10 @@ fun ActivePollScreen(
                         tint = Color.White
                     )
                 }
-                val canOpenAuthorProfile = isFriendPoll && !caprice?.userId.isNullOrBlank() && onNavigateToAuthorProfile != null
+                val canOpenAuthorProfile = canOpenAuthorProfileOverride &&
+                    isFriendPoll &&
+                    !caprice?.userId.isNullOrBlank() &&
+                    onNavigateToAuthorProfile != null
 
                 Text(
                     text = headerTitle,
@@ -219,17 +224,53 @@ fun ActivePollScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
+            val isPublicNearby = !caprice?.nearbyCell.isNullOrBlank()
             Box(
                 modifier = Modifier
                     .background(Color(0xFF1A1A1A), RoundedCornerShape(50))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = if (isFriendPoll) "@$authorUsername · ${(caprice?.type ?: "DUDA").uppercase()}" else "SOLO TUS AMIGOS",
+                    text = when {
+                        isFriendPoll && cleanAuthor != null -> "@$cleanAuthor · ${(caprice?.type ?: "DUDA").uppercase()}"
+                        isFriendPoll -> (caprice?.type ?: "DUDA").uppercase()
+                        isPublicNearby -> "PARA TI · ${(caprice?.type ?: "DUDA").uppercase()}"
+                        else -> "SOLO TUS AMIGOS"
+                    },
                     color = TextGray,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            if (isPublicNearby) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val zoneLabel = when {
+                    vmState?.isResolvingPlaceName == true -> "Resolviendo zona aproximada..."
+                    !vmState?.approximatePlaceName.isNullOrBlank() -> "Zona aproximada · ${vmState?.approximatePlaceName}"
+                    else -> "Ubicación aproximada"
+                }
+                Row(
+                    modifier = Modifier
+                        .background(OptionCardBg, RoundedCornerShape(50))
+                        .border(1.dp, OptionCardBorder, RoundedCornerShape(50))
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = LimeGreen,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = zoneLabel,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -245,9 +286,17 @@ fun ActivePollScreen(
                 text = when {
                     isPollExpired -> "Votación cerrada · Resultados finales"
                     currentPollState is PollState.Voted -> "¡Ya has votado! Esperando a los demás"
-                    currentPollState is PollState.Author -> "Tus amigos están votando en directo"
+                    currentPollState is PollState.Author -> if (isPublicNearby) {
+                        "La comunidad está votando en directo"
+                    } else {
+                        "Tus amigos están votando en directo"
+                    }
                     isFriendPoll -> "Toca tu opción favorita para votar"
-                    else -> "para que tus amigos opinen"
+                    else -> if (isPublicNearby) {
+                        "para que la comunidad opine"
+                    } else {
+                        "para que tus amigos opinen"
+                    }
                 },
                 color = if (isPollExpired || currentPollState is PollState.Voted) LimeGreen else TextGray,
                 fontSize = 14.sp,
@@ -429,9 +478,40 @@ fun ActivePollScreen(
                 }
             }
 
+            vmState?.errorMessage?.let { voteError ->
+                Spacer(modifier = Modifier.height(14.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2B181A)),
+                    border = BorderStroke(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = voteError,
+                            color = Color(0xFFFFB4B4),
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = { viewModel?.clearError() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Cerrar", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(28.dp))
 
-            // Contador real de votos de amigos en Firestore
+            // Contador real de votos en Firestore
             val totalVotesCount = when (currentPollState) {
                 is PollState.Voted -> currentPollState.totalVotes
                 is PollState.Author -> currentPollState.totalVotes
@@ -441,9 +521,9 @@ fun ActivePollScreen(
 
             Text(
                 text = when {
-                    totalVotesCount == 0 -> "Todavía no hay votos de amigos"
-                    totalVotesCount == 1 -> "1 amigo ha opinado"
-                    else -> "$totalVotesCount amigos han opinado"
+                    totalVotesCount == 0 -> if (isPublicNearby) "Todavía no hay votos" else "Todavía no hay votos de amigos"
+                    totalVotesCount == 1 -> if (isPublicNearby) "1 persona ha opinado" else "1 amigo ha opinado"
+                    else -> if (isPublicNearby) "$totalVotesCount personas han opinado" else "$totalVotesCount amigos han opinado"
                 },
                 color = Color.White,
                 fontSize = 15.sp,
@@ -453,7 +533,11 @@ fun ActivePollScreen(
             Text(
                 text = when {
                     isPollExpired -> "Votación finalizada. Resultados actualizados vía Firestore."
-                    currentPollState is PollState.Active -> "Vota para ver los porcentajes de tus amigos."
+                    currentPollState is PollState.Active -> if (isPublicNearby) {
+                        "Vota para ver los porcentajes actuales."
+                    } else {
+                        "Vota para ver los porcentajes de tus amigos."
+                    }
                     else -> "Los votos se actualizan en vivo vía Firestore."
                 },
                 color = TextGray,

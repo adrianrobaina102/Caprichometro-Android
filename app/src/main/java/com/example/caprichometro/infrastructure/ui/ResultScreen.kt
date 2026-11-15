@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,11 +54,13 @@ fun ResultScreen(
     authorPhotoUrl: String? = null,
     onCapriceUpdated: ((Caprice) -> Unit)? = null,
     onGoHome: () -> Unit,
-    onNavigateToAuthorProfile: ((String) -> Unit)? = null
+    onNavigateToAuthorProfile: ((String) -> Unit)? = null,
+    canOpenAuthorProfileOverride: Boolean = true
 ) {
     var isImageExpanded by remember { mutableStateOf(false) }
     val vmState by viewModel?.state?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(null)
     val displayedCaprice = vmState?.caprice?.takeIf { it.id == caprice?.id } ?: caprice
+    val isPublicNearby = !displayedCaprice?.nearbyCell.isNullOrBlank()
 
     val imageModel = remember(displayedCaprice?.imageUrl) {
         ImageModelHelper.parseImageModel(displayedCaprice?.imageUrl.orEmpty())
@@ -99,7 +102,9 @@ fun ResultScreen(
                         tint = Color.White
                     )
                 }
-                val canOpenAuthorProfile = !caprice?.userId.isNullOrBlank() && onNavigateToAuthorProfile != null
+                val canOpenAuthorProfile = canOpenAuthorProfileOverride &&
+                    !caprice?.userId.isNullOrBlank() &&
+                    onNavigateToAuthorProfile != null
                 Text(
                     text = "El veredicto",
                     color = Color.White,
@@ -139,7 +144,7 @@ fun ResultScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White)
             ) {
                 Text(
-                    text = "Volver con mis amigos",
+                    text = if (isPublicNearby) "Volver al feed" else "Volver con mis amigos",
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
@@ -168,6 +173,37 @@ fun ResultScreen(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            val showNearbyPlace = isPublicNearby
+            if (showNearbyPlace) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val zoneLabel = when {
+                    vmState?.isResolvingPlaceName == true -> "Resolviendo zona aproximada..."
+                    !vmState?.approximatePlaceName.isNullOrBlank() -> "Zona aproximada · ${vmState?.approximatePlaceName}"
+                    else -> "Ubicación aproximada"
+                }
+                Row(
+                    modifier = Modifier
+                        .background(Color(0xFF1A1A1D), RoundedCornerShape(50))
+                        .border(1.dp, Color(0xFF2C2C30), RoundedCornerShape(50))
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = LimeGreen,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = zoneLabel,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -262,9 +298,9 @@ fun ResultScreen(
             val totalVotes = verdict?.totalVotes ?: 0
             Text(
                 text = when (totalVotes) {
-                    0 -> "Ningún amigo votó durante el tiempo de la encuesta"
-                    1 -> "1 amigo ha opinado"
-                    else -> "$totalVotes amigos han opinado"
+                    0 -> if (isPublicNearby) "Nadie votó durante el tiempo de la encuesta" else "Ningún amigo votó durante el tiempo de la encuesta"
+                    1 -> if (isPublicNearby) "1 persona ha opinado" else "1 amigo ha opinado"
+                    else -> if (isPublicNearby) "$totalVotes personas han opinado" else "$totalVotes amigos han opinado"
                 },
                 color = TextGray,
                 fontSize = 13.sp,

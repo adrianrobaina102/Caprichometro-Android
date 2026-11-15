@@ -1,8 +1,10 @@
 package com.example.caprichometro.infrastructure.ui
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
@@ -67,6 +70,7 @@ fun CapriceScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val capriceState by viewModel.state.collectAsState()
 
     var isCompraType by remember { mutableStateOf(true) }
     var questionText by remember { mutableStateOf("") }
@@ -149,6 +153,32 @@ fun CapriceScreen(
         }
     }
 
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.setNearbyDiscoveryEnabled(true)
+        } else {
+            viewModel.onNearbyCreationPermissionDenied()
+        }
+    }
+
+    val toggleNearbyDiscovery: (Boolean) -> Unit = { enabled ->
+        if (!enabled) {
+            viewModel.setNearbyDiscoveryEnabled(false)
+        } else {
+            val hasCoarsePermission = ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasCoarsePermission) {
+                viewModel.setNearbyDiscoveryEnabled(true)
+            } else {
+                locationPermissionLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+        }
+    }
+
     val questionValidatorChain = remember {
         val notBlank = NotBlankValidator("La pregunta")
         notBlank.setNext(MinLengthValidator("La pregunta", minLength = 6))
@@ -211,21 +241,29 @@ fun CapriceScreen(
                             answer1 = answer1.trim(),
                             answer2 = answer2.trim(),
                             imageBytes = imageBytes,
-                            visibleToUserIds = effectiveSelectedFriendIds.toList()
+                            visibleToUserIds = effectiveSelectedFriendIds.toList(),
+                            nearbyCell = if (capriceState.isNearbyDiscoveryEnabled) capriceState.preparedNearbyCell else null
                         )
 
                         isSubmitting = false
                         if (saveResult.isSuccess) {
                             selectAllFriends = true
                             customSelectedFriendIds = emptySet()
-                            PollNotificationHelper.showCapriceCreatedNotification(context, questionText.trim())
+                            questionText = ""
+                            answer1 = ""
+                            answer2 = ""
+                            selectedImageUri = null
+                            PollNotificationHelper.showCapriceCreatedNotification(context, saveResult.getOrNull()?.question ?: questionText.trim())
                             onNavigateToActivePoll()
                         } else {
                             Toast.makeText(context, "Error al guardar: ${saveResult.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
-                enabled = isFormFilled && !isSubmitting,
+                enabled = isFormFilled &&
+                    !isSubmitting &&
+                    !capriceState.isPreparingNearbyLocation &&
+                    (!capriceState.isNearbyDiscoveryEnabled || !capriceState.preparedNearbyCell.isNullOrBlank()),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
@@ -247,7 +285,11 @@ fun CapriceScreen(
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Lanzar a mis amigos",
+                            text = if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
+                                "Publicar en Para ti"
+                            } else {
+                                "Lanzar a mis amigos"
+                            },
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -513,6 +555,116 @@ fun CapriceScreen(
                     contentDescription = "Elegir amigos",
                     tint = TextGray
                 )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurface)
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = LimeGreen)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Mostrar también en Para ti",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = when {
+                                capriceState.isPreparingNearbyLocation -> "Preparando ubicación aproximada..."
+                                capriceState.isNearbyDiscoveryEnabled -> "Activado · visible también en Para ti"
+                                else -> "Apagado por defecto"
+                            },
+                            color = TextGray,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = capriceState.isNearbyDiscoveryEnabled,
+                        onCheckedChange = toggleNearbyDiscovery,
+                        enabled = !isSubmitting && !capriceState.isPreparingNearbyLocation,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.Black,
+                            checkedTrackColor = LimeGreen,
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color(0xFF2C2C2E)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Si lo activas, la tarjeta se publica en Para ti para cualquier usuario autenticado de la app desde cualquier distancia, sin límite de radio. Tu ubicación se guarda solo como zona aproximada. La selección de amigos de arriba sigue controlando quién la ve en Amigos.",
+                    color = TextGray,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+
+                if (capriceState.isPreparingNearbyLocation) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = LimeGreen,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Obteniendo zona aproximada...",
+                            color = LimeGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "✓ Zona aproximada preparada para Para ti",
+                        color = LimeGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                capriceState.nearbyCreationError?.let { errorMsg ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = errorMsg,
+                        color = Color(0xFFFF6B6B),
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { toggleNearbyDiscovery(true) },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Reintentar", color = LimeGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(
+                            onClick = {
+                                val settingsIntent = Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null)
+                                )
+                                context.startActivity(settingsIntent)
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Abrir Ajustes", color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(30.dp))

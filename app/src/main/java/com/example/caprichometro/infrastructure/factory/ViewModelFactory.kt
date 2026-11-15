@@ -1,8 +1,10 @@
 ﻿package com.example.caprichometro.infrastructure.factory
 
 import android.content.Context
+import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
+import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
 import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
 import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
 import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
@@ -27,15 +29,20 @@ import com.example.caprichometro.application.usecase.profile.UpdateBioUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
+import com.example.caprichometro.domain.repository.ApproximatePlaceNameRepository
+import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
 import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceDetailsRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceObservationRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
+import com.example.caprichometro.infrastructure.data.FirestoreNearbyCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreUserProfileRepository
 import com.example.caprichometro.infrastructure.data.FirestoreVoteRepository
 import com.example.caprichometro.infrastructure.data.SharedPreferencesCapriceNotificationHistoryRepository
+import com.example.caprichometro.infrastructure.location.AndroidApproximatePlaceNameRepository
+import com.example.caprichometro.infrastructure.location.AndroidLocationRepository
 import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
@@ -50,7 +57,14 @@ class ViewModelFactory(private val context: Context? = null) {
     private val imageStorageRepository by lazy { Base64ImageStorageRepository() }
     private val capriceDetailsRepository by lazy { FirestoreCapriceDetailsRepository() }
     private val capriceObservationRepository by lazy { FirestoreCapriceObservationRepository() }
+    private val nearbyCapriceRepository by lazy { FirestoreNearbyCapriceRepository() }
     private val voteRepository by lazy { FirestoreVoteRepository() }
+    private val locationRepository: DeviceLocationRepository? by lazy {
+        context?.let { AndroidLocationRepository(it) }
+    }
+    private val approximatePlaceNameRepository: ApproximatePlaceNameRepository? by lazy {
+        context?.let { AndroidApproximatePlaceNameRepository(it) }
+    }
     private val notificationHistoryRepository by lazy {
         SharedPreferencesCapriceNotificationHistoryRepository(context ?: throw IllegalStateException("Context required for notification history"))
     }
@@ -64,12 +78,22 @@ class ViewModelFactory(private val context: Context? = null) {
         val getUseCase = GetCapricesUseCase(capriceRepository)
         val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
         val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(acceptedFriendsUseCase, capriceRepository)
+        val getNearbyCapricesUseCase = locationRepository?.let { locRepo ->
+            GetNearbyCapricesUseCase(
+                locationRepository = locRepo,
+                nearbyCapriceRepository = nearbyCapriceRepository,
+                userProfileRepository = userProfileRepository,
+                friendshipRepository = friendshipRepository
+            )
+        }
         return CapriceViewModel(
             saveCapriceUseCase = saveUseCase,
             getCapricesUseCase = getUseCase,
             uploadCapriceImageUseCase = uploadImageUseCase,
             getFriendsCapricesUseCase = getFriendsCapricesUseCase,
-            profileCacheControl = userProfileRepository
+            profileCacheControl = userProfileRepository,
+            getNearbyCapricesUseCase = getNearbyCapricesUseCase,
+            locationRepository = locationRepository
         )
     }
 
@@ -115,12 +139,16 @@ class ViewModelFactory(private val context: Context? = null) {
     }
 
     fun createActivePollViewModel(): ActivePollViewModel {
+        val placeNameUseCase = approximatePlaceNameRepository?.let {
+            GetApproximatePlaceNameUseCase(it)
+        }
         return ActivePollViewModel(
-            CastVoteUseCase(voteRepository),
-            ObserveVotesUseCase(voteRepository),
-            CalculateVerdictUseCase(),
-            voteRepository,
-            com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase(capriceRepository)
+            castVoteUseCase = CastVoteUseCase(voteRepository, friendshipRepository),
+            observeVotesUseCase = ObserveVotesUseCase(voteRepository),
+            calculateVerdictUseCase = CalculateVerdictUseCase(),
+            voteRepository = voteRepository,
+            updateFinalDecisionUseCase = com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase(capriceRepository),
+            getApproximatePlaceNameUseCase = placeNameUseCase
         )
     }
 

@@ -2,6 +2,7 @@ package com.example.caprichometro.infrastructure.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
 import com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
@@ -12,6 +13,7 @@ import com.example.caprichometro.domain.model.VerdictResult
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,8 @@ data class ActivePollUiState(
     val userVote: Vote? = null,
     val isCastingVote: Boolean = false,
     val isSavingFinalDecision: Boolean = false,
+    val approximatePlaceName: String? = null,
+    val isResolvingPlaceName: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -37,7 +41,8 @@ class ActivePollViewModel(
     private val observeVotesUseCase: ObserveVotesUseCase,
     private val calculateVerdictUseCase: CalculateVerdictUseCase,
     private val voteRepository: VoteRepository,
-    private val updateFinalDecisionUseCase: UpdateFinalDecisionUseCase? = null
+    private val updateFinalDecisionUseCase: UpdateFinalDecisionUseCase? = null,
+    private val getApproximatePlaceNameUseCase: GetApproximatePlaceNameUseCase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivePollUiState())
@@ -45,6 +50,7 @@ class ActivePollViewModel(
 
     private var votesJob: Job? = null
     private var tickerJob: Job? = null
+    private var placeNameJob: Job? = null
 
     fun clearError() {
         _state.update { it.copy(errorMessage = null) }
@@ -53,8 +59,10 @@ class ActivePollViewModel(
     fun reset() {
         votesJob?.cancel()
         tickerJob?.cancel()
+        placeNameJob?.cancel()
         votesJob = null
         tickerJob = null
+        placeNameJob = null
         _state.value = ActivePollUiState()
     }
 
@@ -67,13 +75,36 @@ class ActivePollViewModel(
 
         votesJob?.cancel()
         tickerJob?.cancel()
+        placeNameJob?.cancel()
 
         _state.value = ActivePollUiState(
             caprice = caprice,
             authorUsername = authorUsername,
             currentUserId = currentUserId,
-            pollState = computeInitialPollState(caprice, currentUserId)
+            pollState = computeInitialPollState(caprice, currentUserId),
+            isResolvingPlaceName = !caprice.nearbyCell.isNullOrBlank() && getApproximatePlaceNameUseCase != null
         )
+
+        val cell = caprice.nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
+        if (cell != null && getApproximatePlaceNameUseCase != null) {
+            placeNameJob = viewModelScope.launch {
+                val resolved = try {
+                    getApproximatePlaceNameUseCase.execute(cell)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                _state.update { current ->
+                    if (current.caprice?.id == caprice.id) {
+                        current.copy(
+                            approximatePlaceName = resolved,
+                            isResolvingPlaceName = false
+                        )
+                    } else current
+                }
+            }
+        }
 
         // 1. Cargamos el voto emitido previamente por el usuario actual (si existe)
         viewModelScope.launch {
@@ -256,5 +287,6 @@ class ActivePollViewModel(
         super.onCleared()
         votesJob?.cancel()
         tickerJob?.cancel()
+        placeNameJob?.cancel()
     }
 }

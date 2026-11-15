@@ -330,7 +330,8 @@ fun CapriceApp(
                                         viewingProfileUserId = authorId
                                         previousScreenBeforeProfile = "friend_poll"
                                         currentScreen = "profile"
-                                    }
+                                    },
+                                    canOpenAuthorProfileOverride = item?.canOpenAuthorProfile != false
                                 )
                             }
                             "create" -> {
@@ -392,14 +393,20 @@ fun CapriceApp(
                                         }
                                     },
                                     onGoHome = {
-                                        val wasFromProfile = selectedProfileCaprice != null
+                                        val wasFromProfile = selectedProfileCaprice != null && selectedFeedItem?.caprice?.id != capriceToShow?.id
                                         selectedProfileCaprice = null
+                                        selectedFeedItem = null
                                         currentScreen = if (wasFromProfile) "profile" else "home"
                                     },
                                     onNavigateToAuthorProfile = { authorId ->
                                         viewingProfileUserId = authorId
                                         previousScreenBeforeProfile = "result"
                                         currentScreen = "profile"
+                                    },
+                                    canOpenAuthorProfileOverride = if (selectedFeedItem?.caprice?.id == capriceToShow?.id) {
+                                        selectedFeedItem?.canOpenAuthorProfile != false
+                                    } else {
+                                        true
                                     }
                                 )
                             }

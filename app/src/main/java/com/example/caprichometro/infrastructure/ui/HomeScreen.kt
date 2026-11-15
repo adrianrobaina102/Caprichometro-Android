@@ -1,5 +1,13 @@
 package com.example.caprichometro.infrastructure.ui
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,7 +17,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,18 +27,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import coil.compose.AsyncImage
 import com.example.caprichometro.domain.model.CapriceFeedItem
+import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
-import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
 
 private val FeedBg = Color(0xFF0D0D0D)
@@ -46,14 +61,62 @@ fun HomeScreen(
     onNavigateToFriends: () -> Unit = {},
     onNavigateToUserProfile: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
+    var hasAutoPromptedNearby by remember { mutableStateOf(false) }
 
-    // Carga inicial al entrar en la pestaña de Inicio solo si no se ha cargado aún en esta sesión
-    LaunchedEffect(Unit) {
+    val nearbyPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            nowMillis = System.currentTimeMillis()
+            viewModel.loadNearbyFeed()
+        } else {
+            viewModel.onNearbyFeedPermissionDenied()
+        }
+    }
+
+    // Si el usuario vuelve desde Ajustes tras conceder ubicación en Para ti, recargamos al instante
+    DisposableEffect(context, state.selectedHomeTab) {
+        val lifecycleOwner = context as? LifecycleOwner
+        if (lifecycleOwner == null) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME &&
+                    state.selectedHomeTab == HomeFeedTab.FOR_YOU &&
+                    state.nearbyNeedsLocationPermission &&
+                    hasCoarseLocationPermission(context)
+                ) {
+                    nowMillis = System.currentTimeMillis()
+                    viewModel.loadNearbyFeedIfNeeded()
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+    }
+
+    LaunchedEffect(state.selectedHomeTab) {
         nowMillis = System.currentTimeMillis()
-        viewModel.loadFriendsFeedIfNeeded()
+        when (state.selectedHomeTab) {
+            HomeFeedTab.FRIENDS -> viewModel.loadFriendsFeedIfNeeded()
+            HomeFeedTab.FOR_YOU -> {
+                if (hasCoarseLocationPermission(context)) {
+                    viewModel.loadNearbyFeedIfNeeded()
+                } else if (!hasAutoPromptedNearby) {
+                    hasAutoPromptedNearby = true
+                    viewModel.onNearbyFeedPermissionDenied()
+                    nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                } else {
+                    viewModel.onNearbyFeedPermissionDenied()
+                }
+            }
+        }
     }
 
     // Reloj de refresco cada 60s para recalcular "Ahora / Xm / Xh / Xd" y el estado temporal sin consultar Firestore
@@ -64,6 +127,17 @@ fun HomeScreen(
         }
     }
 
+    val isCurrentTabLoading = if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+        state.isFeedLoading
+    } else {
+        state.isNearbyFeedLoading
+    }
+    val hasCurrentTabItems = if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+        state.feedItems.isNotEmpty()
+    } else {
+        state.nearbyFeedItems.isNotEmpty()
+    }
+
     Scaffold(
         containerColor = FeedBg,
         topBar = {
@@ -71,11 +145,11 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Inicio",
                             color = Color.White,
@@ -83,7 +157,11 @@ fun HomeScreen(
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = "Las dudas recientes de tus amigos",
+                            text = if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                                "Las dudas recientes de tus amigos"
+                            } else {
+                                "Dudas públicas ordenadas por cercanía"
+                            },
                             color = TextSecondary,
                             fontSize = 13.sp
                         )
@@ -92,16 +170,22 @@ fun HomeScreen(
                     IconButton(
                         onClick = {
                             nowMillis = System.currentTimeMillis()
-                            viewModel.loadFriendsFeed()
+                            if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                                viewModel.loadFriendsFeed()
+                            } else if (hasCoarseLocationPermission(context)) {
+                                viewModel.loadNearbyFeed(isManualRefresh = true)
+                            } else {
+                                nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            }
                         },
-                        enabled = !state.isFeedLoading,
+                        enabled = !isCurrentTabLoading,
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
                             .background(CardBg)
                             .border(1.dp, CardBorder, CircleShape)
                     ) {
-                        if (state.isFeedLoading) {
+                        if (isCurrentTabLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
                                 color = LimeAccent,
@@ -118,7 +202,15 @@ fun HomeScreen(
                     }
                 }
 
-                if (state.isFeedLoading && state.feedItems.isNotEmpty()) {
+                HomeFeedTabBar(
+                    selectedTab = state.selectedHomeTab,
+                    onSelectTab = { tab -> viewModel.selectHomeTab(tab) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                )
+
+                if (isCurrentTabLoading && hasCurrentTabItems) {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -135,134 +227,132 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when {
-                state.isFeedLoading && state.feedItems.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator(color = LimeAccent)
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "Cargando dudas de tus amigos...",
-                            color = TextSecondary,
-                            fontSize = 14.sp
+            if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                when {
+                    state.isFeedLoading && state.feedItems.isEmpty() -> {
+                        FeedLoadingState(message = "Cargando dudas de tus amigos...")
+                    }
+
+                    state.feedError != null && state.feedItems.isEmpty() -> {
+                        FeedErrorState(
+                            title = "No se pudo cargar el feed",
+                            message = state.feedError ?: "Error desconocido",
+                            onRetry = {
+                                nowMillis = System.currentTimeMillis()
+                                viewModel.loadFriendsFeed()
+                            }
                         )
                     }
-                }
 
-                state.feedError != null && state.feedItems.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 32.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "No se pudo cargar el feed",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = state.feedError ?: "Error desconocido",
-                            color = TextSecondary,
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Button(
-                            onClick = {
+                    state.feedItems.isEmpty() -> {
+                        FriendsEmptyState(
+                            isLoading = state.isFeedLoading,
+                            onRefresh = {
                                 nowMillis = System.currentTimeMillis()
                                 viewModel.loadFriendsFeed()
                             },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = LimeAccent,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Reintentar", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                state.feedItems.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 32.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(CircleShape)
-                                .background(CardBg)
-                                .border(1.dp, CardBorder, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "👀", fontSize = 30.sp)
-                        }
-                        Spacer(modifier = Modifier.height(18.dp))
-                        Text(
-                            text = "Nada por aquí todavía",
-                            color = Color.White,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold
+                            onNavigateToFriends = onNavigateToFriends
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Cuando tus amigos publiquen una compra o un plan, aparecerán aquí las 20 dudas más recientes.",
-                            color = TextSecondary,
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(22.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    nowMillis = System.currentTimeMillis()
-                                    viewModel.loadFriendsFeed()
-                                },
-                                enabled = !state.isFeedLoading,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                            ) {
-                                Text("Actualizar", fontWeight = FontWeight.SemiBold)
-                            }
-                            Button(
-                                onClick = onNavigateToFriends,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = LimeAccent,
-                                    contentColor = Color.Black
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Buscar amigos", fontWeight = FontWeight.Bold)
-                            }
-                        }
                     }
-                }
 
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        items(
+                    else -> {
+                        FeedItemsList(
                             items = state.feedItems,
-                            key = { "${it.author.uid}_${it.caprice.id}_${it.caprice.timestamp}" }
-                        ) { item ->
-                            CapriceFeedCard(
-                                item = item,
+                            nowMillis = nowMillis,
+                            onSelectFeedItem = onSelectFeedItem,
+                            onNavigateToUserProfile = onNavigateToUserProfile,
+                            onImageClick = { fullScreenImageUrl = it }
+                        )
+                    }
+                }
+            } else {
+                when {
+                    state.isNearbyFeedLoading && state.nearbyFeedItems.isEmpty() -> {
+                        FeedLoadingState(message = "Buscando dudas cercanas en Para ti...")
+                    }
+
+                    state.nearbyNeedsLocationPermission && state.nearbyFeedItems.isEmpty() -> {
+                        FeedActionState(
+                            emoji = "📍",
+                            title = "Ubicación aproximada necesaria",
+                            message = "Para ordenar las dudas públicas por cercanía necesitamos permiso de ubicación aproximada.",
+                            primaryLabel = "Permitir ubicación",
+                            onPrimaryClick = {
+                                nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            },
+                            secondaryLabel = "Abrir Ajustes",
+                            onSecondaryClick = {
+                                val intent = Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null)
+                                )
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
+
+                    state.nearbyNeedsLocationServices && state.nearbyFeedItems.isEmpty() -> {
+                        FeedActionState(
+                            emoji = "🧭",
+                            title = "Ubicación del dispositivo desactivada",
+                            message = state.nearbyFeedError ?: "Activa los servicios de ubicación del sistema para cargar Para ti.",
+                            primaryLabel = "Reintentar",
+                            onPrimaryClick = {
+                                nowMillis = System.currentTimeMillis()
+                                viewModel.loadNearbyFeed(isManualRefresh = true)
+                            },
+                            secondaryLabel = "Ajustes de ubicación",
+                            onSecondaryClick = {
+                                context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                            }
+                        )
+                    }
+
+                    state.nearbyFeedError != null && state.nearbyFeedItems.isEmpty() -> {
+                        FeedErrorState(
+                            title = "No se pudo cargar Para ti",
+                            message = state.nearbyFeedError ?: "Error desconocido",
+                            onRetry = {
+                                nowMillis = System.currentTimeMillis()
+                                if (hasCoarseLocationPermission(context)) {
+                                    viewModel.loadNearbyFeed(isManualRefresh = true)
+                                } else {
+                                    nearbyPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                }
+                            }
+                        )
+                    }
+
+                    state.nearbyFeedItems.isEmpty() -> {
+                        FeedActionState(
+                            emoji = "🌍",
+                            title = "Nada en Para ti todavía",
+                            message = "Cuando otros usuarios publiquen dudas con Para ti activado, aparecerán aquí ordenadas por cercanía.",
+                            primaryLabel = "Actualizar",
+                            primaryEnabled = !state.isNearbyFeedLoading,
+                            onPrimaryClick = {
+                                nowMillis = System.currentTimeMillis()
+                                viewModel.loadNearbyFeed(isManualRefresh = true)
+                            }
+                        )
+                    }
+
+                    else -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            if (state.nearbyFeedError != null) {
+                                Text(
+                                    text = state.nearbyFeedError ?: "",
+                                    color = Color(0xFFFF8A80),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+                            FeedItemsList(
+                                items = state.nearbyFeedItems,
                                 nowMillis = nowMillis,
-                                onClick = { onSelectFeedItem(item) },
+                                onSelectFeedItem = onSelectFeedItem,
                                 onNavigateToUserProfile = onNavigateToUserProfile,
                                 onImageClick = { fullScreenImageUrl = it }
                             )
@@ -279,6 +369,281 @@ fun HomeScreen(
             contentDescription = "Foto de la duda",
             onDismiss = { fullScreenImageUrl = null }
         )
+    }
+}
+
+private fun hasCoarseLocationPermission(context: Context): Boolean {
+    return ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+}
+
+@Composable
+private fun HomeFeedTabBar(
+    selectedTab: HomeFeedTab,
+    onSelectTab: (HomeFeedTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        HomeFeedTabPill(
+            label = "Amigos",
+            selected = selectedTab == HomeFeedTab.FRIENDS,
+            onClick = { onSelectTab(HomeFeedTab.FRIENDS) },
+            modifier = Modifier.weight(1f)
+        )
+        HomeFeedTabPill(
+            label = "Para ti",
+            selected = selectedTab == HomeFeedTab.FOR_YOU,
+            onClick = { onSelectTab(HomeFeedTab.FOR_YOU) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun HomeFeedTabPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) LimeAccent else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.Black else TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun FeedLoadingState(message: String) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircularProgressIndicator(color = LimeAccent)
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+private fun FeedErrorState(
+    title: String,
+    message: String,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = LimeAccent,
+                contentColor = Color.Black
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Reintentar", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun FriendsEmptyState(
+    isLoading: Boolean,
+    onRefresh: () -> Unit,
+    onNavigateToFriends: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(CardBg)
+                .border(1.dp, CardBorder, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "👀", fontSize = 30.sp)
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = "Nada por aquí todavía",
+            color = Color.White,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Cuando tus amigos publiquen una compra o un plan, aparecerán aquí las 20 dudas más recientes.",
+            color = TextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = onRefresh,
+                enabled = !isLoading,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            ) {
+                Text("Actualizar", fontWeight = FontWeight.SemiBold)
+            }
+            Button(
+                onClick = onNavigateToFriends,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LimeAccent,
+                    contentColor = Color.Black
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Buscar amigos", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedActionState(
+    emoji: String,
+    title: String,
+    message: String,
+    primaryLabel: String,
+    onPrimaryClick: () -> Unit,
+    primaryEnabled: Boolean = true,
+    secondaryLabel: String? = null,
+    onSecondaryClick: (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(CardBg)
+                .border(1.dp, CardBorder, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = emoji, fontSize = 30.sp)
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (secondaryLabel != null && onSecondaryClick != null) {
+                OutlinedButton(
+                    onClick = onSecondaryClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Text(secondaryLabel, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Button(
+                onClick = onPrimaryClick,
+                enabled = primaryEnabled,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LimeAccent,
+                    contentColor = Color.Black
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(primaryLabel, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedItemsList(
+    items: List<CapriceFeedItem>,
+    nowMillis: Long,
+    onSelectFeedItem: (CapriceFeedItem) -> Unit,
+    onNavigateToUserProfile: (String) -> Unit,
+    onImageClick: (String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        items(
+            items = items,
+            key = { "${it.author.uid}_${it.caprice.id}_${it.caprice.timestamp}" }
+        ) { item ->
+            CapriceFeedCard(
+                item = item,
+                nowMillis = nowMillis,
+                onClick = { onSelectFeedItem(item) },
+                onNavigateToUserProfile = onNavigateToUserProfile,
+                onImageClick = onImageClick
+            )
+        }
     }
 }
 
@@ -314,15 +679,26 @@ private fun CapriceFeedCard(
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        // Cabecera: Avatar + @username clicables para ver perfil en modo visitante
+        // Cabecera: Avatar + @username clicables solo si es un perfil accesible (no desconocidos de Para ti)
+        val canOpenAuthor = item.canOpenAuthorProfile && author.uid.isNotBlank()
+        val distanceLabel = remember(item.approximateDistanceMeters) {
+            item.approximateDistanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 modifier = Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable { onNavigateToUserProfile(author.uid) }
+                    .then(
+                        if (canOpenAuthor) {
+                            Modifier.clickable { onNavigateToUserProfile(author.uid) }
+                        } else {
+                            Modifier
+                        }
+                    )
                     .padding(vertical = 2.dp, horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -346,14 +722,19 @@ private fun CapriceFeedCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "$typeEmoji ${caprice.type} • $relativeTime",
+                        text = if (distanceLabel != null) {
+                            "$typeEmoji ${caprice.type} • $distanceLabel • $relativeTime"
+                        } else {
+                            "$typeEmoji ${caprice.type} • $relativeTime"
+                        },
                         color = TextSecondary,
-                        fontSize = 12.sp
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
