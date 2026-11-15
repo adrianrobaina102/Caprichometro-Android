@@ -26,7 +26,7 @@ class GetNearbyCapricesUseCase(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
-        private const val MAX_CONCURRENT_AUTHOR_QUERIES = 4
+        private const val MAX_CONCURRENT_AUTHOR_QUERIES = 8
     }
 
     private data class Candidate(
@@ -39,12 +39,17 @@ class GetNearbyCapricesUseCase(
 
         try {
             val location = locationRepository.currentApproximateLocation().getOrThrow()
-            val discoverableCaprices = nearbyCapriceRepository.getDiscoverableCaprices().getOrThrow()
-            val outgoingBlockedIds = friendshipRepository
-                ?.getBlockedUserIds(currentUserId)
-                ?.getOrDefault(emptyList())
-                ?.toSet()
-                .orEmpty()
+            val (discoverableCaprices, outgoingBlockedIds) = coroutineScope {
+                val capricesDeferred = async { nearbyCapriceRepository.getDiscoverableCaprices().getOrThrow() }
+                val blockedDeferred = async {
+                    friendshipRepository
+                        ?.getBlockedUserIds(currentUserId)
+                        ?.getOrDefault(emptyList())
+                        ?.toSet()
+                        .orEmpty()
+                }
+                capricesDeferred.await() to blockedDeferred.await()
+            }
 
             val candidates = discoverableCaprices.mapNotNull { caprice ->
                 val cell = caprice.nearbyCell?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null

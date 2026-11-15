@@ -5,8 +5,11 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Date
@@ -29,6 +32,7 @@ class FirestoreUserProfileRepository(
 
     // Cache en memoria con TTL de 60s para evitar llamadas redundantes y refrescar cambios recientes
     private val userProfileCache = ConcurrentHashMap<String, CachedProfileEntry>()
+    private val userFetchLocks = ConcurrentHashMap<String, Mutex>()
 
     override fun invalidateUser(userId: String) {
         if (userId.isNotBlank()) {
@@ -97,40 +101,53 @@ class FirestoreUserProfileRepository(
             }
         }
 
-        try {
-            val userDoc = db.collection("users").document(userId).get().await()
-            if (!userDoc.exists()) {
-                return@withContext Result.success(null)
+        val lock = userFetchLocks.computeIfAbsent(userId) { Mutex() }
+        lock.withLock {
+            userProfileCache[userId]?.let { entry ->
+                if ((clockMillis() - entry.cachedAtMillis) < PROFILE_CACHE_TTL_MS) {
+                    return@withLock Result.success(entry.profile)
+                } else {
+                    userProfileCache.remove(userId, entry)
+                }
             }
 
-            val username = userDoc.getString("username")?.trim()
-            if (username.isNullOrBlank()) {
-                return@withContext Result.success(null)
-            }
+            try {
+                val userDoc = db.collection("users").document(userId).get().await()
+                if (!userDoc.exists()) {
+                    return@withLock Result.success(null)
+                }
 
-            val bio = (userDoc.get("bio") as? String)?.trim().orEmpty()
-            val photoUrl = (userDoc.get("photoUrl") as? String)?.trim().orEmpty()
+                val username = userDoc.getString("username")?.trim()
+                if (username.isNullOrBlank()) {
+                    return@withLock Result.success(null)
+                }
 
-            val createdAt = try {
-                userDoc.getTimestamp("createdAt")?.toDate()
-                    ?: userDoc.getDate("createdAt")
-                    ?: userDoc.getLong("createdAt")?.let { Date(it) }
-                    ?: Date()
+                val bio = (userDoc.get("bio") as? String)?.trim().orEmpty()
+                val photoUrl = (userDoc.get("photoUrl") as? String)?.trim().orEmpty()
+
+                val createdAt = try {
+                    userDoc.getTimestamp("createdAt")?.toDate()
+                        ?: userDoc.getDate("createdAt")
+                        ?: userDoc.getLong("createdAt")?.let { Date(it) }
+                        ?: Date()
+                } catch (e: Exception) {
+                    Date()
+                }
+
+                val profile = UserProfile(
+                    uid = userId,
+                    username = username,
+                    createdAt = createdAt,
+                    bio = bio,
+                    photoUrl = photoUrl
+                )
+                userProfileCache[userId] = CachedProfileEntry(profile, clockMillis())
+                Result.success(profile)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Date()
+                Result.failure(e)
             }
-
-            val profile = UserProfile(
-                uid = userId,
-                username = username,
-                createdAt = createdAt,
-                bio = bio,
-                photoUrl = photoUrl
-            )
-            userProfileCache[userId] = CachedProfileEntry(profile, clockMillis())
-            Result.success(profile)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 

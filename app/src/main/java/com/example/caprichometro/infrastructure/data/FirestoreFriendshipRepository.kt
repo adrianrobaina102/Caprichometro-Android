@@ -8,20 +8,51 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Transaction
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 
 class FirestoreFriendshipRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val clockMillis: () -> Long = { System.currentTimeMillis() }
 ) : FriendshipRepository {
+
+    private data class CachedEntry<T>(
+        val value: T,
+        val cachedAtMillis: Long
+    )
+
+    companion object {
+        internal const val BLOCK_CACHE_TTL_MS = 15_000L
+    }
+
+    private val blockedIdsCache = ConcurrentHashMap<String, CachedEntry<List<String>>>()
+    private val blockPairCache = ConcurrentHashMap<String, CachedEntry<Boolean>>()
+    private val blockedIdsLocks = ConcurrentHashMap<String, Mutex>()
+    private val blockPairLocks = ConcurrentHashMap<String, Mutex>()
+
+    private fun pairCacheKey(userA: String, userB: String): String {
+        return if (userA <= userB) "${userA}_$userB" else "${userB}_$userA"
+    }
+
+    private fun invalidateBlockCaches(userA: String, userB: String) {
+        blockedIdsCache.remove(userA)
+        blockedIdsCache.remove(userB)
+        blockPairCache.remove(pairCacheKey(userA, userB))
+    }
 
     private fun blockReference(blockerId: String, blockedUserId: String): DocumentReference {
         return db.collection("userBlocks")
@@ -212,7 +243,10 @@ class FirestoreFriendshipRepository(
                 null
             }.await()
 
+            invalidateBlockCaches(blockerId, blockedUserId)
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -221,34 +255,86 @@ class FirestoreFriendshipRepository(
     override suspend fun unblockUser(blockerId: String, blockedUserId: String): Result<Unit> = withContext(ioDispatcher) {
         try {
             blockReference(blockerId, blockedUserId).delete().await()
+            invalidateBlockCaches(blockerId, blockedUserId)
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     override suspend fun getBlockedUserIds(userId: String): Result<List<String>> = withContext(ioDispatcher) {
-        try {
-            val snapshot = db.collection("userBlocks")
-                .document(userId)
-                .collection("blockedUsers")
-                .get()
-                .await()
-            val ids = snapshot.documents.map { it.id }
-            Result.success(ids)
-        } catch (e: Exception) {
-            Result.failure(e)
+        if (userId.isBlank()) return@withContext Result.success(emptyList())
+
+        blockedIdsCache[userId]?.let { entry ->
+            if ((clockMillis() - entry.cachedAtMillis) < BLOCK_CACHE_TTL_MS) {
+                return@withContext Result.success(entry.value)
+            } else {
+                blockedIdsCache.remove(userId, entry)
+            }
+        }
+
+        val lock = blockedIdsLocks.computeIfAbsent(userId) { Mutex() }
+        lock.withLock {
+            blockedIdsCache[userId]?.let { entry ->
+                if ((clockMillis() - entry.cachedAtMillis) < BLOCK_CACHE_TTL_MS) {
+                    return@withLock Result.success(entry.value)
+                } else {
+                    blockedIdsCache.remove(userId, entry)
+                }
+            }
+            try {
+                val snapshot = db.collection("userBlocks")
+                    .document(userId)
+                    .collection("blockedUsers")
+                    .get()
+                    .await()
+                val ids = snapshot.documents.map { it.id }
+                blockedIdsCache[userId] = CachedEntry(ids, clockMillis())
+                Result.success(ids)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 
     override suspend fun isBlocked(userId: String, otherUserId: String): Result<Boolean> = withContext(ioDispatcher) {
-        try {
-            val outgoing = blockReference(userId, otherUserId).get().await()
-            if (outgoing.exists()) return@withContext Result.success(true)
-            val incoming = blockReference(otherUserId, userId).get().await()
-            Result.success(incoming.exists())
-        } catch (e: Exception) {
-            Result.failure(e)
+        if (userId.isBlank() || otherUserId.isBlank()) return@withContext Result.success(false)
+        val key = pairCacheKey(userId, otherUserId)
+
+        blockPairCache[key]?.let { entry ->
+            if ((clockMillis() - entry.cachedAtMillis) < BLOCK_CACHE_TTL_MS) {
+                return@withContext Result.success(entry.value)
+            } else {
+                blockPairCache.remove(key, entry)
+            }
+        }
+
+        val lock = blockPairLocks.computeIfAbsent(key) { Mutex() }
+        lock.withLock {
+            blockPairCache[key]?.let { entry ->
+                if ((clockMillis() - entry.cachedAtMillis) < BLOCK_CACHE_TTL_MS) {
+                    return@withLock Result.success(entry.value)
+                } else {
+                    blockPairCache.remove(key, entry)
+                }
+            }
+            try {
+                val blocked = coroutineScope {
+                    val outgoingDeferred = async { blockReference(userId, otherUserId).get().await() }
+                    val incomingDeferred = async { blockReference(otherUserId, userId).get().await() }
+                    outgoingDeferred.await().exists() || incomingDeferred.await().exists()
+                }
+                blockPairCache[key] = CachedEntry(blocked, clockMillis())
+                Result.success(blocked)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 
@@ -268,6 +354,8 @@ class FirestoreFriendshipRepository(
                     batch.commit().await()
                 }
             }
+            blockedIdsCache.remove(userId)
+            blockPairCache.clear()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -292,6 +380,8 @@ class FirestoreFriendshipRepository(
                     batch.commit().await()
                 }
             }
+            blockedIdsCache.remove(userId)
+            blockPairCache.clear()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

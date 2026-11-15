@@ -30,7 +30,7 @@ class GetAcceptedFriendsUseCase(
                 friendshipRepository.getBlockedUserIds(currentUserId).getOrDefault(emptyList()).toSet()
             }.getOrDefault(emptySet())
 
-            val semaphore = Semaphore(4)
+            val semaphore = Semaphore(8)
             coroutineScope {
                 acceptedFriendships.map { friendship ->
                     async(defaultDispatcher) {

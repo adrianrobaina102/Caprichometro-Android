@@ -27,9 +27,10 @@ class AndroidLocationRepository(
 ) : DeviceLocationRepository {
 
     companion object {
-        private const val MAX_CACHED_LOCATION_AGE_MS = 60_000L
+        // Para celdas aproximadas de ~5.5 km una lectura reciente de 10 minutos evita esperas de GPS en General
+        private const val MAX_CACHED_LOCATION_AGE_MS = 10 * 60_000L
         private const val MAX_ACCEPTABLE_ACCURACY_METERS = 20_000f
-        private const val CURRENT_LOCATION_TIMEOUT_MS = 5_000L
+        private const val CURRENT_LOCATION_TIMEOUT_MS = 1_800L
     }
 
     private val appContext = context.applicationContext
@@ -65,11 +66,18 @@ class AndroidLocationRepository(
         }
 
         return try {
-            findFreshCachedLocation(locationManager)?.let { cached ->
+            findCachedLocation(locationManager, checkFreshness = true)?.let { cached ->
                 return Result.success(cached)
             }
 
-            for (provider in providers) {
+            val fallbackCached = findCachedLocation(locationManager, checkFreshness = false)
+            val providersToQuery = if (fallbackCached != null) {
+                providers.take(1)
+            } else {
+                providers
+            }
+
+            for (provider in providersToQuery) {
                 val fixed = fetchCurrentLocationFromProvider(locationManager, provider)
                 val validated = fixed?.toApproximateLocationOrNull(checkFreshness = false)
                 if (validated != null) {
@@ -77,7 +85,7 @@ class AndroidLocationRepository(
                 }
             }
 
-            findCachedLocationFallback(locationManager)?.let { fallback ->
+            fallbackCached?.let { fallback ->
                 return Result.success(fallback)
             }
 
@@ -113,7 +121,10 @@ class AndroidLocationRepository(
     }
 
     @SuppressLint("MissingPermission")
-    private fun findFreshCachedLocation(locationManager: LocationManager): ApproximateLocation? {
+    private fun findCachedLocation(
+        locationManager: LocationManager,
+        checkFreshness: Boolean
+    ): ApproximateLocation? {
         val searchProviders = buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(LocationManager.FUSED_PROVIDER)
@@ -133,31 +144,7 @@ class AndroidLocationRepository(
                 }
             }
             .sortedByDescending { it.time }
-            .firstNotNullOfOrNull { it.toApproximateLocationOrNull(checkFreshness = true) }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun findCachedLocationFallback(locationManager: LocationManager): ApproximateLocation? {
-        val searchProviders = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                add(LocationManager.FUSED_PROVIDER)
-            }
-            add(LocationManager.NETWORK_PROVIDER)
-            add(LocationManager.PASSIVE_PROVIDER)
-            add(LocationManager.GPS_PROVIDER)
-        }
-        return searchProviders
-            .mapNotNull { provider ->
-                try {
-                    locationManager.getLastKnownLocation(provider)
-                } catch (_: SecurityException) {
-                    null
-                } catch (_: Exception) {
-                    null
-                }
-            }
-            .sortedByDescending { it.time }
-            .firstNotNullOfOrNull { it.toApproximateLocationOrNull(checkFreshness = false) }
+            .firstNotNullOfOrNull { it.toApproximateLocationOrNull(checkFreshness = checkFreshness) }
     }
 
     @SuppressLint("MissingPermission")

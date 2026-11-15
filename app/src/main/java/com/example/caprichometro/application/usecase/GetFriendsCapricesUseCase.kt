@@ -19,7 +19,7 @@ class GetFriendsCapricesUseCase(
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
-        private const val MAX_CONCURRENT_FRIEND_QUERIES = 4
+        private const val MAX_CONCURRENT_FRIEND_QUERIES = 8
     }
 
     suspend fun execute(
