@@ -20,18 +20,86 @@ class FirestoreVoteRepository(
 
     override suspend fun castVote(vote: Vote): Result<Unit> = withContext(ioDispatcher) {
         try {
-            val voteDoc = db.collection("caprices")
-                .document(vote.capriceId)
-                .collection("votes")
-                .document(vote.voterId)
+            val capriceRef = db.collection("caprices").document(vote.capriceId)
+            val voteRef = capriceRef.collection("votes").document(vote.voterId)
 
-            val data = mapOf(
-                "option" to vote.option,
-                "voterId" to vote.voterId,
-                "timestamp" to vote.timestamp
-            )
+            db.runTransaction { transaction ->
+                val capriceSnap = transaction.get(capriceRef)
+                if (!capriceSnap.exists()) {
+                    throw IllegalStateException("El capricho ya no existe")
+                }
 
-            voteDoc.set(data).await()
+                val authorId = capriceSnap.getString("userId")?.trim().orEmpty()
+                if (authorId.isBlank()) {
+                    throw IllegalStateException("El capricho no es válido")
+                }
+                if (authorId == vote.voterId) {
+                    throw IllegalStateException("No puedes votar en tu propio capricho")
+                }
+
+                val nearbyCell = capriceSnap.getString("nearbyCell")?.trim()?.takeIf { it.isNotEmpty() }
+                val rawVisible = capriceSnap.get("visibleToUserIds") as? List<*>
+                val visibleToUserIds = rawVisible?.mapNotNull { it as? String }.orEmpty()
+                val isVisible = nearbyCell != null || visibleToUserIds.isEmpty() || vote.voterId in visibleToUserIds
+                if (!isVisible) {
+                    throw IllegalStateException("No tienes permiso para votar en este capricho")
+                }
+
+                val rawTimestamp = capriceSnap.get("timestamp")
+                val capriceTimestamp = when (rawTimestamp) {
+                    is Number -> rawTimestamp.toLong()
+                    is com.google.firebase.Timestamp -> rawTimestamp.toDate().time
+                    is String -> rawTimestamp.toLongOrNull() ?: 0L
+                    else -> 0L
+                }
+                val now = System.currentTimeMillis()
+                if (capriceTimestamp <= 0L || now >= capriceTimestamp + 300_000L) {
+                    throw IllegalStateException("La votación ya ha cerrado (límite de 5 minutos alcanzado)")
+                }
+
+                val previousVote = transaction.get(voteRef)
+                if (previousVote.exists()) {
+                    throw IllegalStateException("Ya has votado en este capricho")
+                }
+
+                if (nearbyCell == null) {
+                    val sortedMembers = listOf(authorId, vote.voterId).sorted()
+                    val friendshipSnap = transaction.get(
+                        db.collection("friendships").document(sortedMembers.joinToString("_"))
+                    )
+                    val status = friendshipSnap.getString("status")
+                    val memberIds = (friendshipSnap.get("memberIDs") as? List<*>)
+                        ?.mapNotNull { it as? String }
+                        .orEmpty()
+                    if (status != "accepted" || memberIds.sorted() != sortedMembers) {
+                        throw IllegalStateException("Solo los amigos del autor pueden votar en este capricho")
+                    }
+                }
+
+                val authorBlockedVoter = transaction.get(
+                    db.collection("userBlocks")
+                        .document(authorId)
+                        .collection("blockedUsers")
+                        .document(vote.voterId)
+                )
+                val voterBlockedAuthor = transaction.get(
+                    db.collection("userBlocks")
+                        .document(vote.voterId)
+                        .collection("blockedUsers")
+                        .document(authorId)
+                )
+                if (authorBlockedVoter.exists() || voterBlockedAuthor.exists()) {
+                    throw IllegalStateException("No puedes votar en este capricho por un bloqueo entre ambos usuarios")
+                }
+
+                val data = mapOf(
+                    "option" to vote.option,
+                    "voterId" to vote.voterId,
+                    "timestamp" to now
+                )
+                transaction.set(voteRef, data)
+            }.await()
+
             Log.d("FirestoreVoteRepo", "Voto guardado exitosamente: capriceId=${vote.capriceId}, voter=${vote.voterId}, option=${vote.option}")
             Result.success(Unit)
         } catch (e: Exception) {

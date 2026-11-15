@@ -1,0 +1,233 @@
+package com.example.caprichometro.infrastructure.location
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
+import android.location.LocationRequest
+import android.os.Build
+import android.os.CancellationSignal
+import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
+import com.example.caprichometro.domain.model.ApproximateLocation
+import com.example.caprichometro.domain.model.DeviceLocationException
+import com.example.caprichometro.domain.repository.DeviceLocationRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
+
+class AndroidLocationRepository(
+    private val context: Context
+) : DeviceLocationRepository {
+
+    companion object {
+        private const val MAX_CACHED_LOCATION_AGE_MS = 60_000L
+        private const val MAX_ACCEPTABLE_ACCURACY_METERS = 20_000f
+        private const val CURRENT_LOCATION_TIMEOUT_MS = 5_000L
+    }
+
+    private val appContext = context.applicationContext
+    private val requestMutex = Mutex()
+
+    override fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            appContext,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    @SuppressLint("MissingPermission")
+    override suspend fun currentApproximateLocation(): Result<ApproximateLocation> {
+        if (!hasLocationPermission()) {
+            return Result.failure(DeviceLocationException.PermissionDenied())
+        }
+
+        val locationManager = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return Result.failure(DeviceLocationException.LocationUnavailable())
+
+        if (!LocationManagerCompat.isLocationEnabled(locationManager)) {
+            return Result.failure(DeviceLocationException.LocationServicesDisabled())
+        }
+
+        val providers = candidateProviders(locationManager)
+        if (providers.isEmpty()) {
+            return Result.failure(DeviceLocationException.LocationServicesDisabled())
+        }
+
+        if (!requestMutex.tryLock()) {
+            return Result.failure(DeviceLocationException.RequestInProgress())
+        }
+
+        return try {
+            findFreshCachedLocation(locationManager)?.let { cached ->
+                return Result.success(cached)
+            }
+
+            for (provider in providers) {
+                val fixed = fetchCurrentLocationFromProvider(locationManager, provider)
+                val validated = fixed?.toApproximateLocationOrNull(checkFreshness = false)
+                if (validated != null) {
+                    return Result.success(validated)
+                }
+            }
+
+            findCachedLocationFallback(locationManager)?.let { fallback ->
+                return Result.success(fallback)
+            }
+
+            Result.failure(DeviceLocationException.LocationUnavailable())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SecurityException) {
+            Result.failure(DeviceLocationException.PermissionDenied())
+        } catch (e: Exception) {
+            Result.failure(DeviceLocationException.LocationUnavailable())
+        } finally {
+            requestMutex.unlock()
+        }
+    }
+
+    private fun candidateProviders(locationManager: LocationManager): List<String> {
+        val candidates = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            candidates.add(LocationManager.FUSED_PROVIDER)
+        }
+        candidates.add(LocationManager.NETWORK_PROVIDER)
+        candidates.add(LocationManager.PASSIVE_PROVIDER)
+        // Solo con ACCESS_COARSE_LOCATION el sistema degrada/ofusca cualquier lectura GNSS antes de entregarla
+        candidates.add(LocationManager.GPS_PROVIDER)
+
+        return candidates.filter { provider ->
+            try {
+                locationManager.allProviders.contains(provider) && locationManager.isProviderEnabled(provider)
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun findFreshCachedLocation(locationManager: LocationManager): ApproximateLocation? {
+        val searchProviders = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(LocationManager.FUSED_PROVIDER)
+            }
+            add(LocationManager.NETWORK_PROVIDER)
+            add(LocationManager.PASSIVE_PROVIDER)
+            add(LocationManager.GPS_PROVIDER)
+        }
+        return searchProviders
+            .mapNotNull { provider ->
+                try {
+                    locationManager.getLastKnownLocation(provider)
+                } catch (_: SecurityException) {
+                    null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            .sortedByDescending { it.time }
+            .firstNotNullOfOrNull { it.toApproximateLocationOrNull(checkFreshness = true) }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun findCachedLocationFallback(locationManager: LocationManager): ApproximateLocation? {
+        val searchProviders = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(LocationManager.FUSED_PROVIDER)
+            }
+            add(LocationManager.NETWORK_PROVIDER)
+            add(LocationManager.PASSIVE_PROVIDER)
+            add(LocationManager.GPS_PROVIDER)
+        }
+        return searchProviders
+            .mapNotNull { provider ->
+                try {
+                    locationManager.getLastKnownLocation(provider)
+                } catch (_: SecurityException) {
+                    null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            .sortedByDescending { it.time }
+            .firstNotNullOfOrNull { it.toApproximateLocationOrNull(checkFreshness = false) }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun fetchCurrentLocationFromProvider(
+        locationManager: LocationManager,
+        provider: String
+    ): Location? = withContext(Dispatchers.Main.immediate) {
+        if (provider == LocationManager.PASSIVE_PROVIDER) {
+            return@withContext try {
+                locationManager.getLastKnownLocation(provider)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        withTimeoutOrNull(CURRENT_LOCATION_TIMEOUT_MS) {
+            suspendCancellableCoroutine { continuation ->
+                val cancellationSignal = CancellationSignal()
+                continuation.invokeOnCancellation {
+                    cancellationSignal.cancel()
+                }
+                try {
+                    val executor = ContextCompat.getMainExecutor(appContext)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val request = LocationRequest.Builder(0L)
+                            .setQuality(LocationRequest.QUALITY_BALANCED_POWER_ACCURACY)
+                            .setDurationMillis(CURRENT_LOCATION_TIMEOUT_MS)
+                            .setMaxUpdates(1)
+                            .build()
+                        locationManager.getCurrentLocation(
+                            provider,
+                            request,
+                            cancellationSignal,
+                            executor
+                        ) { location ->
+                            if (continuation.isActive) {
+                                continuation.resume(location)
+                            }
+                        }
+                    } else {
+                        LocationManagerCompat.getCurrentLocation(
+                            locationManager,
+                            provider,
+                            cancellationSignal,
+                            executor
+                        ) { location ->
+                            if (continuation.isActive) {
+                                continuation.resume(location)
+                            }
+                        }
+                    }
+                } catch (_: SecurityException) {
+                    if (continuation.isActive) continuation.resume(null)
+                } catch (_: IllegalArgumentException) {
+                    if (continuation.isActive) continuation.resume(null)
+                }
+            }
+        }
+    }
+
+    private fun Location.toApproximateLocationOrNull(checkFreshness: Boolean): ApproximateLocation? {
+        if (!latitude.isFinite() || !longitude.isFinite()) return null
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
+        if (hasAccuracy() && accuracy > MAX_ACCEPTABLE_ACCURACY_METERS) return null
+        if (checkFreshness) {
+            val ageMs = System.currentTimeMillis() - time
+            if (ageMs > MAX_CACHED_LOCATION_AGE_MS || ageMs < -MAX_CACHED_LOCATION_AGE_MS) {
+                return null
+            }
+        }
+        return ApproximateLocation(latitude = latitude, longitude = longitude)
+    }
+}

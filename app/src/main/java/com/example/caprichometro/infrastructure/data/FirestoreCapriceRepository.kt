@@ -36,6 +36,10 @@ class FirestoreCapriceRepository(
                     .filter { it.isNotBlank() }
                     .distinct()
             }
+            val normalizedNearbyCell = caprice.nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
+            if (normalizedNearbyCell != null) {
+                data["nearbyCell"] = normalizedNearbyCell
+            }
             val document = db.collection(collectionName).add(data).await()
             Result.success(document.id)
         } catch (e: Exception) {
