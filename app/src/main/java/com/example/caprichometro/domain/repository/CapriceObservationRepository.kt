@@ -3,6 +3,13 @@ package com.example.caprichometro.domain.repository
 import com.example.caprichometro.domain.model.Caprice
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+
+data class FriendCapriceUpdate(
+    val caprice: Caprice,
+    val isFinalDecision: Boolean
+)
 
 interface CapriceObservationRepository {
     /**
@@ -16,4 +23,17 @@ interface CapriceObservationRepository {
      * de [friendUserId] posteriores a [sinceTimestamp].
      */
     fun observeFriendFinalDecisions(friendUserId: String, sinceTimestamp: Long): Flow<Caprice> = emptyFlow()
+
+    /**
+     * Combina en un único listener las novedades de caprichos y decisiones finales de [friendUserId]
+     * para evitar duplicar suscripciones de Firestore al iniciar la sesión.
+     */
+    fun observeFriendUpdates(friendUserId: String, sinceTimestamp: Long): Flow<FriendCapriceUpdate> = merge(
+        observeFriendCaprices(friendUserId, sinceTimestamp).map {
+            FriendCapriceUpdate(caprice = it, isFinalDecision = false)
+        },
+        observeFriendFinalDecisions(friendUserId, sinceTimestamp).map {
+            FriendCapriceUpdate(caprice = it, isFinalDecision = true)
+        }
+    )
 }
