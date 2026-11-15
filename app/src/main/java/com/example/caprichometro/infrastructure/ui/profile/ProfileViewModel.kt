@@ -35,7 +35,12 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 
-private enum class CachedVerdict { ACCEPTED, REJECTED, TIE_OR_NONE }
+private enum class CachedVerdict { ACCEPTED, REJECTED, DECIDED_TIE, NONE }
+
+private data class CachedVerdictEntry(
+    val finalDecision: Int?,
+    val verdict: CachedVerdict
+)
 
 data class ProfileState(
     val isLoading: Boolean = false,
@@ -44,7 +49,8 @@ data class ProfileState(
     val caprices: List<Caprice> = emptyList(),
     val friends: List<UserProfile> = emptyList(),
     val blockedUsers: List<UserProfile> = emptyList(),
-    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (opcion 1 ganadora), false (opcion 2 ganadora), null (empate/sin votos/activa)
+    val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (siguió al ganador), false (no siguió), null (empate/sin votos/activa)
+    val decidedTieIds: Set<String> = emptySet(),
     val voteCounts: Map<String, Int> = emptyMap(),
     val isOwnProfile: Boolean = true,
     val isSavingBio: Boolean = false,
@@ -60,7 +66,8 @@ private data class ProfileLoadResult(
     val caprices: List<Caprice>,
     val blockedUsers: List<UserProfile>,
     val friends: List<UserProfile>,
-    val verdicts: Map<String, Boolean?>
+    val verdicts: Map<String, Boolean?>,
+    val decidedTieIds: Set<String>
 )
 
 class ProfileViewModel(
@@ -82,8 +89,8 @@ class ProfileViewModel(
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
-    // Cache en memoria thread-safe para veredictos de dudas cerradas (inmutables)
-    private val verdictCache = ConcurrentHashMap<String, CachedVerdict>()
+    // Cache en memoria thread-safe para veredictos de dudas cerradas (se invalida si cambia finalDecision)
+    private val verdictCache = ConcurrentHashMap<String, CachedVerdictEntry>()
     private val voteCountCache = ConcurrentHashMap<String, Int>()
     private var sessionGeneration = 0L
     private var profileLoadJob: Job? = null
@@ -101,13 +108,13 @@ class ProfileViewModel(
     }
 
     private fun computeVerdictStatus(caprice: Caprice, votes: List<com.example.caprichometro.domain.model.Vote>): CachedVerdict {
-        val decision = caprice.finalDecision ?: return CachedVerdict.TIE_OR_NONE
+        val decision = caprice.finalDecision ?: return CachedVerdict.NONE
         val opt1Votes = votes.count { it.option == 1 }
         val opt2Votes = votes.count { it.option == 2 }
         val winningOption = when {
             opt1Votes > opt2Votes -> 1
             opt2Votes > opt1Votes -> 2
-            else -> return CachedVerdict.TIE_OR_NONE
+            else -> return CachedVerdict.DECIDED_TIE
         }
         return if (decision == winningOption) CachedVerdict.ACCEPTED else CachedVerdict.REJECTED
     }
@@ -115,7 +122,7 @@ class ProfileViewModel(
     private fun CachedVerdict.toAcceptedOrNull(): Boolean? = when (this) {
         CachedVerdict.ACCEPTED -> true
         CachedVerdict.REJECTED -> false
-        CachedVerdict.TIE_OR_NONE -> null
+        CachedVerdict.DECIDED_TIE, CachedVerdict.NONE -> null
     }
 
     fun loadProfile(targetUserId: String, currentUserId: String = targetUserId) {
@@ -141,6 +148,7 @@ class ProfileViewModel(
                 friends = if (isDifferentUser || !isOwn) emptyList() else it.friends,
                 blockedUsers = if (isDifferentUser || !isOwn) emptyList() else it.blockedUsers,
                 verdicts = if (isDifferentUser) emptyMap() else it.verdicts,
+                decidedTieIds = if (isDifferentUser) emptySet() else it.decidedTieIds,
                 email = email,
                 isOwnProfile = isOwn,
                 isSignedOut = false,
@@ -183,16 +191,24 @@ class ProfileViewModel(
                 } else {
                     rawCaprices.filter { it.isVisibleTo(currentUserId) }
                 }
-                val cachedVerdicts = loadedCaprices.mapNotNull { caprice ->
-                    verdictCache[caprice.id]?.let { caprice.id to it.toAcceptedOrNull() }
-                }.toMap()
+                val validCached = loadedCaprices.mapNotNull { caprice ->
+                    verdictCache[caprice.id]
+                        ?.takeIf { it.finalDecision == caprice.finalDecision }
+                        ?.let { caprice.id to it.verdict }
+                }
+                val cachedVerdicts = validCached.associate { it.first to it.second.toAcceptedOrNull() }
+                val cachedTieIds = validCached
+                    .filter { it.second == CachedVerdict.DECIDED_TIE }
+                    .map { it.first }
+                    .toSet()
 
                 ProfileLoadResult(
                     profile = profileDeferred.await(),
                     caprices = loadedCaprices,
                     blockedUsers = blockedDeferred.await(),
                     friends = friendsDeferred.await(),
-                    verdicts = cachedVerdicts
+                    verdicts = cachedVerdicts,
+                    decidedTieIds = cachedTieIds
                 )
             }
 
@@ -205,7 +221,8 @@ class ProfileViewModel(
                     caprices = result.caprices,
                     friends = result.friends,
                     blockedUsers = result.blockedUsers,
-                    verdicts = result.verdicts
+                    verdicts = result.verdicts,
+                    decidedTieIds = result.decidedTieIds
                 )
             }
 
@@ -213,7 +230,8 @@ class ProfileViewModel(
             val repo = voteRepository ?: return@launch
             val pendingCaprices = result.caprices.filter { caprice ->
                 val isExpired = (System.currentTimeMillis() - caprice.timestamp) >= PollNotificationScheduler.POLL_DURATION_MILLIS
-                isExpired && (!verdictCache.containsKey(caprice.id) || !voteCountCache.containsKey(caprice.id))
+                val hasValidVerdict = verdictCache[caprice.id]?.finalDecision == caprice.finalDecision
+                isExpired && (!hasValidVerdict || !voteCountCache.containsKey(caprice.id))
             }
             if (pendingCaprices.isEmpty()) {
                 val cachedCounts = result.caprices.mapNotNull { c ->
@@ -234,10 +252,10 @@ class ProfileViewModel(
                                 val votes = repo.getVotes(caprice.id).getOrDefault(emptyList())
                                 val cachedVerdict = computeVerdictStatus(caprice, votes)
                                 if (caprice.finalDecision != null) {
-                                    verdictCache[caprice.id] = cachedVerdict
+                                    verdictCache[caprice.id] = CachedVerdictEntry(caprice.finalDecision, cachedVerdict)
                                 }
                                 voteCountCache[caprice.id] = votes.size
-                                Triple(caprice.id, cachedVerdict.toAcceptedOrNull(), votes.size)
+                                Triple(caprice.id, cachedVerdict, votes.size)
                             }
                         }
                     }.awaitAll()
@@ -245,11 +263,14 @@ class ProfileViewModel(
 
                 if (requestSession != sessionGeneration) return@launch
 
-                val computedVerdicts = computed.associate { it.first to it.second }
+                val computedVerdicts = computed.associate { it.first to it.second.toAcceptedOrNull() }
+                val computedTieIds = computed.filter { it.second == CachedVerdict.DECIDED_TIE }.map { it.first }.toSet()
+                val recomputedNonTieIds = computed.filter { it.second != CachedVerdict.DECIDED_TIE }.map { it.first }.toSet()
                 val computedCounts = computed.associate { it.first to it.third }
                 _state.update { current ->
                     current.copy(
                         verdicts = current.verdicts + computedVerdicts,
+                        decidedTieIds = (current.decidedTieIds - recomputedNonTieIds) + computedTieIds,
                         voteCounts = current.voteCounts + computedCounts
                     )
                 }
@@ -279,9 +300,17 @@ class ProfileViewModel(
         viewModelScope.launch {
             val votes = repo.getVotes(capriceId).getOrDefault(emptyList())
             val cachedVerdict = computeVerdictStatus(targetCaprice, votes)
-            verdictCache[capriceId] = cachedVerdict
+            verdictCache[capriceId] = CachedVerdictEntry(targetCaprice.finalDecision, cachedVerdict)
             _state.update { current ->
-                current.copy(verdicts = current.verdicts + (capriceId to cachedVerdict.toAcceptedOrNull()))
+                val updatedTieIds = if (cachedVerdict == CachedVerdict.DECIDED_TIE) {
+                    current.decidedTieIds + capriceId
+                } else {
+                    current.decidedTieIds - capriceId
+                }
+                current.copy(
+                    verdicts = current.verdicts + (capriceId to cachedVerdict.toAcceptedOrNull()),
+                    decidedTieIds = updatedTieIds
+                )
             }
         }
     }

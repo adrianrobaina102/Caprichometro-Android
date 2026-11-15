@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,6 +83,7 @@ private data class MemoryItem(
     val imageUrl: String = "",
     val gradientColors: List<Color>,
     val accepted: Boolean?,
+    val isDecidedTie: Boolean = false,
     val isActive: Boolean = false,
     val isDecisionPending: Boolean = false,
     val extraCount: Int = 0
@@ -104,6 +106,7 @@ private fun avatarColorFor(username: String): Color {
 private fun capriceToMemory(
     caprice: Caprice,
     accepted: Boolean?,
+    isDecidedTie: Boolean = false,
     isActive: Boolean,
     isDecisionPending: Boolean = false
 ): MemoryItem {
@@ -133,6 +136,7 @@ private fun capriceToMemory(
         imageUrl = caprice.imageUrl,
         gradientColors = colors,
         accepted = accepted,
+        isDecidedTie = isDecidedTie,
         isActive = isActive,
         isDecisionPending = isDecisionPending
     )
@@ -1181,6 +1185,7 @@ fun ProfileScreen(
                     capriceToMemory(
                         caprice = caprice,
                         accepted = state.verdicts[caprice.id],
+                        isDecidedTie = caprice.id in state.decidedTieIds,
                         isActive = !isExpired,
                         isDecisionPending = state.isOwnProfile &&
                             isExpired &&
@@ -1508,6 +1513,23 @@ private fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
                     imageVector = if (item.accepted) Icons.Default.Check else Icons.Default.Close,
                     contentDescription = null,
                     tint = if (item.accepted) Color(0xFF1A2E05) else Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        } else if (item.isDecidedTie) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(BadgeGreen),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Verified,
+                    contentDescription = "Decisión guardada en empate",
+                    tint = Color(0xFF1A2E05),
                     modifier = Modifier.size(16.dp)
                 )
             }

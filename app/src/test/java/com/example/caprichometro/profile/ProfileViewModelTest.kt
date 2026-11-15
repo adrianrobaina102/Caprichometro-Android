@@ -13,6 +13,9 @@ import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.model.Vote
+import com.example.caprichometro.domain.repository.VoteRepository
+import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -300,5 +303,76 @@ class ProfileViewModelTest {
 
         assertTrue(successCalled)
         coVerify(exactly = 1) { blockUserUseCase.execute("my_id", "target_id") }
+    }
+
+    @Test
+    fun `loadProfile marca empate con decision final en decidedTieIds y markFinalDecision rectifica el veredicto`() = runTest {
+        val myUid = "user_me"
+        val voteRepository = mockk<VoteRepository>()
+        val expiredTimestamp = System.currentTimeMillis() - PollNotificationScheduler.POLL_DURATION_MILLIS - 60_000L
+
+        val tieCaprice = Caprice(
+            id = "c_tie",
+            userId = myUid,
+            question = "¿Pizza o sushi?",
+            answer1 = "Pizza",
+            answer2 = "Sushi",
+            timestamp = expiredTimestamp,
+            finalDecision = 1,
+            finalDecisionAt = expiredTimestamp + 10_000L
+        )
+        val majorityCaprice = Caprice(
+            id = "c_maj",
+            userId = myUid,
+            question = "¿Cine o manta?",
+            answer1 = "Cine",
+            answer2 = "Manta",
+            timestamp = expiredTimestamp,
+            finalDecision = 1,
+            finalDecisionAt = expiredTimestamp + 10_000L
+        )
+
+        every { getCurrentUserUseCase.execute() } returns User(id = myUid, email = "me@test.com", name = "Adrian")
+        coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(UserProfile(uid = myUid, username = "adrian"))
+        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(listOf(tieCaprice, majorityCaprice))
+        coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
+        coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
+        coEvery { voteRepository.getVotes("c_tie") } returns Result.success(
+            listOf(
+                Vote(capriceId = "c_tie", voterId = "f1", option = 1),
+                Vote(capriceId = "c_tie", voterId = "f2", option = 2)
+            )
+        )
+        coEvery { voteRepository.getVotes("c_maj") } returns Result.success(
+            listOf(
+                Vote(capriceId = "c_maj", voterId = "f1", option = 1),
+                Vote(capriceId = "c_maj", voterId = "f2", option = 1)
+            )
+        )
+
+        val vm = ProfileViewModel(
+            getCurrentUserUseCase,
+            userProfileRepository,
+            getBlockedUsersUseCase,
+            unblockUserUseCase,
+            signOutUseCase,
+            deleteAccountUseCase,
+            getCapricesUseCase,
+            getAcceptedFriendsUseCase,
+            voteRepository = voteRepository
+        )
+
+        vm.loadProfile(myUid, myUid)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.decidedTieIds).containsExactly("c_tie")
+        assertThat(vm.state.value.verdicts["c_tie"]).isNull()
+        assertThat(vm.state.value.verdicts["c_maj"]).isTrue()
+
+        vm.markFinalDecision("c_maj", decision = 2, decidedAt = System.currentTimeMillis())
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.verdicts["c_maj"]).isFalse()
+        assertThat(vm.state.value.decidedTieIds).containsExactly("c_tie")
     }
 }
