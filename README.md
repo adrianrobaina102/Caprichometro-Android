@@ -83,4 +83,5 @@ El diseño funcional y técnico compartido entre Android e iOS vive en el submó
 - [Votaciones, Veredicto y Decisión Final](shared-docs/architecture/modules/voting.md)
 - [Temporizador y Notificaciones](shared-docs/architecture/modules/notifications.md)
 - [Contrato de Datos de Firebase](shared-docs/architecture/firebase-data-contract.md)
+- [Decisiones Técnicas (ADRs)](shared-docs/architecture/decisions/README.md)
 - [Hoja de Ruta y Auditoría Técnica](shared-docs/roadmaps/ROADMAP.md)
