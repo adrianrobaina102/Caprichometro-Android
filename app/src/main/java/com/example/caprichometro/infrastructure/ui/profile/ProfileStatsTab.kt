@@ -2,11 +2,17 @@ package com.example.caprichometro.infrastructure.ui.profile
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.caprichometro.domain.model.Caprice
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,8 +35,29 @@ internal fun ProfileStatsTab(
     comprasCount: Int,
     planesCount: Int,
     ropaCount: Int,
-    otrosCount: Int
+    otrosCount: Int,
+    caprices: List<Caprice> = emptyList(),
+    onSelectCaprice: (Caprice) -> Unit = {}
 ) {
+    var sheetOpen by remember { mutableStateOf(false) }
+    var sheetFilter by remember { mutableStateOf<ProfileCategory?>(null) }
+    val openSheet: (ProfileCategory?) -> Unit = { category ->
+        sheetFilter = category
+        sheetOpen = true
+    }
+
+    if (sheetOpen) {
+        ProfileCategoriesSheet(
+            caprices = caprices,
+            initialFilter = sheetFilter,
+            onSelectCaprice = { caprice ->
+                sheetOpen = false
+                onSelectCaprice(caprice)
+            },
+            onDismiss = { sheetOpen = false }
+        )
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -106,7 +133,11 @@ internal fun ProfileStatsTab(
                         text = "Ver todas",
                         color = LimeGreen,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { openSheet(null) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
 
@@ -118,24 +149,28 @@ internal fun ProfileStatsTab(
                 ) {
                     CategoryStatItem(
                         icon = { ShoppingBagIcon() },
+                        onClick = { openSheet(ProfileCategory.COMPRAS) },
                         name = "Compras",
                         count = comprasCount,
                         backgroundColor = Color(0xFF381A26)
                     )
                     CategoryStatItem(
                         icon = { PartyPopperIcon() },
+                        onClick = { openSheet(ProfileCategory.PLANES) },
                         name = "Planes",
                         count = planesCount,
                         backgroundColor = Color(0xFF241B3B)
                     )
                     CategoryStatItem(
                         icon = { HangerIcon() },
+                        onClick = { openSheet(ProfileCategory.ROPA) },
                         name = "Ropa",
                         count = ropaCount,
                         backgroundColor = Color(0xFF302B1B)
                     )
                     CategoryStatItem(
                         icon = { MoreDotsIcon() },
+                        onClick = { openSheet(ProfileCategory.OTROS) },
                         name = "Otros",
                         count = otrosCount,
                         backgroundColor = Color(0xFF242426)
@@ -182,9 +217,14 @@ private fun CategoryStatItem(
     icon: @Composable () -> Unit,
     name: String,
     count: Int,
-    backgroundColor: Color
+    backgroundColor: Color,
+    onClick: () -> Unit
 ) {
     Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

@@ -51,6 +51,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -841,6 +845,10 @@ fun ProfileScreen(
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .semantics {
+                        contentDescription = "Recuerdos"
+                        role = Role.Tab
+                    }
                     .clickable { selectedTab = 0 }
                     .padding(top = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -859,6 +867,10 @@ fun ProfileScreen(
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .semantics {
+                        contentDescription = "Estadísticas"
+                        role = Role.Tab
+                    }
                     .clickable { selectedTab = 1 }
                     .padding(top = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -894,7 +906,9 @@ fun ProfileScreen(
                 comprasCount = comprasCount,
                 planesCount = planesCount,
                 ropaCount = ropaCount,
-                otrosCount = otrosCount
+                otrosCount = otrosCount,
+                caprices = state.caprices,
+                onSelectCaprice = onSelectCaprice
             )
         }
 
