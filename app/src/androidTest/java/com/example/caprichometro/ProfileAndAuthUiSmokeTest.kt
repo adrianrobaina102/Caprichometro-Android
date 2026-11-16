@@ -1,15 +1,19 @@
 package com.example.caprichometro
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.platform.app.InstrumentationRegistry
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.Caprice
@@ -33,6 +37,9 @@ class ProfileAndAuthUiSmokeTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    private val targetContext: Context
+        get() = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
     fun profileMemoriesTab_showsPendingBadgeTieVerifiedSealAndClick() {
@@ -71,9 +78,9 @@ class ProfileAndAuthUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Pendiente").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Decisión guardada en empate").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Ver mis recuerdos").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_badge_pending)).assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.profile_badge_tie_cd)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_memories_footer)).assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Café o té?").performClick()
         assertEquals("c_tie", selectedCaprice?.id)
     }
@@ -93,14 +100,14 @@ class ProfileAndAuthUiSmokeTest {
         }
 
         composeTestRule.onNodeWithText("75%").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Hice caso").assertIsDisplayed()
-        composeTestRule.onNodeWithText("de mis amigos").assertIsDisplayed()
-        composeTestRule.onNodeWithText("en 3 de 4 dudas").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Mis categorías").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Compras").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Planes").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Ropa").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Otros").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_listened_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_listened_subtitle)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_listened_detail, 3, 4)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_categories_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.category_compras)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.category_planes)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.category_ropa)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.category_otros)).assertIsDisplayed()
     }
 
     @Test
@@ -127,23 +134,34 @@ class ProfileAndAuthUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Ver todas").performClick()
-        composeTestRule.onNodeWithText("Tus dudas por categoría").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Todas (3)").assertIsDisplayed()
+        val planesChip = targetContext.getString(
+            R.string.profile_categories_count_chip,
+            targetContext.getString(R.string.category_planes),
+            1
+        )
+        val otrosChip = targetContext.getString(
+            R.string.profile_categories_count_chip,
+            targetContext.getString(R.string.category_otros),
+            0
+        )
+
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_see_all)).performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_categories_sheet_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_categories_all, 3)).assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Compro la mochila?").assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Vamos a la playa?").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Planes (1)").performClick()
+        composeTestRule.onNodeWithText(planesChip).performScrollTo().performClick()
         composeTestRule.onNodeWithText("¿Vamos a la playa?").assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Compro la mochila?").assertDoesNotExist()
 
-        composeTestRule.onNodeWithText("Otros (0)").performScrollTo().performClick()
-        composeTestRule.onNodeWithText("No hay dudas en esta categoría.").assertIsDisplayed()
+        composeTestRule.onNodeWithText(otrosChip).performScrollTo().performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_categories_empty)).assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Planes (1)").performScrollTo().performClick()
+        composeTestRule.onNodeWithText(planesChip).performScrollTo().performClick()
         composeTestRule.onNodeWithText("¿Vamos a la playa?").performClick()
         assertEquals("c2", selected?.id)
-        composeTestRule.onNodeWithText("Tus dudas por categoría").assertDoesNotExist()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_categories_sheet_title)).assertDoesNotExist()
     }
 
     @Test
@@ -167,13 +185,13 @@ class ProfileAndAuthUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Ropa").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.category_ropa)).performClick()
         composeTestRule.onNodeWithText("¿Me llevo la chaqueta?").assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Compro la mochila?").assertDoesNotExist()
     }
 
     @Test
-    fun profileScreen_ownProfileSwitchesToStatsAndOpensSettingsSheet() {
+    fun profileScreen_ownProfileSwitchesToStatsAndOpensSettingsAndLanguagePicker() {
         val now = System.currentTimeMillis()
         val closedTs = now - PollTiming.POLL_DURATION_MILLIS - 60_000L
         val ownProfile = UserProfile(uid = "user_1", username = "adri", bio = "Bio de prueba")
@@ -224,17 +242,26 @@ class ProfileAndAuthUiSmokeTest {
 
         composeTestRule.onNodeWithText("Adri").assertIsDisplayed()
         composeTestRule.onNodeWithText("Bio de prueba").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Decisión guardada en empate").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.profile_badge_tie_cd)).assertIsDisplayed()
 
-        composeTestRule.onNodeWithContentDescription("Estadísticas").performClick()
-        composeTestRule.onNodeWithText("Mis categorías").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.profile_tab_stats_cd)).performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_categories_title)).assertIsDisplayed()
 
-        composeTestRule.onNodeWithContentDescription("Volver a recuerdos").performClick()
-        composeTestRule.onNodeWithContentDescription("Ajustes").performClick()
-        composeTestRule.onNodeWithText("Editar perfil").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Amigos (1)").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Privacidad").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cerrar sesión").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.profile_back_to_memories_cd)).performClick()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.profile_settings_cd)).performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_settings_edit_profile)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_settings_friends_count, 1)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_settings_privacy)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_settings_sign_out)).assertIsDisplayed()
+
+        val languageRowText = targetContext.getString(
+            R.string.profile_settings_language_with_current,
+            targetContext.getString(R.string.language_system)
+        )
+        composeTestRule.onNodeWithText(languageRowText).performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.language_sheet_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.language_spanish)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.language_english)).assertIsDisplayed()
     }
 
     @Test
@@ -263,12 +290,12 @@ class ProfileAndAuthUiSmokeTest {
 
         composeTestRule.onNodeWithText("@ana").assertIsDisplayed()
         composeTestRule.onNodeWithText("Viajera").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Volver").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Ajustes").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.action_back)).assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.profile_settings_cd)).assertDoesNotExist()
 
-        composeTestRule.onNodeWithContentDescription("Opciones").performClick()
-        composeTestRule.onNodeWithText("Eliminar amigo").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Bloquear usuario").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.action_options)).performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_remove_friend_action)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_block_user_action)).assertIsDisplayed()
     }
 
     @Test
@@ -282,18 +309,18 @@ class ProfileAndAuthUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Entrar").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Continuar con Google").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(targetContext.getString(R.string.auth_button_login)).onFirst().assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.auth_google_button)).assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Registrarse").performClick()
-        composeTestRule.onNodeWithText("Nombre de usuario (@usuario)").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Crear cuenta").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(targetContext.getString(R.string.auth_tab_register)).onFirst().performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.auth_username_placeholder)).assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(targetContext.getString(R.string.auth_button_register)).onFirst().assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Fecha de nacimiento (dd/mm/aaaa)").performClick()
-        composeTestRule.onNodeWithText("FECHA DE NACIMIENTO").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Elige tu fecha").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Aceptar").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cancelar").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.auth_birthday_placeholder)).performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.auth_birthday_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.auth_birthday_headline_empty)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.action_accept)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.action_cancel)).performClick()
     }
 
     @Test
@@ -316,14 +343,14 @@ class ProfileAndAuthUiSmokeTest {
             }
         }
 
-        composeTestRule.onNodeWithText("General").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_tab_general)).performClick()
         assertEquals(HomeFeedTab.GENERAL, selectedTab)
 
-        composeTestRule.onNodeWithText("Activa ubicación para ver distancias en Amigos").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Activar").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_location_banner_text)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_location_banner_activate)).performClick()
         assertTrue(allowClicked)
 
-        composeTestRule.onNodeWithContentDescription("Cerrar aviso").performClick()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.home_location_banner_dismiss_cd)).performClick()
         assertTrue(dismissed)
     }
 }

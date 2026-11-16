@@ -1,11 +1,13 @@
 package com.example.caprichometro
 
+import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.test.platform.app.InstrumentationRegistry
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.PollTiming
@@ -25,6 +27,9 @@ class CapriceUiSmokeTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    private val targetContext: Context
+        get() = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
     fun activePollScreen_rendersQuestionOptionsAndAuthor() {
@@ -50,7 +55,7 @@ class CapriceUiSmokeTest {
         composeTestRule.onNodeWithText("¿Me compro los auriculares?").assertIsDisplayed()
         composeTestRule.onNodeWithText("Sí, merecen la pena").assertIsDisplayed()
         composeTestRule.onNodeWithText("No, ahorra").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Duda de @adrian").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.poll_friend_title, "adrian")).assertIsDisplayed()
     }
 
     @Test
@@ -74,7 +79,7 @@ class CapriceUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("VOTACIÓN CERRADA").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.result_badge_closed)).assertIsDisplayed()
         composeTestRule.onNodeWithText("@adri").assertIsDisplayed()
         composeTestRule.onNodeWithText("Claro").assertIsDisplayed()
         composeTestRule.onNodeWithText("En casa").assertIsDisplayed()
@@ -127,10 +132,10 @@ class CapriceUiSmokeTest {
         }
 
         composeTestRule.onNodeWithText("¿Café cerca?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Caprichos más lejanos").assertIsDisplayed()
-        composeTestRule.onNodeWithText("> 50 km").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_far_section_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_far_section_badge)).assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Viaje a Bilbao?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cargar 20 más").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_pagination_load_more, 20)).performClick()
         assertTrue(loadedMore)
     }
 
@@ -152,28 +157,33 @@ class CapriceUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Antes de lanzarlo").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Visible para todos tus amigos (2)").performScrollTo().performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_screen_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_audience_all_friends, 2))
+            .performScrollTo()
+            .performClick()
 
-        composeTestRule.onNodeWithText("¿A qué amigos enviarlo?").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_audience_sheet_title)).assertIsDisplayed()
         composeTestRule.onNodeWithText("@ana").assertIsDisplayed()
         composeTestRule.onNodeWithText("@carlos").performClick()
-        composeTestRule.onNodeWithText("Listo").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.action_done)).performClick()
 
-        composeTestRule.onNodeWithText("Visible para 1 de 2 amigos").assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_audience_some_friends, 1, 2))
+            .assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("🎉 Plan").performScrollTo().performClick()
-        composeTestRule.onNodeWithText("Ej. ¿Me compro estas zapatillas?")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_type_plan_chip))
+            .performScrollTo()
+            .performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_question_placeholder))
             .performScrollTo()
             .performTextInput("¿Vamos al concierto del viernes?")
-        composeTestRule.onNodeWithText("Ej. Sí, te quedan genial")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_a_placeholder))
             .performScrollTo()
             .performTextInput("De cabeza")
-        composeTestRule.onNodeWithText("Ej. No, ahorra un poco")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_b_placeholder))
             .performScrollTo()
             .performTextInput("Mejor en casa")
 
-        composeTestRule.onNodeWithText("Lanzar a mis amigos").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_submit_friends)).performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 3_000L) { navigatedToPoll }
         assertEquals(1, capriceRepo.savedCaprices.size)
@@ -203,21 +213,21 @@ class CapriceUiSmokeTest {
             viewModel.state.value.preparedNearbyCell != null
         }
 
-        composeTestRule.onNodeWithText("✓ Zona aproximada preparada para General")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_general_zone_ready))
             .performScrollTo()
             .assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Ej. ¿Me compro estas zapatillas?")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_question_placeholder))
             .performScrollTo()
             .performTextInput("¿Compro la chaqueta verde?")
-        composeTestRule.onNodeWithText("Ej. Sí, te quedan genial")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_a_placeholder))
             .performScrollTo()
             .performTextInput("Cómprala")
-        composeTestRule.onNodeWithText("Ej. No, ahorra un poco")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_b_placeholder))
             .performScrollTo()
             .performTextInput("Pasa")
 
-        composeTestRule.onNodeWithText("Publicar en General").performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_submit_general)).performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 3_000L) { navigatedToPoll }
         assertEquals(1, capriceRepo.savedCaprices.size)
@@ -251,7 +261,7 @@ class CapriceUiSmokeTest {
             )
         }
 
-        composeTestRule.onNodeWithText("PENDIENTE DE CONFIRMAR TU DECISIÓN")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.result_decision_pending_author_title))
             .performScrollTo()
             .assertIsDisplayed()
         composeTestRule.onNodeWithText("A · Cogerla ya").performScrollTo().performClick()
@@ -259,9 +269,15 @@ class CapriceUiSmokeTest {
         composeTestRule.waitUntil(timeoutMillis = 3_000L) {
             capriceRepo.savedCaprices.first().finalDecision == 1
         }
-        composeTestRule.onNodeWithText("TU DECISIÓN FINAL").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("Rectificar opinión final").performScrollTo().performClick()
-        composeTestRule.onNodeWithText("RECTIFICAR TU DECISIÓN FINAL").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.result_decision_your_final))
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.result_decision_rectify_button))
+            .performScrollTo()
+            .performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.result_decision_rectify_title))
+            .performScrollTo()
+            .assertIsDisplayed()
         composeTestRule.onNodeWithText("B · Esperar").performScrollTo().performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 3_000L) {
