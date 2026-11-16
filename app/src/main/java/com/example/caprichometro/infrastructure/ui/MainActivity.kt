@@ -1,5 +1,6 @@
 ﻿package com.example.caprichometro.infrastructure.ui
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -41,11 +42,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.caprichometro.R
 import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
 import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
 import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
@@ -64,6 +67,7 @@ import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
+import com.example.caprichometro.infrastructure.util.AppLocaleManager
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -91,6 +95,10 @@ class SessionNavigationViewModel : ViewModel() {
 
 class MainActivity : ComponentActivity() {
     private var pendingIntentState = mutableStateOf<Intent?>(null)
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocaleManager.wrapContext(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -646,7 +654,7 @@ fun CapriceApp(
                         ) {
                             Icon(
                                 imageVector = if (isHomeSelected) Icons.Filled.Home else Icons.Outlined.Home,
-                                contentDescription = "Inicio",
+                                contentDescription = stringResource(R.string.nav_home),
                                 tint = if (isHomeSelected) ActiveLime else InactiveIcon,
                                 modifier = Modifier.size(26.dp)
                             )
@@ -679,7 +687,7 @@ fun CapriceApp(
                         ) {
                             Icon(
                                 imageVector = if (isProfileSelected) Icons.Filled.Person else Icons.Outlined.Person,
-                                contentDescription = "Perfil",
+                                contentDescription = stringResource(R.string.nav_profile),
                                 tint = if (isProfileSelected) ActiveLime else InactiveIcon,
                                 modifier = Modifier.size(26.dp)
                             )

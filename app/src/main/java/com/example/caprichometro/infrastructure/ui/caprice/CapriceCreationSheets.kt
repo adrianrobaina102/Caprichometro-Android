@@ -17,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import java.io.File
@@ -49,7 +51,7 @@ internal fun CapricePhotoSourceSheet(
                 .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
             Text(
-                text = "Foto de tu capricho",
+                text = stringResource(R.string.create_photo_sheet_title),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -66,13 +68,13 @@ internal fun CapricePhotoSourceSheet(
             ) {
                 Icon(
                     imageVector = Icons.Default.PhotoCamera,
-                    contentDescription = "Cámara",
+                    contentDescription = null,
                     tint = LimeGreen,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(14.dp))
                 Text(
-                    text = "Hacer foto con la cámara",
+                    text = stringResource(R.string.create_photo_take),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.White
@@ -161,7 +163,7 @@ internal fun CapriceAudienceSheet(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "¿A qué amigos enviarlo?",
+                    text = stringResource(R.string.create_audience_sheet_title),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -178,7 +180,7 @@ internal fun CapriceAudienceSheet(
                         }
                     ) {
                         Text(
-                            text = if (allSelected) "Ninguno" else "Todos",
+                            text = stringResource(if (allSelected) R.string.create_audience_none else R.string.create_audience_all),
                             color = LimeGreen,
                             fontWeight = FontWeight.Bold
                         )
@@ -190,7 +192,7 @@ internal fun CapriceAudienceSheet(
 
             if (friends.isEmpty()) {
                 Text(
-                    text = "Todavía no tienes amigos aceptados en tu lista.",
+                    text = stringResource(R.string.create_audience_empty),
                     color = TextGray,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(vertical = 20.dp)
@@ -268,7 +270,7 @@ internal fun CapriceAudienceSheet(
                 )
             ) {
                 Text(
-                    text = "Listo",
+                    text = stringResource(R.string.action_done),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )

@@ -19,12 +19,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
@@ -122,7 +124,7 @@ internal fun ProfileMemoriesTab(
                 Text(text = "💭", fontSize = 36.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = if (isOwnProfile) "Aún no tienes caprichos publicados." else "Este usuario aún no tiene caprichos.",
+                    text = stringResource(if (isOwnProfile) R.string.profile_memories_empty_own else R.string.profile_memories_empty_other),
                     color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -130,7 +132,7 @@ internal fun ProfileMemoriesTab(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (isOwnProfile) "Toca la cámara inferior para publicar tu primera duda." else "Sus dudas aparecerán aquí cuando las comparta.",
+                    text = stringResource(if (isOwnProfile) R.string.profile_memories_empty_own_sub else R.string.profile_memories_empty_other_sub),
                     color = SubtleGray,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
@@ -171,7 +173,7 @@ internal fun ProfileMemoriesTab(
 
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = "Ver mis recuerdos",
+            text = stringResource(R.string.profile_memories_footer),
             color = Color(0xFF3A3A3C),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
@@ -254,7 +256,7 @@ internal fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Pendiente",
+                    text = stringResource(R.string.profile_badge_pending),
                     color = Color(0xFFFFD54F),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
@@ -303,7 +305,7 @@ internal fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
             ) {
                 Icon(
                     imageVector = Icons.Filled.Verified,
-                    contentDescription = "Decisión guardada en empate",
+                    contentDescription = stringResource(R.string.profile_badge_tie_cd),
                     tint = Color(0xFF1A2E05),
                     modifier = Modifier.size(16.dp)
                 )

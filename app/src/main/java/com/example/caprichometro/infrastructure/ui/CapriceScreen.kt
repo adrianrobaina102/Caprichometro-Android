@@ -38,12 +38,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
@@ -212,7 +214,7 @@ fun CapriceScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Antes de lanzarlo",
+                    text = stringResource(R.string.create_screen_title),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
@@ -318,11 +320,13 @@ fun CapriceScreen(
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
-                                "Publicar en General"
-                            } else {
-                                "Lanzar a mis amigos"
-                            },
+                            text = stringResource(
+                                if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
+                                    R.string.create_submit_general
+                                } else {
+                                    R.string.create_submit_friends
+                                }
+                            ),
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -347,7 +351,7 @@ fun CapriceScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "¿De qué se trata?",
+                text = stringResource(R.string.create_type_label),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
@@ -366,7 +370,7 @@ fun CapriceScreen(
                         contentColor = if (isCompraType) Color.Black else Color.White
                     )
                 ) {
-                    Text(text = "🛍️ Compra", fontWeight = FontWeight.Bold)
+                    Text(text = stringResource(R.string.create_type_compra_chip), fontWeight = FontWeight.Bold)
                 }
 
                 Button(
@@ -378,14 +382,14 @@ fun CapriceScreen(
                         contentColor = if (!isCompraType) Color.Black else Color.White
                     )
                 ) {
-                    Text(text = "🎉 Plan", fontWeight = FontWeight.Bold)
+                    Text(text = stringResource(R.string.create_type_plan_chip), fontWeight = FontWeight.Bold)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Tu duda o capricho",
+                text = stringResource(R.string.create_question_label),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
@@ -394,7 +398,7 @@ fun CapriceScreen(
             OutlinedTextField(
                 value = questionText,
                 onValueChange = { questionText = it },
-                placeholder = { Text(text = "Ej. ¿Me compro estas zapatillas?", color = TextGray) },
+                placeholder = { Text(text = stringResource(R.string.create_question_placeholder), color = TextGray) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -408,7 +412,7 @@ fun CapriceScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "Opción A (Respuesta 1)",
+                text = stringResource(R.string.create_option_a_label),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
@@ -417,7 +421,7 @@ fun CapriceScreen(
             OutlinedTextField(
                 value = answer1,
                 onValueChange = { answer1 = it },
-                placeholder = { Text(text = "Ej. Sí, te quedan genial", color = TextGray) },
+                placeholder = { Text(text = stringResource(R.string.create_option_a_placeholder), color = TextGray) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -431,7 +435,7 @@ fun CapriceScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Opción B (Respuesta 2)",
+                text = stringResource(R.string.create_option_b_label),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
@@ -440,7 +444,7 @@ fun CapriceScreen(
             OutlinedTextField(
                 value = answer2,
                 onValueChange = { answer2 = it },
-                placeholder = { Text(text = "Ej. No, ahorra un poco", color = TextGray) },
+                placeholder = { Text(text = stringResource(R.string.create_option_b_placeholder), color = TextGray) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -529,7 +533,7 @@ fun CapriceScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Hacer foto o elegir de la galería",
+                            text = stringResource(R.string.create_add_photo_prompt),
                             color = TextGray,
                             fontSize = 13.sp
                         )
@@ -549,24 +553,23 @@ fun CapriceScreen(
                 Icon(Icons.Default.Schedule, contentDescription = null, tint = LimeGreen)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(text = "Duración límite: 5 minutos", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text(text = "Tras 5 min, la votación se cierra y se da el veredicto.", color = TextGray, fontSize = 12.sp)
+                    Text(text = stringResource(R.string.create_duration_title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(text = stringResource(R.string.create_duration_subtitle), color = TextGray, fontSize = 12.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             val audienceTitle = when {
-                friends.isEmpty() -> "Visible solo para ti (sin amigos aún)"
+                friends.isEmpty() -> stringResource(R.string.create_audience_no_friends)
                 selectAllFriends || effectiveSelectedFriendIds.size == friends.size ->
-                    "Visible para todos tus amigos (${friends.size})"
-                effectiveSelectedFriendIds.isEmpty() -> "Visible solo para ti (0 amigos)"
-                else -> "Visible para ${effectiveSelectedFriendIds.size} de ${friends.size} amigos"
+                    stringResource(R.string.create_audience_all_friends, friends.size)
+                effectiveSelectedFriendIds.isEmpty() -> stringResource(R.string.create_audience_zero_friends)
+                else -> stringResource(R.string.create_audience_some_friends, effectiveSelectedFriendIds.size, friends.size)
             }
-            val audienceSubtitle = when {
-                friends.isEmpty() -> "Añade amigos para enviarles tus votaciones."
-                else -> "Toca para elegir quién recibe este capricho."
-            }
+            val audienceSubtitle = stringResource(
+                if (friends.isEmpty()) R.string.create_audience_sub_empty else R.string.create_audience_sub_pick
+            )
 
             Row(
                 modifier = Modifier
@@ -607,17 +610,19 @@ fun CapriceScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Mostrar también en General",
+                            text = stringResource(R.string.create_general_title),
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            text = when {
-                                capriceState.isPreparingNearbyLocation -> "Preparando ubicación aproximada..."
-                                capriceState.isNearbyDiscoveryEnabled -> "Activado · visible también en General"
-                                else -> "Apagado por defecto"
-                            },
+                            text = stringResource(
+                                when {
+                                    capriceState.isPreparingNearbyLocation -> R.string.create_general_preparing
+                                    capriceState.isNearbyDiscoveryEnabled -> R.string.create_general_enabled
+                                    else -> R.string.create_general_default_off
+                                }
+                            ),
                             color = TextGray,
                             fontSize = 11.sp
                         )
@@ -637,7 +642,7 @@ fun CapriceScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Si lo activas, la tarjeta se publica en General para cualquier usuario autenticado de la app desde cualquier distancia, sin límite de radio. Tu ubicación se guarda solo como zona aproximada. La selección de amigos de arriba sigue controlando quién la ve en Amigos.",
+                    text = stringResource(R.string.create_general_description),
                     color = TextGray,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
@@ -653,7 +658,7 @@ fun CapriceScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Obteniendo zona aproximada...",
+                            text = stringResource(R.string.create_general_getting_zone),
                             color = LimeGreen,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -662,7 +667,7 @@ fun CapriceScreen(
                 } else if (capriceState.isNearbyDiscoveryEnabled && !capriceState.preparedNearbyCell.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "✓ Zona aproximada preparada para General",
+                        text = stringResource(R.string.create_general_zone_ready),
                         color = LimeGreen,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold

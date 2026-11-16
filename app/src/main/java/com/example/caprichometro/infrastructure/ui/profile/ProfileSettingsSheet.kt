@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -29,12 +30,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.util.AppLanguage
+import com.example.caprichometro.infrastructure.util.AppLocaleManager
+
+private enum class SettingsSubSheet { MAIN, PRIVACY, LANGUAGE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +56,8 @@ internal fun ProfileSettingsModalSheet(
     onRequestDeleteAccount: () -> Unit
 ) {
     val context = LocalContext.current
-    var showPrivacySubSheet by remember { mutableStateOf(false) }
+    var activeSubSheet by remember { mutableStateOf(SettingsSubSheet.MAIN) }
+    var selectedLanguage by remember { mutableStateOf(AppLocaleManager.getSelectedLanguage(context)) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -67,100 +75,120 @@ internal fun ProfileSettingsModalSheet(
             )
         }
     ) {
-        if (!showPrivacySubSheet) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
-            ) {
-                SettingsRow(
-                    icon = { PersonOutlineIcon() },
-                    title = "Editar perfil",
-                    onClick = onEditProfile
-                )
-                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                SettingsRow(
-                    icon = { PeopleOutlineIcon() },
-                    title = if (friendsCount > 0) "Amigos ($friendsCount)" else "Amigos",
-                    onClick = onNavigateToFriends
-                )
-                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                SettingsRow(
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    title = "Notificaciones",
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        }
-                        try {
-                            context.startActivity(intent)
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "Ajustes de notificaciones no disponibles", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                SettingsRow(
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    title = if (blockedUsers.isNotEmpty()) {
-                        "Privacidad (${blockedUsers.size} bloqueados)"
-                    } else {
-                        "Privacidad"
-                    },
-                    onClick = { showPrivacySubSheet = true }
-                )
-                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                SettingsRow(
-                    icon = { GlobeOutlineIcon() },
-                    title = "Idioma",
-                    onClick = {
-                        Toast.makeText(context, "Idioma: Español", Toast.LENGTH_SHORT).show()
-                    }
-                )
-                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
-
-                Row(
+        when (activeSubSheet) {
+            SettingsSubSheet.MAIN -> {
+                val currentLangLabel = when (selectedLanguage) {
+                    AppLanguage.SPANISH -> stringResource(R.string.language_spanish)
+                    AppLanguage.ENGLISH -> stringResource(R.string.language_english)
+                    AppLanguage.SYSTEM -> stringResource(R.string.language_system)
+                }
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onSignOut)
-                        .padding(vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                        contentDescription = "Cerrar sesión",
-                        tint = BadgeRed,
-                        modifier = Modifier.size(22.dp)
+                    SettingsRow(
+                        icon = { PersonOutlineIcon() },
+                        title = stringResource(R.string.profile_settings_edit_profile),
+                        onClick = onEditProfile
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = "Cerrar sesión",
-                        color = BadgeRed,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
+                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
+
+                    SettingsRow(
+                        icon = { PeopleOutlineIcon() },
+                        title = if (friendsCount > 0) {
+                            stringResource(R.string.profile_settings_friends_count, friendsCount)
+                        } else {
+                            stringResource(R.string.profile_settings_friends)
+                        },
+                        onClick = onNavigateToFriends
                     )
+                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
+
+                    SettingsRow(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        title = stringResource(R.string.profile_settings_notifications),
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            try {
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                Toast.makeText(context, "Ajustes de notificaciones no disponibles", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
+
+                    SettingsRow(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        title = if (blockedUsers.isNotEmpty()) {
+                            stringResource(R.string.profile_settings_privacy_blocked, blockedUsers.size)
+                        } else {
+                            stringResource(R.string.profile_settings_privacy)
+                        },
+                        onClick = { activeSubSheet = SettingsSubSheet.PRIVACY }
+                    )
+                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
+
+                    SettingsRow(
+                        icon = { GlobeOutlineIcon() },
+                        title = stringResource(R.string.profile_settings_language_with_current, currentLangLabel),
+                        onClick = { activeSubSheet = SettingsSubSheet.LANGUAGE }
+                    )
+                    HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onSignOut)
+                            .padding(vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = stringResource(R.string.profile_settings_sign_out),
+                            tint = BadgeRed,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = stringResource(R.string.profile_settings_sign_out),
+                            color = BadgeRed,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
-        } else {
+            SettingsSubSheet.LANGUAGE -> {
+                LanguagePickerSubSheet(
+                    selectedLanguage = selectedLanguage,
+                    onBack = { activeSubSheet = SettingsSubSheet.MAIN },
+                    onSelectLanguage = { language ->
+                        selectedLanguage = language
+                        AppLocaleManager.setLanguage(context, language)
+                        onDismiss()
+                    }
+                )
+            }
+            SettingsSubSheet.PRIVACY -> {
             // Sub-vista de Privacidad: Usuarios Bloqueados y Eliminar Cuenta
             Column(
                 modifier = Modifier
@@ -175,12 +203,12 @@ internal fun ProfileSettingsModalSheet(
                         .padding(bottom = 16.dp)
                 ) {
                     IconButton(
-                        onClick = { showPrivacySubSheet = false },
+                        onClick = { activeSubSheet = SettingsSubSheet.MAIN },
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
+                            contentDescription = stringResource(R.string.action_back),
                             tint = Color.White
                         )
                     }
@@ -309,6 +337,82 @@ internal fun ProfileSettingsModalSheet(
                         fontSize = 14.sp
                     )
                 }
+            }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguagePickerSubSheet(
+    selectedLanguage: AppLanguage,
+    onBack: () -> Unit,
+    onSelectLanguage: (AppLanguage) -> Unit
+) {
+    val options = listOf(
+        AppLanguage.SYSTEM to stringResource(R.string.language_system),
+        AppLanguage.SPANISH to stringResource(R.string.language_spanish),
+        AppLanguage.ENGLISH to stringResource(R.string.language_english)
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.action_back),
+                    tint = Color.White
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.language_sheet_title),
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        options.forEachIndexed { index, (language, label) ->
+            val isSelected = selectedLanguage == language
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onSelectLanguage(language) }
+                    .padding(vertical = 15.dp, horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    color = if (isSelected) LimeGreen else Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = LimeGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            if (index < options.lastIndex) {
+                HorizontalDivider(color = DividerDark, thickness = 0.8.dp)
             }
         }
     }

@@ -33,12 +33,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.InviteDeepLink
 import com.google.firebase.auth.FirebaseAuth
 import kotlin.math.abs
@@ -136,7 +138,7 @@ fun AddFriendScreen(
             }
 
             Text(
-                text = "Tu gente",
+                text = stringResource(R.string.friends_screen_title),
                 color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -591,7 +593,7 @@ fun AddFriendScreen(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Invitar a un amigo",
+                text = stringResource(R.string.friends_invite_button),
                 color = Color.Black,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
@@ -613,7 +615,7 @@ fun AddFriendScreen(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = "Sin seguidores públicos. Sin desconocidos.",
+                text = stringResource(R.string.friends_privacy_footer),
                 color = SubtleGray,
                 fontSize = 12.sp
             )
@@ -625,6 +627,7 @@ fun AddFriendScreen(
     if (showInviteSheet) {
         val usernameToShare = state.currentUsername?.takeIf { it.isNotBlank() }
             ?: FirebaseAuth.getInstance().currentUser?.displayName?.replace(" ", "")?.takeIf { it.isNotBlank() }
+        val inviteChooserTitle = stringResource(R.string.friends_invite_button)
         InviteFriendBottomSheet(
             username = usernameToShare,
             photoUrl = state.currentUserProfile?.photoUrl.orEmpty(),
@@ -640,7 +643,7 @@ fun AddFriendScreen(
                     putExtra(Intent.EXTRA_SUBJECT, "Invitación a Caprichómetro")
                     putExtra(Intent.EXTRA_TEXT, shareText)
                 }
-                context.startActivity(Intent.createChooser(shareIntent, "Invitar a un amigo"))
+                context.startActivity(Intent.createChooser(shareIntent, inviteChooserTitle))
             },
             onCopyDirectLink = {
                 val linkToCopy = if (!usernameToShare.isNullOrBlank()) {

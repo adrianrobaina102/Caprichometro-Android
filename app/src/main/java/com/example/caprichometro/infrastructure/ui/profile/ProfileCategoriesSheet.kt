@@ -30,10 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.infrastructure.ui.home.formatPollStatus
 
@@ -81,7 +84,7 @@ internal fun ProfileCategoriesSheet(
                 .padding(bottom = 24.dp)
         ) {
             Text(
-                text = "Tus dudas por categoría",
+                text = stringResource(R.string.profile_categories_sheet_title),
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -93,13 +96,17 @@ internal fun ProfileCategoriesSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 CategoryChip(
-                    label = "Todas (${caprices.size})",
+                    label = stringResource(R.string.profile_categories_all, caprices.size),
                     selected = filter == null,
                     onClick = { filter = null }
                 )
                 ProfileCategory.entries.forEach { category ->
                     CategoryChip(
-                        label = "${category.label} (${counts[category] ?: 0})",
+                        label = stringResource(
+                            R.string.profile_categories_count_chip,
+                            stringResource(category.labelRes),
+                            counts[category] ?: 0
+                        ),
                         selected = filter == category,
                         onClick = { filter = category }
                     )
@@ -109,7 +116,7 @@ internal fun ProfileCategoriesSheet(
 
             if (visible.isEmpty()) {
                 Text(
-                    text = "No hay dudas en esta categoría.",
+                    text = stringResource(R.string.profile_categories_empty),
                     color = SubtleGray,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(vertical = 24.dp)
@@ -156,6 +163,7 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
 @Composable
 private fun CategoryCapriceRow(caprice: Caprice, nowMillis: Long, onClick: () -> Unit) {
     val category = ProfileCategory.of(caprice.type)
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -187,7 +195,7 @@ private fun CategoryCapriceRow(caprice: Caprice, nowMillis: Long, onClick: () ->
         }
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = formatPollStatus(caprice.timestamp, nowMillis),
+            text = formatPollStatus(context, caprice.timestamp, nowMillis),
             color = SubtleGray,
             fontSize = 11.sp
         )

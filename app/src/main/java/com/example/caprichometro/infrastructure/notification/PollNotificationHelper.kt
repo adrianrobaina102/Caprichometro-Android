@@ -26,10 +26,10 @@ object PollNotificationHelper {
     fun createNotificationChannel(context: Context) {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            CHANNEL_NAME,
+            context.getString(R.string.notif_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Notificaciones de votaciones y caprichos de amigos en Caprichómetro"
+            description = context.getString(R.string.notif_channel_desc)
             enableVibration(true)
         }
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -64,12 +64,12 @@ object PollNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_caprichometro_logo)
-            .setContentTitle("¡Duda en marcha! ⏳")
-            .setContentText("Ya queda menos para saber si es un capricho o no.")
+            .setContentTitle(context.getString(R.string.notif_created_title))
+            .setContentText(context.getString(R.string.notif_created_short))
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    if (capriceQuestion.isNotBlank()) "Publicado: \"$capriceQuestion\". Ya queda menos para saber si es un capricho o no. ¡Tus amigos tienen 5 minutos!"
-                    else "Tu duda está en marcha. Ya queda menos para saber si es un capricho o no. ¡Tus amigos tienen 5 minutos!"
+                    if (capriceQuestion.isNotBlank()) context.getString(R.string.notif_created_big_with_q, capriceQuestion)
+                    else context.getString(R.string.notif_created_big_no_q)
                 )
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -114,15 +114,15 @@ object PollNotificationHelper {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_caprichometro_logo)
-            .setContentTitle("¡Votación cerrada!")
+            .setContentTitle(context.getString(R.string.notif_closed_title))
             .setContentText(
-                if (capriceQuestion.isNotBlank()) "Tus amigos ya han opinado: \"$capriceQuestion\""
-                else "Tus amigos han terminado de votar. ¡Descubre el veredicto!"
+                if (capriceQuestion.isNotBlank()) context.getString(R.string.notif_closed_short_with_q, capriceQuestion)
+                else context.getString(R.string.notif_closed_short_no_q)
             )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    if (capriceQuestion.isNotBlank()) "Tus amigos ya han opinado sobre: \"$capriceQuestion\". Entra a ver el veredicto final."
-                    else "Tus amigos han terminado de votar tu capricho. Entra a ver el veredicto final."
+                    if (capriceQuestion.isNotBlank()) context.getString(R.string.notif_closed_big_with_q, capriceQuestion)
+                    else context.getString(R.string.notif_closed_big_no_q)
                 )
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -168,8 +168,8 @@ object PollNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = "@$authorUsername ha subido un capricho"
-        val body = if (caprice.question.isNotBlank()) "\"${caprice.question}\"" else "¡Entra a opinar y votar!"
+        val title = context.getString(R.string.notif_friend_caprice_title, authorUsername)
+        val body = if (caprice.question.isNotBlank()) "\"${caprice.question}\"" else context.getString(R.string.notif_friend_caprice_fallback)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_caprichometro_logo)
@@ -177,7 +177,7 @@ object PollNotificationHelper {
             .setContentText(body)
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "$title:\n$body\n¡Tus 5 minutos para opinar acaban de empezar!"
+                    context.getString(R.string.notif_friend_caprice_big, title, body)
                 )
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -228,8 +228,8 @@ object PollNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = "@$authorUsername ya tomó una decisión"
-        val body = "Al final eligió: $chosenOption"
+        val title = context.getString(R.string.notif_friend_decision_title, authorUsername)
+        val body = context.getString(R.string.notif_friend_decision_body, chosenOption)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_caprichometro_logo)

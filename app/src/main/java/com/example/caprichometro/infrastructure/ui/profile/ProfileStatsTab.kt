@@ -23,9 +23,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.caprichometro.R
 
 @Composable
 internal fun ProfileStatsTab(
@@ -89,20 +91,20 @@ internal fun ProfileStatsTab(
 
                 Column {
                     Text(
-                        text = "Hice caso",
+                        text = stringResource(R.string.profile_stats_listened_title),
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "de mis amigos",
+                        text = stringResource(R.string.profile_stats_listened_subtitle),
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "en $totalResueltas de $totalDudas dudas",
+                        text = stringResource(R.string.profile_stats_listened_detail, totalResueltas, totalDudas),
                         color = SubtleGray,
                         fontSize = 13.sp
                     )
@@ -124,13 +126,13 @@ internal fun ProfileStatsTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Mis categorías",
+                        text = stringResource(R.string.profile_stats_categories_title),
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Ver todas",
+                        text = stringResource(R.string.profile_stats_see_all),
                         color = LimeGreen,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -150,28 +152,28 @@ internal fun ProfileStatsTab(
                     CategoryStatItem(
                         icon = { ShoppingBagIcon() },
                         onClick = { openSheet(ProfileCategory.COMPRAS) },
-                        name = "Compras",
+                        name = stringResource(R.string.category_compras),
                         count = comprasCount,
                         backgroundColor = Color(0xFF381A26)
                     )
                     CategoryStatItem(
                         icon = { PartyPopperIcon() },
                         onClick = { openSheet(ProfileCategory.PLANES) },
-                        name = "Planes",
+                        name = stringResource(R.string.category_planes),
                         count = planesCount,
                         backgroundColor = Color(0xFF241B3B)
                     )
                     CategoryStatItem(
                         icon = { HangerIcon() },
                         onClick = { openSheet(ProfileCategory.ROPA) },
-                        name = "Ropa",
+                        name = stringResource(R.string.category_ropa),
                         count = ropaCount,
                         backgroundColor = Color(0xFF302B1B)
                     )
                     CategoryStatItem(
                         icon = { MoreDotsIcon() },
                         onClick = { openSheet(ProfileCategory.OTROS) },
-                        name = "Otros",
+                        name = stringResource(R.string.category_otros),
                         count = otrosCount,
                         backgroundColor = Color(0xFF242426)
                     )

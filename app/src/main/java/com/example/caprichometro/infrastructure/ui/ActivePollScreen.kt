@@ -28,11 +28,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.PollState
@@ -226,7 +228,11 @@ fun ActivePollScreen(
     }
 
     val cleanAuthor = authorUsername?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
-    val headerTitle = if (isFriendPoll && cleanAuthor != null) "Duda de @$cleanAuthor" else "Tu duda está en el aire"
+    val headerTitle = if (isFriendPoll && cleanAuthor != null) {
+        stringResource(R.string.poll_friend_title, cleanAuthor)
+    } else {
+        stringResource(R.string.poll_own_title)
+    }
     val avatarUsername = cleanAuthor
         ?: caprice?.userId?.takeIf { it.isNotBlank() }
         ?: "C"
@@ -557,7 +563,7 @@ fun ActivePollScreen(
                             onClick = { viewModel?.clearError() },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("Cerrar", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.action_close), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -708,7 +714,7 @@ private fun PollOptionCard(
                 )
                 if (isWinner) {
                     Text(
-                        text = "🏆 OPCIÓN GANADORA",
+                        text = stringResource(R.string.poll_winner_badge),
                         color = LimeGreen,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold

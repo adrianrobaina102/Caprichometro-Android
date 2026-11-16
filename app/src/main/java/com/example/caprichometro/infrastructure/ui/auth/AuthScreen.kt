@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -142,13 +143,13 @@ fun AuthScreen(
                 .background(DarkSurface, RoundedCornerShape(12.dp))
         ) {
             AuthTab(
-                text = "Iniciar sesión",
+                text = stringResource(R.string.auth_tab_login),
                 isSelected = isLoginMode,
                 modifier = Modifier.weight(1f)
             ) { isLoginMode = true }
 
             AuthTab(
-                text = "Registrarse",
+                text = stringResource(R.string.auth_tab_register),
                 isSelected = !isLoginMode,
                 modifier = Modifier.weight(1f)
             ) { isLoginMode = false }
@@ -160,7 +161,7 @@ fun AuthScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                placeholder = { Text("Nombre de usuario (@usuario)", color = Color.Gray) },
+                placeholder = { Text(stringResource(R.string.auth_username_placeholder), color = Color.Gray) },
                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Usuario", tint = Color.Gray) },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
@@ -186,7 +187,7 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = birthday?.format(DisplayDateFormatter) ?: "",
                     onValueChange = {},
-                    placeholder = { Text("Fecha de nacimiento (dd/mm/aaaa)", color = Color.Gray) },
+                    placeholder = { Text(stringResource(R.string.auth_birthday_placeholder), color = Color.Gray) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.DateRange,
@@ -214,7 +215,7 @@ fun AuthScreen(
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
-            placeholder = { Text("Correo electrónico", color = Color.Gray) },
+            placeholder = { Text(stringResource(R.string.auth_email_placeholder), color = Color.Gray) },
             leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Correo", tint = Color.Gray) },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -234,7 +235,7 @@ fun AuthScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            placeholder = { Text("Contraseña", color = Color.Gray) },
+            placeholder = { Text(stringResource(R.string.auth_password_placeholder), color = Color.Gray) },
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Contraseña", tint = Color.Gray) },
             trailingIcon = {
                 val icon = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
@@ -291,7 +292,7 @@ fun AuthScreen(
                 )
             } else {
                 Text(
-                    text = if (isLoginMode) "Entrar" else "Crear cuenta",
+                    text = stringResource(if (isLoginMode) R.string.auth_button_login else R.string.auth_button_register),
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
@@ -302,11 +303,11 @@ fun AuthScreen(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = if (isLoginMode) "¿No tienes cuenta? " else "¿Ya tienes cuenta? ",
+                text = stringResource(if (isLoginMode) R.string.auth_no_account_prefix else R.string.auth_has_account_prefix),
                 color = Color.Gray
             )
             Text(
-                text = if (isLoginMode) "Regístrate" else "Inicia sesión",
+                text = stringResource(if (isLoginMode) R.string.auth_tab_register else R.string.auth_tab_login),
                 color = LimeGreen,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable { isLoginMode = !isLoginMode }
@@ -320,7 +321,7 @@ fun AuthScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f), color = BorderGray)
-            Text(" o ", color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp))
+            Text(stringResource(R.string.auth_or_divider), color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp))
             HorizontalDivider(modifier = Modifier.weight(1f), color = BorderGray)
         }
 
@@ -344,13 +345,13 @@ fun AuthScreen(
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Continuar con Google", fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.auth_google_button), fontWeight = FontWeight.Medium)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "Al continuar aceptas los términos",
+            text = stringResource(R.string.auth_terms_notice),
             color = Color.Gray,
             fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -477,7 +478,7 @@ private fun BirthdayPickerDialog(
                     enabled = selectedLocalDate != null
                 ) {
                     Text(
-                        text = "Aceptar",
+                        text = stringResource(R.string.action_accept),
                         color = if (selectedLocalDate != null) LimeGreen else Color.Gray,
                         fontWeight = FontWeight.Bold
                     )
@@ -485,7 +486,7 @@ private fun BirthdayPickerDialog(
             },
             dismissButton = {
                 TextButton(onClick = onDismiss) {
-                    Text("Cancelar", color = Color(0xFFB5B5BA))
+                    Text(stringResource(R.string.action_cancel), color = Color(0xFFB5B5BA))
                 }
             },
             colors = datePickerColors
@@ -495,7 +496,7 @@ private fun BirthdayPickerDialog(
                 colors = datePickerColors,
                 title = {
                     Text(
-                        text = "FECHA DE NACIMIENTO",
+                        text = stringResource(R.string.auth_birthday_title),
                         color = LimeGreen,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -504,7 +505,7 @@ private fun BirthdayPickerDialog(
                 },
                 headline = {
                     val headlineText = selectedLocalDate?.format(HeadlineDateFormatter)
-                        ?: if (datePickerState.displayMode == DisplayMode.Input) "DD/MM/AAAA" else "Elige tu fecha"
+                        ?: if (datePickerState.displayMode == DisplayMode.Input) "DD/MM/AAAA" else stringResource(R.string.auth_birthday_headline_empty)
                     Text(
                         text = headlineText,
                         color = if (selectedLocalDate != null) Color.White else Color(0xFFB5B5BA),

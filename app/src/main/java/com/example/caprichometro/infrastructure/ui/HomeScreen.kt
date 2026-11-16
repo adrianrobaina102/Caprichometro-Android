@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +44,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
@@ -196,17 +198,19 @@ fun HomeScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Inicio",
+                            text = stringResource(R.string.nav_home),
                             color = Color.White,
                             fontSize = 26.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
-                                "Las dudas recientes de tus amigos"
-                            } else {
-                                "Dudas públicas ordenadas por cercanía"
-                            },
+                            text = stringResource(
+                                if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                                    R.string.home_subtitle_friends
+                                } else {
+                                    R.string.home_subtitle_general
+                                }
+                            ),
                             color = TextSecondary,
                             fontSize = 13.sp
                         )

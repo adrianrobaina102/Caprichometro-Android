@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import com.example.caprichometro.R
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.util.ImageCompressor
@@ -221,10 +223,10 @@ fun ProfileScreen(
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("¿Eliminar cuenta?", color = Color.White) },
+            title = { Text(stringResource(R.string.profile_delete_account_title), color = Color.White) },
             text = {
                 Text(
-                    "Esta acción es irreversible y eliminará todos tus datos, amistades y perfil.",
+                    stringResource(R.string.profile_delete_account_body),
                     color = SubtleGray
                 )
             },
@@ -236,12 +238,12 @@ fun ProfileScreen(
                         viewModel.deleteAccount(currentUserId, state.profile?.username.orEmpty())
                     }
                 ) {
-                    Text("Eliminar", color = BadgeRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_delete), color = BadgeRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancelar", color = Color.White)
+                    Text(stringResource(R.string.action_cancel), color = Color.White)
                 }
             },
             containerColor = SheetBackground
@@ -251,10 +253,10 @@ fun ProfileScreen(
     if (showRemoveFriendDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveFriendDialog = false },
-            title = { Text("Â¿Eliminar amigo?", color = Color.White) },
+            title = { Text(stringResource(R.string.profile_remove_friend_title), color = Color.White) },
             text = {
                 Text(
-                    "Ya no verÃ¡s los caprichos de @${state.profile?.username.orEmpty()} ni podrÃ¡ ver los tuyos.",
+                    stringResource(R.string.profile_remove_friend_body, state.profile?.username.orEmpty()),
                     color = SubtleGray
                 )
             },
@@ -268,12 +270,12 @@ fun ProfileScreen(
                         }
                     }
                 ) {
-                    Text("Eliminar", color = BadgeRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_delete), color = BadgeRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showRemoveFriendDialog = false }) {
-                    Text("Cancelar", color = Color.White)
+                    Text(stringResource(R.string.action_cancel), color = Color.White)
                 }
             },
             containerColor = SheetBackground
@@ -283,10 +285,10 @@ fun ProfileScreen(
     if (showBlockFriendDialog) {
         AlertDialog(
             onDismissRequest = { showBlockFriendDialog = false },
-            title = { Text("Â¿Bloquear usuario?", color = Color.White) },
+            title = { Text(stringResource(R.string.profile_block_user_title), color = Color.White) },
             text = {
                 Text(
-                    "Se eliminarÃ¡ la amistad y no podrÃ©is interactuar ni encontraros en la app.",
+                    stringResource(R.string.profile_block_user_body),
                     color = SubtleGray
                 )
             },
@@ -300,12 +302,12 @@ fun ProfileScreen(
                         }
                     }
                 ) {
-                    Text("Bloquear", color = BadgeRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_block), color = BadgeRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBlockFriendDialog = false }) {
-                    Text("Cancelar", color = Color.White)
+                    Text(stringResource(R.string.action_cancel), color = Color.White)
                 }
             },
             containerColor = SheetBackground
@@ -542,7 +544,7 @@ fun ProfileScreen(
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(
-                        text = "Eliminar amigo",
+                        text = stringResource(R.string.profile_remove_friend_action),
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
@@ -569,7 +571,7 @@ fun ProfileScreen(
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(
-                        text = "Bloquear usuario",
+                        text = stringResource(R.string.profile_block_user_action),
                         color = BadgeRed,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
@@ -654,7 +656,7 @@ fun ProfileScreen(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
@@ -676,7 +678,7 @@ fun ProfileScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Opciones",
+                        contentDescription = stringResource(R.string.action_options),
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
@@ -691,7 +693,7 @@ fun ProfileScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver a recuerdos",
+                            contentDescription = stringResource(R.string.profile_back_to_memories_cd),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -705,7 +707,7 @@ fun ProfileScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Opciones",
+                            contentDescription = stringResource(R.string.action_options),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -719,7 +721,7 @@ fun ProfileScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Ajustes",
+                            contentDescription = stringResource(R.string.profile_settings_cd),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -809,7 +811,7 @@ fun ProfileScreen(
         // Descripción / Bio
 
         val displayBio = state.profile?.bio?.ifBlank { null }
-            ?: if (state.isOwnProfile) "Decisiones, caprichos y planes\ncon mis amigos" else "Sin biografia todavia."
+            ?: stringResource(if (state.isOwnProfile) R.string.profile_bio_own_default else R.string.profile_bio_other_default)
         Text(
             text = displayBio,
             color = SubtleGray,
@@ -829,15 +831,17 @@ fun ProfileScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            StatColumn(value = "$totalDudas", label = "dudas")
-            StatColumn(value = "$totalResueltas", label = "resueltas")
-            StatColumn(value = "$hiceCasoPercent%", label = "hice caso")
+            StatColumn(value = "$totalDudas", label = stringResource(R.string.profile_metric_doubts))
+            StatColumn(value = "$totalResueltas", label = stringResource(R.string.profile_metric_resolved))
+            StatColumn(value = "$hiceCasoPercent%", label = stringResource(R.string.profile_metric_listened))
         }
 
         Spacer(modifier = Modifier.height(18.dp))
         HorizontalDivider(color = DividerDark, thickness = 1.dp)
 
         // Barra de pestañas: Cuadrícula (Recuerdos) vs Estadísticas (Barras)
+        val memoriesTabCd = stringResource(R.string.profile_tab_memories_cd)
+        val statsTabCd = stringResource(R.string.profile_tab_stats_cd)
         Row(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -846,7 +850,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .weight(1f)
                     .semantics {
-                        contentDescription = "Recuerdos"
+                        contentDescription = memoriesTabCd
                         role = Role.Tab
                     }
                     .clickable { selectedTab = 0 }
@@ -868,7 +872,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .weight(1f)
                     .semantics {
-                        contentDescription = "Estadísticas"
+                        contentDescription = statsTabCd
                         role = Role.Tab
                     }
                     .clickable { selectedTab = 1 }

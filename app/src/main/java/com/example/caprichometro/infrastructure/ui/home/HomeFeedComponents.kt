@@ -1,5 +1,6 @@
 package com.example.caprichometro.infrastructure.ui.home
 
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,12 +24,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.caprichometro.R
+import kotlin.math.roundToInt
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.PollTiming
@@ -71,7 +76,7 @@ internal fun FriendsLocationPermissionBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Activa ubicación para ver distancias en Amigos",
+            text = stringResource(R.string.home_location_banner_text),
             color = Color.White,
             fontSize = 12.sp,
             modifier = Modifier.weight(1f),
@@ -84,7 +89,7 @@ internal fun FriendsLocationPermissionBanner(
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
-                text = if (isPermanentlyDenied) "Ajustes" else "Activar",
+                text = stringResource(if (isPermanentlyDenied) R.string.action_open_settings else R.string.home_location_banner_activate),
                 color = LimeAccent,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
@@ -96,7 +101,7 @@ internal fun FriendsLocationPermissionBanner(
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "Cerrar aviso",
+                contentDescription = stringResource(R.string.home_location_banner_dismiss_cd),
                 tint = TextSecondary,
                 modifier = Modifier.size(15.dp)
             )
@@ -119,13 +124,13 @@ internal fun HomeFeedTabBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         HomeFeedTabPill(
-            label = "Amigos",
+            label = stringResource(R.string.home_tab_friends),
             selected = selectedTab == HomeFeedTab.FRIENDS,
             onClick = { onSelectTab(HomeFeedTab.FRIENDS) },
             modifier = Modifier.weight(1f)
         )
         HomeFeedTabPill(
-            label = "General",
+            label = stringResource(R.string.home_tab_general),
             selected = selectedTab == HomeFeedTab.GENERAL,
             onClick = { onSelectTab(HomeFeedTab.GENERAL) },
             modifier = Modifier.weight(1f)
@@ -209,7 +214,7 @@ internal fun FeedErrorState(
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Reintentar", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.action_retry), fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -239,14 +244,14 @@ internal fun FriendsEmptyState(
         }
         Spacer(modifier = Modifier.height(18.dp))
         Text(
-            text = "Nada por aquí todavía",
+            text = stringResource(R.string.home_empty_friends_title),
             color = Color.White,
             fontSize = 19.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Cuando tus amigos publiquen una compra o un plan, aparecerán aquí las 20 dudas más recientes.",
+            text = stringResource(R.string.home_empty_friends_body),
             color = TextSecondary,
             fontSize = 14.sp,
             textAlign = TextAlign.Center
@@ -259,7 +264,7 @@ internal fun FriendsEmptyState(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
             ) {
-                Text("Actualizar", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_refresh), fontWeight = FontWeight.SemiBold)
             }
             Button(
                 onClick = onNavigateToFriends,
@@ -269,7 +274,7 @@ internal fun FriendsEmptyState(
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Buscar amigos", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.home_find_friends), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -438,13 +443,13 @@ private fun FarCapricesSectionHeader() {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Caprichos más lejanos",
+                text = stringResource(R.string.home_far_section_title),
                 color = Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "> 50 km",
+                text = stringResource(R.string.home_far_section_badge),
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
@@ -480,9 +485,9 @@ private fun FeedPaginationFooter(
     ) {
         Text(
             text = if (hasMore) {
-                "Mostrando $visibleCount de $totalCount caprichos"
+                stringResource(R.string.home_pagination_showing, visibleCount, totalCount)
             } else {
-                "Mostrando los $visibleCount caprichos disponibles"
+                stringResource(R.string.home_pagination_all_shown, visibleCount)
             },
             color = TextSecondary,
             fontSize = 12.sp,
@@ -502,7 +507,7 @@ private fun FeedPaginationFooter(
                 border = BorderStroke(1.dp, LimeAccent)
             ) {
                 Text(
-                    text = "Cargar $nextBatch más",
+                    text = stringResource(R.string.home_pagination_load_more, nextBatch),
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )
@@ -526,19 +531,21 @@ internal fun CapriceFeedCard(
     onOpenNonFriendProfile: (UserProfile) -> Unit = {},
     onImageClick: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val caprice = item.caprice
     val author = item.author
     val isActive = !PollTiming.isPollExpired(caprice.timestamp, nowMillis)
-    val relativeTime = remember(caprice.timestamp, nowMillis) {
-        formatRelativeTime(caprice.timestamp, nowMillis)
+    val relativeTime = remember(caprice.timestamp, nowMillis, context) {
+        formatRelativeTime(context, caprice.timestamp, nowMillis)
     }
-    val statusText = remember(caprice.timestamp, nowMillis) {
-        formatPollStatus(caprice.timestamp, nowMillis)
+    val statusText = remember(caprice.timestamp, nowMillis, context) {
+        formatPollStatus(context, caprice.timestamp, nowMillis)
     }
     val imageModel = remember(caprice.imageUrl) {
         ImageModelHelper.parseImageModel(caprice.imageUrl)
     }
     val typeEmoji = if (caprice.type.contains("compra", ignoreCase = true)) "🛍️" else "🎉"
+    val typeDisplay = localizedCapriceType(context, caprice.type)
 
     Column(
         modifier = Modifier
@@ -552,8 +559,8 @@ internal fun CapriceFeedCard(
         // Cabecera: Avatar + @username siempre reactivos (perfil si amigo/propio, ficha añadir si desconocido)
         val canOpenAuthor = item.canOpenAuthorProfile && author.uid.isNotBlank()
         val hasAuthorTapAction = author.uid.isNotBlank()
-        val distanceLabel = remember(item.approximateDistanceMeters) {
-            item.approximateDistanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
+        val distanceLabel = remember(item.approximateDistanceMeters, context) {
+            item.approximateDistanceMeters?.let { formatLocalizedDistanceMeters(context, it) }
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -599,7 +606,7 @@ internal fun CapriceFeedCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "$typeEmoji ${caprice.type} • $relativeTime",
+                        text = "$typeEmoji $typeDisplay • $relativeTime",
                         color = TextSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,
@@ -686,7 +693,7 @@ internal fun CapriceFeedCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Ampliar foto",
+                        contentDescription = stringResource(R.string.feed_enlarge_photo_cd),
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
@@ -738,6 +745,62 @@ private fun FeedOptionPill(label: String, text: String) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+internal fun localizedCapriceType(context: Context, rawType: String): String = when {
+    rawType.contains("compra", ignoreCase = true) -> context.getString(R.string.type_compra)
+    rawType.contains("plan", ignoreCase = true) -> context.getString(R.string.type_plan)
+    rawType.contains("ropa", ignoreCase = true) -> context.getString(R.string.category_ropa)
+    rawType.isBlank() -> context.getString(R.string.category_otros)
+    else -> rawType
+}
+
+internal fun formatLocalizedDistanceMeters(context: Context, distanceMeters: Double): String {
+    if (!distanceMeters.isFinite() || distanceMeters < 0.0 || distanceMeters < 1_000.0) {
+        return context.getString(R.string.distance_your_zone)
+    }
+    val km = (distanceMeters / 1_000.0).roundToInt().coerceAtLeast(1)
+    return context.getString(R.string.distance_approx_km, km)
+}
+
+internal fun formatRelativeTime(context: Context, timestampMillis: Long, nowMillis: Long): String {
+    val diffMillis = (nowMillis - timestampMillis).coerceAtLeast(0L)
+    val minutes = diffMillis / 60_000L
+    val hours = minutes / 60L
+    val days = hours / 24L
+
+    return when {
+        minutes < 1L -> context.getString(R.string.feed_time_now)
+        minutes < 60L -> context.getString(R.string.feed_time_minutes, minutes)
+        hours < 24L -> context.getString(R.string.feed_time_hours, hours)
+        else -> context.getString(R.string.feed_time_days, days)
+    }
+}
+
+internal fun formatPollStatus(context: Context, timestampMillis: Long, nowMillis: Long): String {
+    val closeTimestamp = PollTiming.calculateTriggerTime(timestampMillis)
+    val remainingMillis = closeTimestamp - nowMillis
+
+    return if (remainingMillis > 0) {
+        val remainingMin = kotlin.math.ceil(remainingMillis / 60_000.0).toLong().coerceAtLeast(1L)
+        if (remainingMin == 1L) {
+            context.getString(R.string.poll_status_remaining_one)
+        } else {
+            context.getString(R.string.poll_status_remaining_many, remainingMin)
+        }
+    } else {
+        val closedSinceMillis = (nowMillis - closeTimestamp).coerceAtLeast(0L)
+        val closedMinutes = closedSinceMillis / 60_000L
+        val closedHours = closedMinutes / 60L
+        val closedDays = closedHours / 24L
+
+        when {
+            closedMinutes < 1L -> context.getString(R.string.poll_status_closed_now)
+            closedMinutes < 60L -> context.getString(R.string.poll_status_closed_minutes, closedMinutes)
+            closedHours < 24L -> context.getString(R.string.poll_status_closed_hours, closedHours)
+            else -> context.getString(R.string.poll_status_closed_days, closedDays)
+        }
     }
 }
 

@@ -1,3 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Caprichometro</string>
+    <string name="app_name">Caprichómetro</string>
+
+    <!-- Comunes y navegación -->
+    <string name="action_back">Volver</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_accept">Aceptar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="action_refresh">Actualizar</string>
+    <string name="action_open_settings">Ajustes</string>
+    <string name="action_open_app_settings">Abrir Ajustes</string>
+    <string name="action_done">Listo</string>
+    <string name="action_close">Cerrar</string>
+    <string name="action_options">Opciones</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_block">Bloquear</string>
+    <string name="nav_home">Inicio</string>
+    <string name="nav_create">Crear</string>
+    <string name="nav_profile">Perfil</string>
+
+    <!-- Categorías y distancia -->
+    <string name="category_compras">Compras</string>
+    <string name="category_planes">Planes</string>
+    <string name="category_ropa">Ropa</string>
+    <string name="category_otros">Otros</string>
+    <string name="type_compra">Compra</string>
+    <string name="type_plan">Plan</string>
+    <string name="distance_your_zone">En tu zona</string>
+    <string name="distance_approx_km">Aprox. %1$d km</string>
+    <string name="distance_your_zone_with_place">En tu zona · %1$s</string>
+    <string name="distance_approx_km_with_place">Aprox. %1$d km · %2$s</string>
+    <string name="location_resolving_zone">Resolviendo zona…</string>
+    <string name="location_approx_zone_fallback">Zona aproximada</string>
+
+    <!-- Autenticación -->
+    <string name="auth_tab_login">Iniciar sesión</string>
+    <string name="auth_tab_register">Registrarse</string>
+    <string name="auth_username_placeholder">Nombre de usuario (@usuario)</string>
+    <string name="auth_birthday_placeholder">Fecha de nacimiento (dd/mm/aaaa)</string>
+    <string name="auth_email_placeholder">Correo electrónico</string>
+    <string name="auth_password_placeholder">Contraseña</string>
+    <string name="auth_button_login">Entrar</string>
+    <string name="auth_button_register">Crear cuenta</string>
+    <string name="auth_no_account_prefix">¿No tienes cuenta? </string>
+    <string name="auth_has_account_prefix">¿Ya tienes cuenta? </string>
+    <string name="auth_or_divider"> o </string>
+    <string name="auth_google_button">Continuar con Google</string>
+    <string name="auth_terms_notice">Al continuar aceptas los términos</string>
+    <string name="auth_birthday_title">FECHA DE NACIMIENTO</string>
+    <string name="auth_birthday_headline_empty">Elige tu fecha</string>
+
+    <!-- Inicio y Feeds -->
+    <string name="home_tab_friends">Amigos</string>
+    <string name="home_tab_general">General</string>
+    <string name="home_subtitle_friends">Dudas de tus amigos</string>
+    <string name="home_subtitle_general">Dudas públicas por cercanía</string>
+    <string name="home_location_banner_text">Activa ubicación para ver distancias en Amigos</string>
+    <string name="home_location_banner_activate">Activar</string>
+    <string name="home_location_banner_dismiss_cd">Cerrar aviso</string>
+    <string name="home_empty_friends_title">Nada por aquí todavía</string>
+    <string name="home_empty_friends_body">Cuando tus amigos publiquen una compra o un plan, aparecerán aquí las 20 dudas más recientes.</string>
+    <string name="home_find_friends">Buscar amigos</string>
+    <string name="home_far_section_title">Caprichos más lejanos</string>
+    <string name="home_far_section_badge">&gt; 50 km</string>
+    <string name="home_pagination_showing">Mostrando %1$d de %2$d caprichos</string>
+    <string name="home_pagination_all_shown">Mostrando los %1$d caprichos disponibles</string>
+    <string name="home_pagination_load_more">Cargar %1$d más</string>
+    <string name="feed_enlarge_photo_cd">Ampliar foto</string>
+    <string name="feed_time_now">Ahora</string>
+    <string name="feed_time_minutes">%1$dm</string>
+    <string name="feed_time_hours">%1$dh</string>
+    <string name="feed_time_days">%1$dd</string>
+    <string name="poll_status_remaining_one">Queda 1 min</string>
+    <string name="poll_status_remaining_many">Quedan %1$d min</string>
+    <string name="poll_status_closed_now">Cerró ahora</string>
+    <string name="poll_status_closed_minutes">Cerró hace %1$d min</string>
+    <string name="poll_status_closed_hours">Cerró hace %1$dh</string>
+    <string name="poll_status_closed_days">Cerró hace %1$dd</string>
+    <string name="general_author_sheet_title">Autor en General</string>
+    <string name="general_author_open_friends">Buscar en Tu gente</string>
+
+    <!-- Crear Capricho -->
+    <string name="create_screen_title">Antes de lanzarlo</string>
+    <string name="create_type_label">¿De qué se trata?</string>
+    <string name="create_type_compra_chip">🛍️ Compra</string>
+    <string name="create_type_plan_chip">🎉 Plan</string>
+    <string name="create_question_label">Tu duda o capricho</string>
+    <string name="create_question_placeholder">Ej. ¿Me compro estas zapatillas?</string>
+    <string name="create_option_a_label">Opción A (Respuesta 1)</string>
+    <string name="create_option_a_placeholder">Ej. Sí, te quedan genial</string>
+    <string name="create_option_b_label">Opción B (Respuesta 2)</string>
+    <string name="create_option_b_placeholder">Ej. No, ahorra un poco</string>
+    <string name="create_add_photo_prompt">Hacer foto o elegir de la galería</string>
+    <string name="create_duration_title">Duración límite: 5 minutos</string>
+    <string name="create_duration_subtitle">Tras 5 min, la votación se cierra y se da el veredicto.</string>
+    <string name="create_audience_no_friends">Visible solo para ti (sin amigos aún)</string>
+    <string name="create_audience_all_friends">Visible para todos tus amigos (%1$d)</string>
+    <string name="create_audience_zero_friends">Visible solo para ti (0 amigos)</string>
+    <string name="create_audience_some_friends">Visible para %1$d de %2$d amigos</string>
+    <string name="create_audience_sub_empty">Añade amigos para enviarles tus votaciones.</string>
+    <string name="create_audience_sub_pick">Toca para elegir quién recibe este capricho.</string>
+    <string name="create_general_title">Mostrar también en General</string>
+    <string name="create_general_preparing">Preparando ubicación aproximada...</string>
+    <string name="create_general_enabled">Activado · visible también en General</string>
+    <string name="create_general_default_off">Apagado por defecto</string>
+    <string name="create_general_description">Si lo activas, la tarjeta se publica en General para cualquier usuario autenticado de la app desde cualquier distancia, sin límite de radio. Tu ubicación se guarda solo como zona aproximada. La selección de amigos de arriba sigue controlando quién la ve en Amigos.</string>
+    <string name="create_general_getting_zone">Obteniendo zona aproximada...</string>
+    <string name="create_general_zone_ready">✓ Zona aproximada preparada para General</string>
+    <string name="create_submit_friends">Lanzar a mis amigos</string>
+    <string name="create_submit_general">Publicar en General</string>
+    <string name="create_photo_sheet_title">Foto de tu capricho</string>
+    <string name="create_photo_take">Hacer foto con la cámara</string>
+    <string name="create_photo_gallery">Elegir de la galería</string>
+    <string name="create_photo_remove">Quitar foto</string>
+    <string name="create_audience_sheet_title">¿A qué amigos enviarlo?</string>
+    <string name="create_audience_all">Todos</string>
+    <string name="create_audience_none">Ninguno</string>
+    <string name="create_audience_empty">Todavía no tienes amigos aceptados en tu lista.</string>
+
+    <!-- Votación Activa y Veredicto -->
+    <string name="poll_friend_title">Duda de @%1$s</string>
+    <string name="poll_own_title">Tu duda está en el aire</string>
+    <string name="poll_closed_banner">Votación cerrada</string>
+    <string name="poll_winner_badge">🏆 GANADOR</string>
+    <string name="result_screen_title">El veredicto</string>
+    <string name="result_badge_closed">VOTACIÓN CERRADA</string>
+    <string name="result_verdict_winner_headline">¡Tus amigos han hablado!</string>
+    <string name="result_verdict_winner_subtitle">Ganó «%1$s» con un %2$d%% de los votos.</string>
+    <string name="result_verdict_tie_headline">¡Empate técnico (50/50)!</string>
+    <string name="result_verdict_tie_subtitle">Tus amigos están divididos. ¡Sigue tu intuición!</string>
+    <string name="result_verdict_empty_headline">Sin respuestas</string>
+    <string name="result_verdict_empty_subtitle">Tus amigos te han dejado con la duda.</string>
+    <string name="result_votes_zero_friends">Ningún amigo votó durante el tiempo de la encuesta</string>
+    <string name="result_votes_zero_public">Nadie votó durante el tiempo de la encuesta</string>
+    <string name="result_votes_one_friend">1 amigo ha opinado</string>
+    <string name="result_votes_one_public">1 persona ha opinado</string>
+    <string name="result_votes_many_friends">%1$d amigos han opinado</string>
+    <string name="result_votes_many_public">%1$d personas han opinado</string>
+    <string name="result_decision_your_final">TU DECISIÓN FINAL</string>
+    <string name="result_decision_author_final">DECISIÓN FINAL DEL AUTOR</string>
+    <string name="result_decision_rectify_button">Rectificar opinión final</string>
+    <string name="result_decision_rectify_title">RECTIFICAR TU DECISIÓN FINAL</string>
+    <string name="result_decision_rectify_subtitle">Elige la nueva opción (tus amigos recibirán un nuevo aviso):</string>
+    <string name="result_decision_no_votes_title">SIN VOTOS DE AMIGOS</string>
+    <string name="result_decision_no_votes_body">Ningún amigo votó en esta encuesta, así que no hace falta confirmar decisión.</string>
+    <string name="result_decision_pending_author_title">PENDIENTE DE CONFIRMAR TU DECISIÓN</string>
+    <string name="result_decision_pending_author_question">¿Qué decidiste al final?</string>
+    <string name="result_decision_pending_friend_title">PENDIENTE DE DECISIÓN FINAL</string>
+    <string name="result_decision_pending_friend_body">El autor aún no ha confirmado si eligió A o B.</string>
+    <string name="result_go_home_button">Volver con mis amigos</string>
+
+    <!-- Perfil, Recuerdos, Estadísticas, Categorías y Ajustes -->
+    <string name="profile_tab_memories_cd">Recuerdos</string>
+    <string name="profile_tab_stats_cd">Estadísticas</string>
+    <string name="profile_back_to_memories_cd">Volver a recuerdos</string>
+    <string name="profile_settings_cd">Ajustes</string>
+    <string name="profile_edit_cd">Editar perfil</string>
+    <string name="profile_bio_own_default">Decisiones, caprichos y planes\ncon mis amigos</string>
+    <string name="profile_bio_other_default">Sin biografía todavía.</string>
+    <string name="profile_metric_doubts">dudas</string>
+    <string name="profile_metric_resolved">resueltas</string>
+    <string name="profile_metric_listened">hice caso</string>
+    <string name="profile_memories_empty_own">Aún no tienes caprichos publicados.</string>
+    <string name="profile_memories_empty_other">Este usuario aún no tiene caprichos.</string>
+    <string name="profile_memories_empty_own_sub">Toca la cámara inferior para publicar tu primera duda.</string>
+    <string name="profile_memories_empty_other_sub">Sus dudas aparecerán aquí cuando las comparta.</string>
+    <string name="profile_memories_footer">Ver mis recuerdos</string>
+    <string name="profile_badge_pending">Pendiente</string>
+    <string name="profile_badge_tie_cd">Decisión guardada en empate</string>
+    <string name="profile_stats_listened_title">Hice caso</string>
+    <string name="profile_stats_listened_subtitle">de mis amigos</string>
+    <string name="profile_stats_listened_detail">en %1$d de %2$d dudas</string>
+    <string name="profile_stats_categories_title">Mis categorías</string>
+    <string name="profile_stats_see_all">Ver todas</string>
+    <string name="profile_categories_sheet_title">Tus dudas por categoría</string>
+    <string name="profile_categories_all">Todas (%1$d)</string>
+    <string name="profile_categories_count_chip">%1$s (%2$d)</string>
+    <string name="profile_categories_empty">No hay dudas en esta categoría.</string>
+    <string name="profile_settings_edit_profile">Editar perfil</string>
+    <string name="profile_settings_friends">Amigos</string>
+    <string name="profile_settings_friends_count">Amigos (%1$d)</string>
+    <string name="profile_settings_notifications">Notificaciones</string>
+    <string name="profile_settings_privacy">Privacidad</string>
+    <string name="profile_settings_privacy_blocked">Privacidad (%1$d bloqueados)</string>
+    <string name="profile_settings_language">Idioma</string>
+    <string name="profile_settings_language_with_current">Idioma · %1$s</string>
+    <string name="profile_settings_sign_out">Cerrar sesión</string>
+    <string name="language_sheet_title">Idioma de la app</string>
+    <string name="language_system">Seguir idioma del sistema</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_english">English</string>
+    <string name="profile_delete_account_title">¿Eliminar cuenta?</string>
+    <string name="profile_delete_account_body">Esta acción es irreversible y eliminará todos tus datos, amistades y perfil.</string>
+    <string name="profile_remove_friend_title">¿Eliminar amigo?</string>
+    <string name="profile_remove_friend_body">Ya no verás los caprichos de @%1$s ni podrá ver los tuyos.</string>
+    <string name="profile_remove_friend_action">Eliminar amigo</string>
+    <string name="profile_block_user_title">¿Bloquear usuario?</string>
+    <string name="profile_block_user_body">Se eliminará la amistad y no podréis interactuar ni encontraros en la app.</string>
+    <string name="profile_block_user_action">Bloquear usuario</string>
+
+    <!-- Amigos ("Tu gente") -->
+    <string name="friends_screen_title">Tu gente</string>
+    <string name="friends_invite_button">Invitar a un amigo</string>
+    <string name="friends_privacy_footer">Sin seguidores públicos. Sin desconocidos.</string>
+
+    <!-- Notificaciones locales -->
+    <string name="notif_channel_name">Votaciones de Caprichos</string>
+    <string name="notif_channel_desc">Notificaciones de votaciones y caprichos de amigos en Caprichómetro</string>
+    <string name="notif_created_title">¡Duda en marcha! ⏳</string>
+    <string name="notif_created_short">Ya queda menos para saber si es un capricho o no.</string>
+    <string name="notif_created_big_with_q">Publicado: &quot;%1$s&quot;. Ya queda menos para saber si es un capricho o no. ¡Tus amigos tienen 5 minutos!</string>
+    <string name="notif_created_big_no_q">Tu duda está en marcha. Ya queda menos para saber si es un capricho o no. ¡Tus amigos tienen 5 minutos!</string>
+    <string name="notif_closed_title">¡Votación cerrada!</string>
+    <string name="notif_closed_short_with_q">Tus amigos ya han opinado: &quot;%1$s&quot;</string>
+    <string name="notif_closed_short_no_q">Tus amigos han terminado de votar. ¡Descubre el veredicto!</string>
+    <string name="notif_closed_big_with_q">Tus amigos ya han opinado sobre: &quot;%1$s&quot;. Entra a ver el veredicto final.</string>
+    <string name="notif_closed_big_no_q">Tus amigos han terminado de votar tu capricho. Entra a ver el veredicto final.</string>
+    <string name="notif_friend_caprice_title">@%1$s ha subido un capricho</string>
+    <string name="notif_friend_caprice_fallback">¡Entra a opinar y votar!</string>
+    <string name="notif_friend_caprice_big">%1$s:\n%2$s\n¡Tus 5 minutos para opinar acaban de empezar!</string>
+    <string name="notif_friend_decision_title">@%1$s ya tomó una decisión</string>
+    <string name="notif_friend_decision_body">Al final eligió: %1$s</string>
 </resources>

@@ -27,12 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.caprichometro.R
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
@@ -111,12 +113,12 @@ fun ResultScreen(
                 IconButton(onClick = onGoHome) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = Color.White
                     )
                 }
                 Text(
-                    text = "El veredicto",
+                    text = stringResource(R.string.result_screen_title),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
@@ -178,7 +180,7 @@ fun ResultScreen(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = "VOTACIÓN CERRADA",
+                    text = stringResource(R.string.result_badge_closed),
                     color = TextGray,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -216,8 +218,30 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            val localizedHeadline = when {
+                verdict == null -> stringResource(R.string.result_verdict_winner_headline)
+                verdict.totalVotes == 0 -> stringResource(R.string.result_verdict_empty_headline)
+                verdict.winningOption == null -> stringResource(R.string.result_verdict_tie_headline)
+                else -> stringResource(R.string.result_verdict_winner_headline)
+            }
+            val localizedSubtitle = when {
+                verdict == null -> stringResource(R.string.result_verdict_empty_subtitle)
+                verdict.totalVotes == 0 -> stringResource(R.string.result_verdict_empty_subtitle)
+                verdict.winningOption == 1 -> stringResource(
+                    R.string.result_verdict_winner_subtitle,
+                    caprice?.answer1.orEmpty(),
+                    verdict.option1Percentage.toInt()
+                )
+                verdict.winningOption == 2 -> stringResource(
+                    R.string.result_verdict_winner_subtitle,
+                    caprice?.answer2.orEmpty(),
+                    verdict.option2Percentage.toInt()
+                )
+                else -> stringResource(R.string.result_verdict_tie_subtitle)
+            }
+
             Text(
-                text = verdict?.headline ?: "Tus amigos\nhan opinado.",
+                text = localizedHeadline,
                 color = Color.White,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
@@ -226,7 +250,7 @@ fun ResultScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = verdict?.subtitle ?: "Votación cerrada. Consulta el veredicto final.",
+                text = localizedSubtitle,
                 color = TextGray,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
@@ -306,9 +330,12 @@ fun ResultScreen(
             val totalVotes = verdict?.totalVotes ?: 0
             Text(
                 text = when (totalVotes) {
-                    0 -> if (isPublicNearby) "Nadie votó durante el tiempo de la encuesta" else "Ningún amigo votó durante el tiempo de la encuesta"
-                    1 -> if (isPublicNearby) "1 persona ha opinado" else "1 amigo ha opinado"
-                    else -> if (isPublicNearby) "$totalVotes personas han opinado" else "$totalVotes amigos han opinado"
+                    0 -> stringResource(if (isPublicNearby) R.string.result_votes_zero_public else R.string.result_votes_zero_friends)
+                    1 -> stringResource(if (isPublicNearby) R.string.result_votes_one_public else R.string.result_votes_one_friend)
+                    else -> stringResource(
+                        if (isPublicNearby) R.string.result_votes_many_public else R.string.result_votes_many_friends,
+                        totalVotes
+                    )
                 },
                 color = TextGray,
                 fontSize = 13.sp,
@@ -431,7 +458,7 @@ fun ResultBar(
                     )
                     if (isWinner) {
                         Text(
-                            text = "🏆 GANADOR",
+                            text = stringResource(R.string.poll_winner_badge),
                             color = LimeGreen,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -480,7 +507,7 @@ private fun FinalDecisionCard(
                 val label = if (finalDecision == 1) "A" else "B"
                 val answerText = if (finalDecision == 1) caprice.answer1 else caprice.answer2
                 Text(
-                    text = if (isAuthor) "TU DECISIÓN FINAL" else "DECISIÓN FINAL DEL AUTOR",
+                    text = stringResource(if (isAuthor) R.string.result_decision_your_final else R.string.result_decision_author_final),
                     color = LimeGreen,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -512,7 +539,7 @@ private fun FinalDecisionCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Rectificar opinión final",
+                            text = stringResource(R.string.result_decision_rectify_button),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -521,14 +548,14 @@ private fun FinalDecisionCard(
             }
             finalDecision != null && isAuthor && isRectifying -> {
                 Text(
-                    text = "RECTIFICAR TU DECISIÓN FINAL",
+                    text = stringResource(R.string.result_decision_rectify_title),
                     color = Color(0xFFFFD54F),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Elige la nueva opción (tus amigos recibirán un nuevo aviso):",
+                    text = stringResource(R.string.result_decision_rectify_subtitle),
                     color = TextGray,
                     fontSize = 13.sp
                 )
@@ -549,33 +576,33 @@ private fun FinalDecisionCard(
                     enabled = !isSaving,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("Cancelar", color = TextGray, fontSize = 13.sp)
+                    Text(stringResource(R.string.action_cancel), color = TextGray, fontSize = 13.sp)
                 }
             }
             totalVotes <= 0 -> {
                 Text(
-                    text = "SIN VOTOS DE AMIGOS",
+                    text = stringResource(R.string.result_decision_no_votes_title),
                     color = TextGray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Ningún amigo votó en esta encuesta, así que no hace falta confirmar decisión.",
+                    text = stringResource(R.string.result_decision_no_votes_body),
                     color = TextGray,
                     fontSize = 13.sp
                 )
             }
             isAuthor -> {
                 Text(
-                    text = "PENDIENTE DE CONFIRMAR TU DECISIÓN",
+                    text = stringResource(R.string.result_decision_pending_author_title),
                     color = Color(0xFFFFD54F),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "¿Qué decidiste al final?",
+                    text = stringResource(R.string.result_decision_pending_author_question),
                     color = TextGray,
                     fontSize = 13.sp
                 )
@@ -590,14 +617,14 @@ private fun FinalDecisionCard(
             }
             else -> {
                 Text(
-                    text = "PENDIENTE DE DECISIÓN FINAL",
+                    text = stringResource(R.string.result_decision_pending_friend_title),
                     color = TextGray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "El autor aún no ha confirmado si eligió A o B.",
+                    text = stringResource(R.string.result_decision_pending_friend_body),
                     color = TextGray,
                     fontSize = 13.sp
                 )
