@@ -81,6 +81,10 @@ class FirestoreCapriceRepository(
             if (normalizedLocationCell != null) {
                 data["locationCell"] = normalizedLocationCell
             }
+            val validPrice = caprice.price?.takeIf { it.isFinite() && it >= 0.0 }
+            if (validPrice != null) {
+                data["price"] = validPrice
+            }
             val document = db.collection(collectionName).add(data).await()
             invalidateUser(caprice.userId)
             Result.success(document.id)

@@ -136,7 +136,13 @@ class CapriceViewModel(
         get() = currentUserIdProvider()
 
     fun updateSessionFriends(friends: List<UserProfile>?) {
+        val prevIds = sessionFriends?.map { it.uid }?.toSet()
+        val nextIds = friends?.map { it.uid }?.toSet()
         sessionFriends = friends
+        if (prevIds != null && nextIds != null && prevIds != nextIds) {
+            // Si cambia la lista de amigos aceptados, invalidamos la ventana de General para reflejar la exclusión
+            lastNearbyLoadedAtMillis = null
+        }
     }
 
     fun reset() {
@@ -167,7 +173,8 @@ class CapriceViewModel(
         imageBytes: ByteArray? = null,
         visibleToUserIds: List<String>? = null,
         nearbyCell: String? = null,
-        locationCell: String? = null
+        locationCell: String? = null,
+        price: Double? = null
     ): Result<Caprice> {
         val uid = currentUserId
         if (uid.isBlank()) return Result.failure(IllegalStateException("No hay sesión activa"))
@@ -177,6 +184,7 @@ class CapriceViewModel(
             .setType(type)
             .setQuestion(questionText)
             .setOptions(answer1, answer2)
+            .setPrice(price)
 
         if (visibleToUserIds != null) {
             capriceBuilder.setVisibleToUserIds(listOf(uid) + visibleToUserIds)
@@ -510,7 +518,8 @@ class CapriceViewModel(
                 currentUserId = uid,
                 includeCache = !isManualRefresh,
                 initialBatchSize = INITIAL_FAST_BATCH_SIZE,
-                pageSize = FEED_PAGE_SIZE
+                pageSize = FEED_PAGE_SIZE,
+                excludedFriendIds = sessionFriends?.map { it.uid }?.toSet()
             ).catch { e ->
                 if (e is CancellationException) throw e
                 if (currentUserId != uid) return@catch

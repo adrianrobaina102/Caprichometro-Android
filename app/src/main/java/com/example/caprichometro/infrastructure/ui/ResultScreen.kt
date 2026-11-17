@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.example.caprichometro.domain.model.CapricePrice
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -215,6 +216,24 @@ fun ResultScreen(
                 isResolvingPlaceName = vmState?.isResolvingPlaceName == true,
                 hasDistanceCell = !displayedCaprice?.effectiveDistanceCell(authorLocationCell).isNullOrBlank()
             )
+
+            displayedCaprice?.price?.let { capricePrice ->
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(LimeGreen.copy(alpha = 0.14f))
+                        .border(1.dp, LimeGreen.copy(alpha = 0.45f), RoundedCornerShape(50))
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = CapricePrice.formatEuros(capricePrice),
+                        color = LimeGreen,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

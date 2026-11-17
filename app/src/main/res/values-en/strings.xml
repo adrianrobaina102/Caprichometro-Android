@@ -222,4 +222,7 @@
     <string name="notif_friend_caprice_big">%1$s:\n%2$s\nYour 5 minutes to vote just started!</string>
     <string name="notif_friend_decision_title">@%1$s made a final decision</string>
     <string name="notif_friend_decision_body">They chose: %1$s</string>
+    <string name="create_price_label">Optional price (€)</string>
+    <string name="create_price_placeholder">E.g. 24.99</string>
+    <string name="create_price_invalid_error">Enter a valid amount greater than or equal to 0</string>
 </resources>

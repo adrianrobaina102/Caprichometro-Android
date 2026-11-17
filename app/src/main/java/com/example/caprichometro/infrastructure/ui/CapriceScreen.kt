@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -40,8 +41,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.caprichometro.domain.model.CapricePrice
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
@@ -82,6 +85,7 @@ fun CapriceScreen(
     var questionText by remember { mutableStateOf("") }
     var answer1 by remember { mutableStateOf("") }
     var answer2 by remember { mutableStateOf("") }
+    var priceText by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoSourceSheet by remember { mutableStateOf(false) }
@@ -202,7 +206,10 @@ fun CapriceScreen(
 
     val optionsValidator = remember { DifferentOptionsValidator() }
 
-    val isFormFilled = questionText.isNotBlank() && answer1.isNotBlank() && answer2.isNotBlank()
+    val parsedPriceResult = remember(priceText) { CapricePrice.parseOptional(priceText) }
+    val isPriceValid = parsedPriceResult.isSuccess
+    val priceErrorText = stringResource(R.string.create_price_invalid_error)
+    val isFormFilled = questionText.isNotBlank() && answer1.isNotBlank() && answer2.isNotBlank() && isPriceValid
 
     Scaffold(
         containerColor = DarkBackground,
@@ -235,6 +242,11 @@ fun CapriceScreen(
                     val optionsResult = optionsValidator.validate(Pair(answer1, answer2))
                     if (optionsResult is ValidationResult.Error) {
                         Toast.makeText(context, optionsResult.message, Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    val parsedPrice = parsedPriceResult.getOrElse {
+                        Toast.makeText(context, priceErrorText, Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
@@ -271,7 +283,8 @@ fun CapriceScreen(
                             imageBytes = imageBytes,
                             visibleToUserIds = effectiveSelectedFriendIds.toList(),
                             nearbyCell = if (capriceState.isNearbyDiscoveryEnabled) capriceState.preparedNearbyCell else null,
-                            locationCell = capriceState.preparedLocationCell ?: capriceState.preparedNearbyCell
+                            locationCell = capriceState.preparedLocationCell ?: capriceState.preparedNearbyCell,
+                            price = parsedPrice
                         )
 
                         isSubmitting = false
@@ -282,6 +295,7 @@ fun CapriceScreen(
                             questionText = ""
                             answer1 = ""
                             answer2 = ""
+                            priceText = ""
                             selectedImageUri = null
                             PollNotificationHelper.showCapriceCreatedNotification(
                                 context = context,
@@ -454,6 +468,50 @@ fun CapriceScreen(
                     unfocusedTextColor = Color.White
                 )
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = stringResource(R.string.create_price_label),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = priceText,
+                onValueChange = { priceText = it },
+                placeholder = { Text(text = stringResource(R.string.create_price_placeholder), color = TextGray) },
+                trailingIcon = {
+                    Text(
+                        text = "€",
+                        color = LimeGreen,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                },
+                singleLine = true,
+                isError = priceText.isNotBlank() && !isPriceValid,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = LimeGreen,
+                    unfocusedBorderColor = Color.DarkGray,
+                    errorBorderColor = Color(0xFFFF5252),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    errorTextColor = Color.White
+                )
+            )
+            if (priceText.isNotBlank() && !isPriceValid) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.create_price_invalid_error),
+                    color = Color(0xFFFF5252),
+                    fontSize = 12.sp
+                )
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 

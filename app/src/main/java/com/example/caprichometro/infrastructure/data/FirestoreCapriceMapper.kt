@@ -38,6 +38,7 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
         }
         val nearbyCell = getString("nearbyCell")?.trim()?.takeIf { it.isNotEmpty() }
         val locationCell = getString("locationCell")?.trim()?.takeIf { it.isNotEmpty() }
+        val price = (get("price") as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= 0.0 }
 
         Caprice(
             id = id,
@@ -52,7 +53,8 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
             finalDecision = finalDecision,
             finalDecisionAt = finalDecisionAt,
             nearbyCell = nearbyCell,
-            locationCell = locationCell
+            locationCell = locationCell,
+            price = price
         )
     } catch (e: Exception) {
         Log.e(logTag, "Documento caprice inválido $id: ${e.message}", e)

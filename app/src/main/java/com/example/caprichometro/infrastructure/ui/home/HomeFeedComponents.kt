@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.example.caprichometro.domain.model.CapricePrice
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -666,6 +667,24 @@ internal fun CapriceFeedCard(
             fontWeight = FontWeight.Bold,
             lineHeight = 23.sp
         )
+
+        if (caprice.price != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(LimeAccent.copy(alpha = 0.14f))
+                    .border(1.dp, LimeAccent.copy(alpha = 0.45f), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = CapricePrice.formatEuros(caprice.price),
+                    color = LimeAccent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
 
         // Foto opcional debajo de la pregunta y antes de las opciones
         if (caprice.imageUrl.isNotBlank()) {

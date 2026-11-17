@@ -222,4 +222,7 @@
     <string name="notif_friend_caprice_big">%1$s:\n%2$s\n¡Tus 5 minutos para opinar acaban de empezar!</string>
     <string name="notif_friend_decision_title">@%1$s ya tomó una decisión</string>
     <string name="notif_friend_decision_body">Al final eligió: %1$s</string>
+    <string name="create_price_label">Precio opcional (€)</string>
+    <string name="create_price_placeholder">Ej. 24,99</string>
+    <string name="create_price_invalid_error">Introduce un importe válido igual o mayor que 0</string>
 </resources>
