@@ -30,6 +30,7 @@ class FirestoreCapriceMapperTest {
         every { snap.getString("userId") } returns "author_1"
         every { snap.getString("type") } returns "Compra"
         every { snap.getString("imageUrl") } returns "data:image/webp;base64,AAA="
+        every { snap.get("price") } returns 29.99
 
         val caprice = snap.toCapriceOrNull("TestTag")
 
@@ -45,6 +46,7 @@ class FirestoreCapriceMapperTest {
         assertThat(caprice.finalDecisionAt).isEqualTo(1_700_000_400_000L)
         assertThat(caprice.nearbyCell).isEqualTo("v1_2608_3525")
         assertThat(caprice.locationCell).isNull()
+        assertThat(caprice.price).isEqualTo(29.99)
     }
 
     @Test
@@ -65,6 +67,7 @@ class FirestoreCapriceMapperTest {
         every { snap.getString("userId") } returns null
         every { snap.getString("type") } returns null
         every { snap.getString("imageUrl") } returns null
+        every { snap.get("price") } returns null
 
         val caprice = snap.toCapriceOrNull("TestTag")
 
@@ -74,6 +77,7 @@ class FirestoreCapriceMapperTest {
         assertThat(caprice.finalDecisionAt).isEqualTo(1_710_000_500_000L)
         assertThat(caprice.type).isEqualTo("Compra")
         assertThat(caprice.locationCell).isEqualTo("v1_10_20")
+        assertThat(caprice.price).isNull()
     }
 
     @Test
