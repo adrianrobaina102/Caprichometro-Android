@@ -1,6 +1,7 @@
 package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.domain.friendship.FriendshipRepository
+import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.ApproximateLocation
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
@@ -19,6 +20,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Semaphore
@@ -51,12 +53,15 @@ class GetNearbyCapricesUseCase(
 
     private val cachedSnapshots = ConcurrentHashMap<String, NearbyPageSnapshot>()
 
-    suspend fun execute(currentUserId: String): Result<List<CapriceFeedItem>> = withContext(ioDispatcher) {
+    suspend fun execute(
+        currentUserId: String,
+        excludedFriendIds: Set<String>? = null
+    ): Result<List<CapriceFeedItem>> = withContext(ioDispatcher) {
         if (currentUserId.isBlank()) return@withContext Result.success(emptyList())
 
         try {
             val location = locationRepository.currentApproximateLocation().getOrThrow()
-            val (discoverableCaprices, outgoingBlockedIds) = coroutineScope {
+            val (discoverableCaprices, outgoingBlockedIds, acceptedFriendIds) = coroutineScope {
                 val capricesDeferred = async { nearbyCapriceRepository.getDiscoverableCaprices().getOrThrow() }
                 val blockedDeferred = async {
                     friendshipRepository
@@ -65,13 +70,17 @@ class GetNearbyCapricesUseCase(
                         ?.toSet()
                         .orEmpty()
                 }
-                capricesDeferred.await() to blockedDeferred.await()
+                val friendsDeferred = async {
+                    excludedFriendIds ?: loadServerAcceptedFriendIds(currentUserId)
+                }
+                Triple(capricesDeferred.await(), blockedDeferred.await(), friendsDeferred.await())
             }
             val candidates = buildSortedCandidates(
                 currentUserId = currentUserId,
                 location = location,
                 rawCaprices = discoverableCaprices,
-                blockedIds = outgoingBlockedIds
+                blockedIds = outgoingBlockedIds,
+                acceptedFriendIds = acceptedFriendIds
             )
             val resolvedAuthors = ConcurrentHashMap<String, UserProfile>()
             resolveAuthorProfiles(
@@ -96,7 +105,8 @@ class GetNearbyCapricesUseCase(
         currentUserId: String,
         includeCache: Boolean = true,
         initialBatchSize: Int = INITIAL_FAST_BATCH_SIZE,
-        pageSize: Int = PAGE_SIZE
+        pageSize: Int = PAGE_SIZE,
+        excludedFriendIds: Set<String>? = null
     ): Flow<ProgressiveFeedBatch> = channelFlow {
         if (currentUserId.isBlank()) {
             send(ProgressiveFeedBatch(items = emptyList(), isFromCache = false, isComplete = true))
@@ -109,6 +119,11 @@ class GetNearbyCapricesUseCase(
                 friendshipRepository?.getCachedBlockedUserIds(currentUserId)?.toSet().orEmpty()
             }
         } else null
+        val cachedFriendsDeferred = if (includeCache && excludedFriendIds == null) {
+            async(ioDispatcher) {
+                loadCachedAcceptedFriendIds(currentUserId)
+            }
+        } else null
         val serverBlockedDeferred = async(ioDispatcher) {
             friendshipRepository
                 ?.getBlockedUserIds(currentUserId)
@@ -116,6 +131,9 @@ class GetNearbyCapricesUseCase(
                 ?.toSet()
                 .orEmpty()
         }
+        val serverFriendsDeferred = if (excludedFriendIds == null) {
+            async(ioDispatcher) { loadServerAcceptedFriendIds(currentUserId) }
+        } else null
         val resolvedAuthors = ConcurrentHashMap<String, UserProfile>()
         val stepSize = initialBatchSize.coerceAtLeast(1)
         val pageLimit = pageSize.coerceAtLeast(stepSize)
@@ -131,11 +149,17 @@ class GetNearbyCapricesUseCase(
             } else {
                 serverBlockedDeferred.await()
             }
+            val acceptedFriendIds = excludedFriendIds ?: if (rawBatch.isFromCache && cachedFriendsDeferred != null) {
+                cachedFriendsDeferred.await()
+            } else {
+                serverFriendsDeferred?.await().orEmpty()
+            }
             val candidates = buildSortedCandidates(
                 currentUserId = currentUserId,
                 location = location,
                 rawCaprices = rawBatch.caprices,
-                blockedIds = blockedIds
+                blockedIds = blockedIds,
+                acceptedFriendIds = acceptedFriendIds
             )
             cachedSnapshots[currentUserId] = NearbyPageSnapshot(
                 candidates = candidates,
@@ -233,16 +257,41 @@ class GetNearbyCapricesUseCase(
         }
     }.flowOn(ioDispatcher)
 
+    private suspend fun loadCachedAcceptedFriendIds(currentUserId: String): Set<String> {
+        val fRepo = friendshipRepository ?: return emptySet()
+        return runCatching {
+            fRepo.getCachedFriendships(currentUserId)
+                .filter { it.status == FriendshipStatus.ACCEPTED }
+                .mapNotNull { friendship -> friendship.memberIDs.firstOrNull { it != currentUserId } }
+                .filter { it.isNotBlank() }
+                .toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    private suspend fun loadServerAcceptedFriendIds(currentUserId: String): Set<String> {
+        val fRepo = friendshipRepository ?: return emptySet()
+        return runCatching {
+            fRepo.getFriendships(currentUserId)
+                .first()
+                .filter { it.status == FriendshipStatus.ACCEPTED }
+                .mapNotNull { friendship -> friendship.memberIDs.firstOrNull { it != currentUserId } }
+                .filter { it.isNotBlank() }
+                .toSet()
+        }.getOrDefault(emptySet())
+    }
+
     private fun buildSortedCandidates(
         currentUserId: String,
         location: ApproximateLocation,
         rawCaprices: List<Caprice>,
-        blockedIds: Set<String>
+        blockedIds: Set<String>,
+        acceptedFriendIds: Set<String> = emptySet()
     ): List<Candidate> {
         val candidates = rawCaprices.mapNotNull { caprice ->
             val cell = caprice.nearbyCell?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             if (caprice.userId == currentUserId || caprice.userId.isBlank()) return@mapNotNull null
             if (caprice.userId in blockedIds) return@mapNotNull null
+            if (caprice.userId in acceptedFriendIds) return@mapNotNull null
             val distance = NearbyCellGrid.distanceInMeters(location, cell) ?: return@mapNotNull null
             Candidate(caprice = caprice, distanceMeters = distance)
         }
