@@ -15,6 +15,7 @@ import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
+import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -128,9 +129,15 @@ class CapriceViewModel(
     private val friendsController = PagedFeedController()
     private val nearbyController = PagedFeedController()
     private val syncedLocationCells = ConcurrentHashMap<String, String>()
+    @Volatile
+    private var sessionFriends: List<UserProfile>? = null
 
     private val currentUserId: String
         get() = currentUserIdProvider()
+
+    fun updateSessionFriends(friends: List<UserProfile>?) {
+        sessionFriends = friends
+    }
 
     fun reset() {
         feedLoadJob?.cancel()
@@ -145,6 +152,7 @@ class CapriceViewModel(
         privateLocationJob = null
         lastNearbyLoadedAtMillis = null
         lastNearbyLoadedUserId = null
+        sessionFriends = null
         syncedLocationCells.clear()
         friendsController.reset()
         nearbyController.reset()
@@ -255,14 +263,17 @@ class CapriceViewModel(
         }
     }
 
-    fun loadFriendsFeedIfNeeded() {
+    fun loadFriendsFeedIfNeeded(preloadedFriends: List<UserProfile>? = null) {
         val current = _state.value
         if (!current.hasLoadedFeed && !current.isFeedLoading && !current.isFriendsBackgroundSyncing) {
-            loadFriendsFeed(isManualRefresh = false)
+            loadFriendsFeed(isManualRefresh = false, preloadedFriends = preloadedFriends)
         }
     }
 
-    fun loadFriendsFeed(isManualRefresh: Boolean = false) {
+    fun loadFriendsFeed(
+        isManualRefresh: Boolean = false,
+        preloadedFriends: List<UserProfile>? = null
+    ) {
         val uid = currentUserId
         val useCase = getFriendsCapricesUseCase ?: return
         if (uid.isBlank()) return
@@ -300,7 +311,8 @@ class CapriceViewModel(
                 initialBatchSize = INITIAL_FAST_BATCH_SIZE,
                 perFriendLimit = 100,
                 totalLimit = FRIENDS_FETCH_LIMIT,
-                includeCache = !isManualRefresh
+                includeCache = !isManualRefresh,
+                preloadedFriends = preloadedFriends ?: sessionFriends
             ).catch { e ->
                 if (e is CancellationException) throw e
                 if (currentUserId != uid) return@catch

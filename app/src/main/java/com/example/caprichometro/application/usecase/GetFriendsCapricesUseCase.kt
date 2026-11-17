@@ -106,7 +106,8 @@ class GetFriendsCapricesUseCase(
         perFriendLimit: Int = 20,
         totalLimit: Int = 20,
         includeCache: Boolean = true,
-        pageSize: Int = DEFAULT_PAGE_SIZE
+        pageSize: Int = DEFAULT_PAGE_SIZE,
+        preloadedFriends: List<UserProfile>? = null
     ): Flow<ProgressiveFeedBatch> = channelFlow {
         if (currentUserId.isBlank()) {
             send(ProgressiveFeedBatch(items = emptyList(), isFromCache = false, isComplete = true))
@@ -121,13 +122,20 @@ class GetFriendsCapricesUseCase(
         val capricesByFriend = linkedMapOf<String, List<Pair<Caprice, UserProfile?>>>()
         val cachedProfiles = ConcurrentHashMap<String, UserProfile>()
         val resolvedServerProfiles = ConcurrentHashMap<String, UserProfile>()
+        preloadedFriends?.forEach { profile ->
+            if (profile.uid.isNotBlank()) {
+                cachedProfiles[profile.uid] = profile
+                resolvedServerProfiles[profile.uid] = profile
+            }
+        }
         val missingServerProfiles = ConcurrentHashMap.newKeySet<String>()
         var emittedCacheBatch = false
         var lastEmittedCount = 0
         var lastEmitAtMillis = 0L
 
         if (includeCache && friendshipRepository != null && userProfileRepository != null) {
-            val cachedByFriend = loadCachedCapricesByFriend(currentUserId, perFriendLimit)
+            val preloadedIds = preloadedFriends?.map { it.uid }
+            val cachedByFriend = loadCachedCapricesByFriend(currentUserId, perFriendLimit, preloadedIds)
             if (cachedByFriend.isNotEmpty()) {
                 cachedByFriend.forEach { (friendId, list) ->
                     capricesByFriend[friendId] = list.map { it to null }
@@ -260,13 +268,17 @@ class GetFriendsCapricesUseCase(
                         friendshipRepository.getBlockedUserIds(currentUserId).getOrDefault(emptyList()).toSet()
                     }.getOrDefault(emptySet())
                 }
-                val acceptedFriendships = friendshipRepository.getFriendships(currentUserId)
-                    .first()
-                    .filter { it.status == FriendshipStatus.ACCEPTED }
+                val rawFriendIds = if (preloadedFriends != null) {
+                    preloadedFriends.map { it.uid }
+                } else {
+                    friendshipRepository.getFriendships(currentUserId)
+                        .first()
+                        .filter { it.status == FriendshipStatus.ACCEPTED }
+                        .mapNotNull { friendship -> friendship.memberIDs.firstOrNull { it != currentUserId } }
+                }
                 val ownBlockedIds = ownBlockedDeferred.await()
 
-                val candidateFriendIds = acceptedFriendships
-                    .mapNotNull { friendship -> friendship.memberIDs.firstOrNull { it != currentUserId } }
+                val candidateFriendIds = rawFriendIds
                     .distinct()
                     .filter { it.isNotBlank() && it !in ownBlockedIds }
                 confirmedFriendIds = candidateFriendIds.toSet()
@@ -295,7 +307,7 @@ class GetFriendsCapricesUseCase(
                     }
                 }.awaitAll()
             } else {
-                val acceptedFriends = getAcceptedFriendsUseCase.execute(currentUserId).first()
+                val acceptedFriends = preloadedFriends ?: getAcceptedFriendsUseCase.execute(currentUserId).first()
                 confirmedFriendIds = acceptedFriends.map { it.uid }.toSet()
                 acceptedFriends.map { friend ->
                     async {
@@ -468,16 +480,22 @@ class GetFriendsCapricesUseCase(
 
     private suspend fun loadCachedCapricesByFriend(
         currentUserId: String,
-        perFriendLimit: Int
+        perFriendLimit: Int,
+        preloadedFriendIds: List<String>? = null
     ): Map<String, List<Caprice>> {
         val fRepo = friendshipRepository ?: return emptyMap()
-        val cachedFriendships = fRepo.getCachedFriendships(currentUserId)
-            .filter { it.status == FriendshipStatus.ACCEPTED }
-        if (cachedFriendships.isEmpty()) return emptyMap()
+        val rawFriendIds = if (preloadedFriendIds != null) {
+            preloadedFriendIds
+        } else {
+            val cachedFriendships = fRepo.getCachedFriendships(currentUserId)
+                .filter { it.status == FriendshipStatus.ACCEPTED }
+            if (cachedFriendships.isEmpty()) return emptyMap()
+            cachedFriendships.mapNotNull { friendship -> friendship.memberIDs.firstOrNull { it != currentUserId } }
+        }
+        if (rawFriendIds.isEmpty()) return emptyMap()
 
         val cachedBlockedIds = fRepo.getCachedBlockedUserIds(currentUserId).toSet()
-        val candidateFriendIds = cachedFriendships
-            .mapNotNull { friendship -> friendship.memberIDs.firstOrNull { it != currentUserId } }
+        val candidateFriendIds = rawFriendIds
             .distinct()
             .filter { it.isNotBlank() && it !in cachedBlockedIds }
         if (candidateFriendIds.isEmpty()) return emptyMap()

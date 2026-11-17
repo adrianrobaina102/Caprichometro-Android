@@ -172,6 +172,16 @@ fun CapriceApp(
     val ownUserProfile = profileState.profile?.takeIf { it.uid == currentUserId }
         ?: friendshipState.currentUserProfile?.takeIf { it.uid == currentUserId }
 
+    LaunchedEffect(currentUserId, friendshipState.hasLoadedFriends, friendshipState.friends) {
+        capriceViewModel.updateSessionFriends(
+            if (currentUserId.isNotBlank() && friendshipState.hasLoadedFriends) {
+                friendshipState.friends
+            } else {
+                null
+            }
+        )
+    }
+
     // Solicitud del permiso de notificaciones en tiempo de ejecución (Android 13+ / API 33+)
     val context = LocalContext.current
     val notificationPermissionLauncher = rememberLauncherForActivityResult(

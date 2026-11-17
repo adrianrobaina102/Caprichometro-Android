@@ -37,6 +37,7 @@ data class FriendshipSearchState(
     val requestSentSuccess: Boolean = false,
     val incomingRequests: List<IncomingFriendRequest> = emptyList(),
     val friends: List<UserProfile> = emptyList(),
+    val hasLoadedFriends: Boolean = false,
     val currentUsername: String? = null,
     val currentUserProfile: UserProfile? = null
 )
@@ -91,7 +92,7 @@ class FriendshipViewModel(
                         _state.update { it.copy(errorMessage = "Error al recibir amigos: ${e.message}") }
                     }
                     .collect { friendsList ->
-                        _state.update { it.copy(friends = friendsList) }
+                        _state.update { it.copy(friends = friendsList, hasLoadedFriends = true) }
                     }
             }
         }
@@ -101,7 +102,15 @@ class FriendshipViewModel(
         listenRequestsJob?.cancel()
         listenRequestsJob = null
         listeningUserId = null
-        _state.update { it.copy(incomingRequests = emptyList(), friends = emptyList(), currentUsername = null, currentUserProfile = null) }
+        _state.update {
+            it.copy(
+                incomingRequests = emptyList(),
+                friends = emptyList(),
+                hasLoadedFriends = false,
+                currentUsername = null,
+                currentUserProfile = null
+            )
+        }
     }
 
     fun refreshProfiles(currentUserId: String = "") {
