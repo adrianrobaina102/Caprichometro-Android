@@ -237,7 +237,7 @@ class GetNearbyCapricesUseCaseTest {
     }
 
     @Test
-    fun `General excluye publicaciones de amigos aceptados manteniendo desconocidos`() = runTest {
+    fun `General incluye publicaciones publicas de amigos aceptados manteniendo exclusiones de propios y bloqueados`() = runTest {
         val madrid = ApproximateLocation(40.4168, -3.7038)
         val madridCell = NearbyCellGrid.cellId(madrid)
         val locationRepo = mockk<DeviceLocationRepository>()
@@ -254,10 +254,10 @@ class GetNearbyCapricesUseCaseTest {
             timestamp = 2_000L,
             nearbyCell = madridCell
         )
-        val strangerCaprice = Caprice(
-            id = "cap_stranger",
-            userId = "stranger_1",
-            question = "¿De un desconocido?",
+        val blockedCaprice = Caprice(
+            id = "cap_blocked",
+            userId = "blocked_1",
+            question = "¿De un bloqueado?",
             answer1 = "A",
             answer2 = "B",
             timestamp = 3_000L,
@@ -265,18 +265,18 @@ class GetNearbyCapricesUseCaseTest {
         )
 
         coEvery { locationRepo.currentApproximateLocation() } returns Result.success(madrid)
-        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(listOf("blocked_1"))
         every {
             nearbyRepo.streamDiscoverableCaprices(initialBatchSize = 5, pageSize = 20, includeCache = false)
         } returns flowOf(
             NearbyCapriceBatch(
-                caprices = listOf(friendCaprice, strangerCaprice),
+                caprices = listOf(friendCaprice, blockedCaprice),
                 isFromCache = false,
                 isComplete = true
             )
         )
-        coEvery { userRepo.getUserById("stranger_1") } returns Result.success(
-            UserProfile(uid = "stranger_1", username = "desconocido")
+        coEvery { userRepo.getUserById("friend_1") } returns Result.success(
+            UserProfile(uid = "friend_1", username = "amigo_publico")
         )
 
         val useCase = GetNearbyCapricesUseCase(
@@ -288,11 +288,11 @@ class GetNearbyCapricesUseCaseTest {
 
         val result = useCase.observeProgressiveFeed(
             currentUserId = "me",
-            includeCache = false,
-            excludedFriendIds = setOf("friend_1")
+            includeCache = false
         ).toList().last()
 
-        assertThat(result.items.map { it.caprice.id }).containsExactly("cap_stranger")
-        coVerify(exactly = 0) { userRepo.getUserById("friend_1") }
+        assertThat(result.items.map { it.caprice.id }).containsExactly("cap_friend")
+        assertThat(result.items.first().author.username).isEqualTo("amigo_publico")
+        coVerify(exactly = 0) { userRepo.getUserById("blocked_1") }
     }
 }
