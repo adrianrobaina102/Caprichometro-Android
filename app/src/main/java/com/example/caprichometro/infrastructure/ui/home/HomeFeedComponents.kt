@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.caprichometro.R
+import com.example.caprichometro.application.usecase.FeedPollResult
 import kotlin.math.roundToInt
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.NearbyCellGrid
@@ -358,6 +360,8 @@ internal fun FeedItemsList(
     isBackgroundSyncing: Boolean,
     onLoadMore: () -> Unit,
     nowMillis: Long,
+    closedPollResults: Map<String, FeedPollResult> = emptyMap(),
+    onRequestClosedPollResult: (String) -> Unit = {},
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToUserProfile: (String) -> Unit,
     onOpenNonFriendProfile: (UserProfile) -> Unit,
@@ -381,6 +385,8 @@ internal fun FeedItemsList(
             CapriceFeedCard(
                 item = item,
                 nowMillis = nowMillis,
+                closedPollResult = closedPollResults[item.caprice.id],
+                onRequestClosedPollResult = onRequestClosedPollResult,
                 onClick = { onSelectFeedItem(item) },
                 onNavigateToUserProfile = onNavigateToUserProfile,
                 onOpenNonFriendProfile = onOpenNonFriendProfile,
@@ -399,6 +405,8 @@ internal fun FeedItemsList(
                 CapriceFeedCard(
                     item = item,
                     nowMillis = nowMillis,
+                    closedPollResult = closedPollResults[item.caprice.id],
+                    onRequestClosedPollResult = onRequestClosedPollResult,
                     onClick = { onSelectFeedItem(item) },
                     onNavigateToUserProfile = onNavigateToUserProfile,
                     onOpenNonFriendProfile = onOpenNonFriendProfile,
@@ -527,6 +535,8 @@ private fun FeedPaginationFooter(
 internal fun CapriceFeedCard(
     item: CapriceFeedItem,
     nowMillis: Long,
+    closedPollResult: FeedPollResult? = null,
+    onRequestClosedPollResult: (String) -> Unit = {},
     onClick: () -> Unit,
     onNavigateToUserProfile: (String) -> Unit = {},
     onOpenNonFriendProfile: (UserProfile) -> Unit = {},
@@ -536,6 +546,12 @@ internal fun CapriceFeedCard(
     val caprice = item.caprice
     val author = item.author
     val isActive = !PollTiming.isPollExpired(caprice.timestamp, nowMillis)
+
+    LaunchedEffect(caprice.id, isActive) {
+        if (!isActive) {
+            onRequestClosedPollResult(caprice.id)
+        }
+    }
     val relativeTime = remember(caprice.timestamp, nowMillis, context) {
         formatRelativeTime(context, caprice.timestamp, nowMillis)
     }
@@ -722,22 +738,54 @@ internal fun CapriceFeedCard(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Dos opciones informativas
+        // Dos opciones informativas (o resultados con porcentajes y avatares cuando está cerrada)
+        val closedResult = if (!isActive) closedPollResult else null
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FeedOptionPill(label = "A", text = caprice.answer1)
-            FeedOptionPill(label = "B", text = caprice.answer2)
+            FeedOptionPill(
+                label = "A",
+                text = caprice.answer1,
+                percentage = closedResult?.takeIf { it.totalVotes > 0 }?.option1Percentage,
+                isWinner = closedResult?.winningOption == 1,
+                voterAvatars = closedResult?.option1VoterAvatars.orEmpty(),
+                totalVotersForOption = closedResult?.option1TotalVoters ?: 0
+            )
+            FeedOptionPill(
+                label = "B",
+                text = caprice.answer2,
+                percentage = closedResult?.takeIf { it.totalVotes > 0 }?.option2Percentage,
+                isWinner = closedResult?.winningOption == 2,
+                voterAvatars = closedResult?.option2VoterAvatars.orEmpty(),
+                totalVotersForOption = closedResult?.option2TotalVoters ?: 0
+            )
+            if (closedResult != null && closedResult.totalVotes == 0) {
+                Text(
+                    text = stringResource(R.string.feed_poll_no_votes),
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun FeedOptionPill(label: String, text: String) {
+private fun FeedOptionPill(
+    label: String,
+    text: String,
+    percentage: Int? = null,
+    isWinner: Boolean = false,
+    voterAvatars: List<UserProfile> = emptyList(),
+    totalVotersForOption: Int = 0
+) {
+    val borderColor = if (isWinner) LimeAccent else CardBorder
+    val bgColor = if (isWinner) LimeAccent.copy(alpha = 0.12f) else OptionBg
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(OptionBg)
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -745,12 +793,12 @@ private fun FeedOptionPill(label: String, text: String) {
             modifier = Modifier
                 .size(22.dp)
                 .clip(CircleShape)
-                .background(CardBorder),
+                .background(if (isWinner) LimeAccent else CardBorder),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                color = LimeAccent,
+                color = if (isWinner) Color.Black else LimeAccent,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -760,10 +808,56 @@ private fun FeedOptionPill(label: String, text: String) {
             text = text,
             color = Color.White,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
+        if (voterAvatars.isNotEmpty() || percentage != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (voterAvatars.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        voterAvatars.take(3).forEachIndexed { index, voter ->
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = (-4 * index).dp)
+                                    .border(1.dp, CardBg, CircleShape)
+                            ) {
+                                UserAvatar(
+                                    photoUrl = voter.photoUrl,
+                                    username = voter.username,
+                                    size = 18.dp,
+                                    backgroundColor = LimeAccent,
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
+                        val extraCount = totalVotersForOption - voterAvatars.take(3).size
+                        if (extraCount > 0) {
+                            Text(
+                                text = "+$extraCount",
+                                color = TextSecondary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = 2.dp)
+                            )
+                        }
+                    }
+                }
+                if (percentage != null) {
+                    Text(
+                        text = "$percentage%",
+                        color = if (isWinner) LimeAccent else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 

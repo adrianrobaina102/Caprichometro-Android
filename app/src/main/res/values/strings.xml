@@ -225,4 +225,5 @@
     <string name="create_price_label">Precio opcional (€)</string>
     <string name="create_price_placeholder">Ej. 24,99</string>
     <string name="create_price_invalid_error">Introduce un importe válido igual o mayor que 0</string>
+    <string name="feed_poll_no_votes">Nadie ha votado todavía</string>
 </resources>

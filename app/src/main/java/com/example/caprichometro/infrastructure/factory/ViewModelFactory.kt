@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.GetFeedPollResultUseCase
 import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
 import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
@@ -105,7 +106,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
             capriceCacheControl = capriceRepository,
             getNearbyCapricesUseCase = getNearbyCapricesUseCase,
             locationRepository = locationRepository,
-            userProfileRepository = userProfileRepository
+            userProfileRepository = userProfileRepository,
+            getFeedPollResultUseCase = GetFeedPollResultUseCase(voteRepository, userProfileRepository)
         )
     }
 

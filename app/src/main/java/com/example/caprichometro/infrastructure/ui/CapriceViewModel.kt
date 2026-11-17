@@ -3,7 +3,9 @@ package com.example.caprichometro.infrastructure.ui
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.caprichometro.application.usecase.FeedPollResult
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.GetFeedPollResultUseCase
 import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
 import com.example.caprichometro.application.usecase.SaveCapriceUseCase
@@ -66,7 +68,8 @@ data class CapriceState(
     val isPreparingNearbyLocation: Boolean = false,
     val preparedNearbyCell: String? = null,
     val preparedLocationCell: String? = null,
-    val nearbyCreationError: String? = null
+    val nearbyCreationError: String? = null,
+    val closedPollResults: Map<String, FeedPollResult> = emptyMap()
 )
 
 class CapriceViewModel(
@@ -81,7 +84,8 @@ class CapriceViewModel(
     private val currentUserIdProvider: () -> String = { FirebaseAuth.getInstance().currentUser?.uid ?: "" },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val capriceCacheControl: CapriceCacheControl? = null,
-    private val userProfileRepository: UserProfileRepository? = null
+    private val userProfileRepository: UserProfileRepository? = null,
+    private val getFeedPollResultUseCase: GetFeedPollResultUseCase? = null
 ) : ViewModel() {
 
     companion object {
@@ -129,6 +133,7 @@ class CapriceViewModel(
     private val friendsController = PagedFeedController()
     private val nearbyController = PagedFeedController()
     private val syncedLocationCells = ConcurrentHashMap<String, String>()
+    private val requestedClosedPollIds = ConcurrentHashMap.newKeySet<String>()
     @Volatile
     private var sessionFriends: List<UserProfile>? = null
 
@@ -136,12 +141,26 @@ class CapriceViewModel(
         get() = currentUserIdProvider()
 
     fun updateSessionFriends(friends: List<UserProfile>?) {
-        val prevIds = sessionFriends?.map { it.uid }?.toSet()
-        val nextIds = friends?.map { it.uid }?.toSet()
         sessionFriends = friends
-        if (prevIds != null && nextIds != null && prevIds != nextIds) {
-            // Si cambia la lista de amigos aceptados, invalidamos la ventana de General para reflejar la exclusión
-            lastNearbyLoadedAtMillis = null
+    }
+
+    fun loadClosedPollResultIfNeeded(capriceId: String) {
+        val useCase = getFeedPollResultUseCase ?: return
+        if (capriceId.isBlank()) return
+        if (_state.value.closedPollResults.containsKey(capriceId)) return
+        if (!requestedClosedPollIds.add(capriceId)) return
+
+        viewModelScope.launch(ioDispatcher) {
+            val knownProfiles = sessionFriends?.associateBy { it.uid }.orEmpty()
+            useCase.execute(capriceId = capriceId, knownProfiles = knownProfiles)
+                .onSuccess { result ->
+                    _state.update { current ->
+                        current.copy(closedPollResults = current.closedPollResults + (capriceId to result))
+                    }
+                }
+                .onFailure {
+                    requestedClosedPollIds.remove(capriceId)
+                }
         }
     }
 
@@ -160,6 +179,7 @@ class CapriceViewModel(
         lastNearbyLoadedUserId = null
         sessionFriends = null
         syncedLocationCells.clear()
+        requestedClosedPollIds.clear()
         friendsController.reset()
         nearbyController.reset()
         _state.value = CapriceState()
@@ -518,8 +538,7 @@ class CapriceViewModel(
                 currentUserId = uid,
                 includeCache = !isManualRefresh,
                 initialBatchSize = INITIAL_FAST_BATCH_SIZE,
-                pageSize = FEED_PAGE_SIZE,
-                excludedFriendIds = sessionFriends?.map { it.uid }?.toSet()
+                pageSize = FEED_PAGE_SIZE
             ).catch { e ->
                 if (e is CancellationException) throw e
                 if (currentUserId != uid) return@catch
