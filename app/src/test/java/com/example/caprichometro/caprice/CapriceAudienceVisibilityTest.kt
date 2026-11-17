@@ -20,6 +20,7 @@ import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRep
 import com.example.caprichometro.domain.repository.CapriceObservationRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -551,5 +552,68 @@ class CapriceAudienceVisibilityTest {
         assertThat(finalBatch.items.map { it.caprice.id }).containsExactly("legacy_friend", "explicit_cell")
         assertThat(finalBatch.items[0].approximateDistanceMeters).isLessThan(5_000.0)
         assertThat(finalBatch.items[1].approximateDistanceMeters).isGreaterThan(50_000.0)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `GetFriendsCapricesUseCase reutiliza preloadedFriends sin reconsultar amistades ni perfiles conservando bloqueos y visibilidad`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val friendshipRepo = mockk<FriendshipRepository>()
+        val acceptedUseCase = mockk<GetAcceptedFriendsUseCase>()
+        val capriceRepo = mockk<CapriceRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+
+        val friendA = UserProfile(uid = "f_a", username = "ana")
+        val friendBlocked = UserProfile(uid = "f_blocked", username = "bloqueado")
+
+        val visibleCaprice = Caprice(
+            id = "cap_ok",
+            userId = "f_a",
+            question = "¿Este?",
+            timestamp = 2_000L,
+            visibleToUserIds = listOf("me")
+        )
+        val hiddenCaprice = Caprice(
+            id = "cap_hidden",
+            userId = "f_a",
+            question = "Solo para otro",
+            timestamp = 3_000L,
+            visibleToUserIds = listOf("other_user")
+        )
+
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.isCachedBlocked("me", any()) } returns false
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(listOf("f_blocked"))
+        coEvery { friendshipRepo.isBlocked("me", "f_a") } returns Result.success(false)
+        coEvery { capriceRepo.getCachedCaprices("f_a", 100) } returns emptyList()
+        coEvery { capriceRepo.getCachedCaprices("f_blocked", 100) } returns emptyList()
+        coEvery { capriceRepo.getCaprices("f_a", 100) } returns Result.success(listOf(visibleCaprice, hiddenCaprice))
+
+        val useCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedUseCase,
+            capriceRepository = capriceRepo,
+            defaultDispatcher = testDispatcher,
+            friendshipRepository = friendshipRepo,
+            userProfileRepository = userRepo
+        )
+
+        val finalBatch = useCase.observeProgressiveFeed(
+            currentUserId = "me",
+            initialBatchSize = 5,
+            perFriendLimit = 100,
+            totalLimit = 200,
+            includeCache = true,
+            preloadedFriends = listOf(friendA, friendBlocked)
+        ).toList().last()
+
+        assertThat(finalBatch.items).hasSize(1)
+        assertThat(finalBatch.items[0].caprice.id).isEqualTo("cap_ok")
+        assertThat(finalBatch.items[0].author.username).isEqualTo("ana")
+
+        verify(exactly = 0) { friendshipRepo.getFriendships(any()) }
+        coVerify(exactly = 0) { friendshipRepo.getCachedFriendships(any()) }
+        coVerify(exactly = 0) { userRepo.getUserById(any()) }
+        coVerify(exactly = 0) { userRepo.getCachedUserById(any()) }
+        coVerify(exactly = 0) { capriceRepo.getCaprices("f_blocked", any()) }
     }
 }
