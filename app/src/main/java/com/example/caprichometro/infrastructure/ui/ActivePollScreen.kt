@@ -44,6 +44,8 @@ import com.example.caprichometro.infrastructure.notification.PollNotificationHel
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import com.example.caprichometro.infrastructure.ui.components.PollVotersButton
+import com.example.caprichometro.infrastructure.ui.components.PollVotersSheet
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
@@ -229,6 +231,16 @@ fun ActivePollScreen(
     }
 
     val cleanAuthor = authorUsername?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+    var showVotersSheet by remember { mutableStateOf(false) }
+    val showVotersPreview = (currentPollState is PollState.Voted ||
+        currentPollState is PollState.Author ||
+        isPollExpired) && (vmState?.votes?.isNotEmpty() == true)
+
+    LaunchedEffect(showVotersPreview, vmState?.votes, vmState?.caprice?.id) {
+        if (showVotersPreview && viewModel != null) {
+            viewModel.resolveVoterProfilesIfNeeded(vmState?.votes.orEmpty())
+        }
+    }
     val headerTitle = if (isFriendPoll && cleanAuthor != null) {
         stringResource(R.string.poll_friend_title, cleanAuthor)
     } else {
@@ -455,7 +467,7 @@ fun ActivePollScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(260.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFF1C1C1E))
                         .clickable { isImageExpanded = true }
@@ -622,6 +634,24 @@ fun ActivePollScreen(
                 color = TextGray,
                 fontSize = 12.sp
             )
+
+            if (showVotersPreview && caprice != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                PollVotersButton(
+                    votes = vmState?.votes.orEmpty(),
+                    voterProfiles = vmState?.voterProfiles.orEmpty(),
+                    onClick = { showVotersSheet = true }
+                )
+            }
+
+            if (showVotersSheet && caprice != null) {
+                PollVotersSheet(
+                    caprice = caprice,
+                    votes = vmState?.votes.orEmpty(),
+                    voterProfiles = vmState?.voterProfiles.orEmpty(),
+                    onDismiss = { showVotersSheet = false }
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
         }

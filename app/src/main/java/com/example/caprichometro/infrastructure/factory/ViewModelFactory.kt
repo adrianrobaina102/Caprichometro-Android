@@ -192,7 +192,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
             calculateVerdictUseCase = CalculateVerdictUseCase(),
             voteRepository = voteRepository,
             updateFinalDecisionUseCase = com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase(capriceRepository),
-            getApproximatePlaceNameUseCase = placeNameUseCase
+            getApproximatePlaceNameUseCase = placeNameUseCase,
+            userProfileRepository = userProfileRepository
         )
     }
 

@@ -41,6 +41,8 @@ import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import com.example.caprichometro.infrastructure.ui.components.PollVotersButton
+import com.example.caprichometro.infrastructure.ui.components.PollVotersSheet
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.material.icons.filled.Search
 
@@ -90,6 +92,13 @@ fun ResultScreen(
             val expiredVerdict = (vmState?.pollState as? PollState.Expired)?.verdictResult
             expiredVerdict ?: CalculateVerdictUseCase().execute(caprice, vmState?.votes.orEmpty())
         } else null
+    }
+    var showVotersSheet by remember { mutableStateOf(false) }
+    val pollVotes = vmState?.votes.orEmpty()
+    LaunchedEffect(pollVotes, displayedCaprice?.id) {
+        if (pollVotes.isNotEmpty() && viewModel != null) {
+            viewModel.resolveVoterProfilesIfNeeded(pollVotes)
+        }
     }
     val avatarUsername = resolvedUsername
         ?: displayedCaprice?.userId?.takeIf { it.isNotBlank() }
@@ -281,7 +290,7 @@ fun ResultScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(260.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF1C1C1E))
                     .then(
@@ -360,6 +369,24 @@ fun ResultScreen(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
+
+            if (pollVotes.isNotEmpty() && displayedCaprice != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                PollVotersButton(
+                    votes = pollVotes,
+                    voterProfiles = vmState?.voterProfiles.orEmpty(),
+                    onClick = { showVotersSheet = true }
+                )
+            }
+
+            if (showVotersSheet && displayedCaprice != null) {
+                PollVotersSheet(
+                    caprice = displayedCaprice,
+                    votes = pollVotes,
+                    voterProfiles = vmState?.voterProfiles.orEmpty(),
+                    onDismiss = { showVotersSheet = false }
+                )
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 

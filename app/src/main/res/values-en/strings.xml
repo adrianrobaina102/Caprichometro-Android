@@ -226,4 +226,10 @@
     <string name="create_price_placeholder">E.g. 24.99</string>
     <string name="create_price_invalid_error">Enter a valid amount greater than or equal to 0</string>
     <string name="feed_poll_no_votes">No votes yet</string>
+    <string name="poll_voters_button">View voters (%1$d)</string>
+    <string name="poll_voters_sheet_title">Voters (%1$d)</string>
+    <string name="poll_voters_group_a">Voted A · %1$s (%2$d)</string>
+    <string name="poll_voters_group_b">Voted B · %1$s (%2$d)</string>
+    <string name="poll_voters_empty_group">No votes for this option</string>
+    <string name="fallback_username">user</string>
 </resources>

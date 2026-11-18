@@ -10,11 +10,16 @@ import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.domain.model.PollTiming
+import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.VerdictResult
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 
 data class ActivePollUiState(
     val caprice: Caprice? = null,
@@ -35,6 +41,7 @@ data class ActivePollUiState(
     val approximatePlaceName: String? = null,
     val approximateDistanceMeters: Double? = null,
     val isResolvingPlaceName: Boolean = false,
+    val voterProfiles: Map<String, UserProfile> = emptyMap(),
     val errorMessage: String? = null
 )
 
@@ -44,7 +51,8 @@ class ActivePollViewModel(
     private val calculateVerdictUseCase: CalculateVerdictUseCase,
     private val voteRepository: VoteRepository,
     private val updateFinalDecisionUseCase: UpdateFinalDecisionUseCase? = null,
-    private val getApproximatePlaceNameUseCase: GetApproximatePlaceNameUseCase? = null
+    private val getApproximatePlaceNameUseCase: GetApproximatePlaceNameUseCase? = null,
+    private val userProfileRepository: UserProfileRepository? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivePollUiState())
@@ -54,9 +62,43 @@ class ActivePollViewModel(
     private var userVoteJob: Job? = null
     private var tickerJob: Job? = null
     private var placeNameJob: Job? = null
+    private val requestedVoterIds = ConcurrentHashMap.newKeySet<String>()
 
     fun clearError() {
         _state.update { it.copy(errorMessage = null) }
+    }
+
+    fun resolveVoterProfilesIfNeeded(
+        votes: List<Vote>,
+        knownProfiles: Map<String, UserProfile> = emptyMap()
+    ) {
+        if (votes.isEmpty()) return
+        val existing = _state.value.voterProfiles
+        val mergedKnown = existing + knownProfiles.filterKeys { it.isNotBlank() }
+        if (mergedKnown.size > existing.size) {
+            _state.update { it.copy(voterProfiles = it.voterProfiles + mergedKnown) }
+        }
+        val repo = userProfileRepository ?: return
+        val missingIds = votes.map { it.voterId }
+            .distinct()
+            .filter { it.isNotBlank() && !mergedKnown.containsKey(it) && requestedVoterIds.add(it) }
+        if (missingIds.isEmpty()) return
+
+        viewModelScope.launch {
+            val fetched = coroutineScope {
+                missingIds.map { uid ->
+                    async {
+                        val profile = runCatching { repo.getUserById(uid).getOrNull() }.getOrNull()
+                        if (profile != null) uid to profile else null
+                    }
+                }.awaitAll().filterNotNull().toMap()
+            }
+            if (fetched.isNotEmpty()) {
+                _state.update { current ->
+                    current.copy(voterProfiles = current.voterProfiles + fetched)
+                }
+            }
+        }
     }
 
     fun reset() {
@@ -68,6 +110,7 @@ class ActivePollViewModel(
         userVoteJob = null
         tickerJob = null
         placeNameJob = null
+        requestedVoterIds.clear()
         _state.value = ActivePollUiState()
     }
 
