@@ -708,7 +708,7 @@ internal fun CapriceFeedCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(230.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF121214))
                     .clickable { onImageClick(caprice.imageUrl) }
