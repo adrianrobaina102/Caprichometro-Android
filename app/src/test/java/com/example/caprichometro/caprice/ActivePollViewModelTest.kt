@@ -7,10 +7,13 @@ import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.domain.model.PollTiming
+import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -138,5 +141,35 @@ class ActivePollViewModelTest {
             vm.reset()
             testScheduler.runCurrent()
         }
+    }
+
+    @Test
+    fun `resolveVoterProfilesIfNeeded reutiliza perfiles conocidos y no repite lecturas`() = runTest {
+        val userRepo = mockk<UserProfileRepository>()
+        coEvery { userRepo.getUserById("u2") } returns Result.success(UserProfile(uid = "u2", username = "bruno"))
+
+        val vm = ActivePollViewModel(
+            castVoteUseCase = mockk(relaxed = true),
+            observeVotesUseCase = mockk(relaxed = true),
+            calculateVerdictUseCase = CalculateVerdictUseCase(),
+            voteRepository = mockk(relaxed = true),
+            userProfileRepository = userRepo
+        )
+
+        val votes = listOf(
+            Vote(capriceId = "cap_1", voterId = "u1", option = 1, timestamp = 100L),
+            Vote(capriceId = "cap_1", voterId = "u2", option = 2, timestamp = 200L)
+        )
+        val known = mapOf("u1" to UserProfile(uid = "u1", username = "ana"))
+
+        vm.resolveVoterProfilesIfNeeded(votes, knownProfiles = known)
+        testScheduler.runCurrent()
+        vm.resolveVoterProfilesIfNeeded(votes, knownProfiles = known)
+        testScheduler.runCurrent()
+
+        assertThat(vm.state.value.voterProfiles.keys).containsExactlyInAnyOrder("u1", "u2")
+        assertThat(vm.state.value.voterProfiles["u2"]?.username).isEqualTo("bruno")
+        coVerify(exactly = 0) { userRepo.getUserById("u1") }
+        coVerify(exactly = 1) { userRepo.getUserById("u2") }
     }
 }
