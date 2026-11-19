@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -525,7 +526,11 @@ fun ActivePollScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val canVote = currentPollState is PollState.Active && !isPollExpired && !(vmState?.isCastingVote ?: false)
+                    val userOption = (currentPollState as? PollState.Voted)?.selectedOption
+                    var isRectifyingVote by remember(caprice.id, userOption) { mutableStateOf(false) }
+                    val canVote = (currentPollState is PollState.Active ||
+                        (currentPollState is PollState.Voted && isRectifyingVote)) &&
+                        !isPollExpired && !(vmState?.isCastingVote ?: false)
                     val showPercentages = currentPollState is PollState.Voted ||
                             currentPollState is PollState.Author ||
                             isPollExpired
@@ -542,7 +547,6 @@ fun ActivePollScreen(
                         is PollState.Expired -> currentPollState.verdictResult.option2Percentage
                         else -> 0f
                     }
-                    val userOption = (currentPollState as? PollState.Voted)?.selectedOption
                     val winningOption = (currentPollState as? PollState.Expired)?.verdictResult?.winningOption
 
                     PollOptionCard(
@@ -553,7 +557,11 @@ fun ActivePollScreen(
                         isSelectedByUser = userOption == 1,
                         isWinner = isPollExpired && winningOption == 1,
                         clickable = canVote,
-                        onClick = { viewModel?.castVote(1) }
+                        onClick = {
+                            val changing = currentPollState is PollState.Voted && isRectifyingVote
+                            isRectifyingVote = false
+                            viewModel?.castVote(1, allowChange = changing)
+                        }
                     )
 
                     PollOptionCard(
@@ -564,8 +572,74 @@ fun ActivePollScreen(
                         isSelectedByUser = userOption == 2,
                         isWinner = isPollExpired && winningOption == 2,
                         clickable = canVote,
-                        onClick = { viewModel?.castVote(2) }
+                        onClick = {
+                            val changing = currentPollState is PollState.Voted && isRectifyingVote
+                            isRectifyingVote = false
+                            viewModel?.castVote(2, allowChange = changing)
+                        }
                     )
+
+                    if (currentPollState is PollState.Voted && !isPollExpired) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (!isRectifyingVote) {
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel?.clearError()
+                                    isRectifyingVote = true
+                                },
+                                enabled = !(vmState?.isCastingVote ?: false),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, LimeGreen.copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = LimeGreen),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.poll_vote_rectify_button),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF1A1A1D))
+                                    .border(1.dp, Color(0xFFFFD54F).copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                    .padding(14.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.poll_vote_rectify_title),
+                                    color = Color(0xFFFFD54F),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = stringResource(R.string.poll_vote_rectify_subtitle),
+                                    color = TextGray,
+                                    fontSize = 13.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TextButton(
+                                    onClick = {
+                                        viewModel?.clearError()
+                                        isRectifyingVote = false
+                                    },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = TextGray),
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Text(stringResource(R.string.action_cancel), fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

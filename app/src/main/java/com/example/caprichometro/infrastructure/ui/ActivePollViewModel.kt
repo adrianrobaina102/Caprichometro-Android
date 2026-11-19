@@ -248,7 +248,7 @@ class ActivePollViewModel(
         }
     }
 
-    fun castVote(option: Int) {
+    fun castVote(option: Int, allowChange: Boolean = false) {
         val caprice = _state.value.caprice ?: return
         val currentUserId = _state.value.currentUserId
         if (currentUserId.isBlank() || _state.value.isCastingVote) return
@@ -256,7 +256,7 @@ class ActivePollViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isCastingVote = true, errorMessage = null) }
 
-            val result = castVoteUseCase.execute(caprice, currentUserId, option)
+            val result = castVoteUseCase.execute(caprice, currentUserId, option, allowChange = allowChange)
 
             result.fold(
                 onSuccess = {

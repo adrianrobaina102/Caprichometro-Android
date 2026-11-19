@@ -12,7 +12,12 @@ class CastVoteUseCase(
     private val voteRepository: VoteRepository,
     private val friendshipRepository: FriendshipRepository? = null
 ) {
-    suspend fun execute(caprice: Caprice, voterId: String, option: Int): Result<Unit> {
+    suspend fun execute(
+        caprice: Caprice,
+        voterId: String,
+        option: Int,
+        allowChange: Boolean = false
+    ): Result<Unit> {
         if (voterId.isBlank()) {
             return Result.failure(IllegalArgumentException("El usuario votante no es válido"))
         }
@@ -31,7 +36,12 @@ class CastVoteUseCase(
 
         val existingVote = voteRepository.getUserVote(caprice.id, voterId).getOrNull()
         if (existingVote != null) {
-            return Result.failure(IllegalStateException("Ya has votado en este capricho"))
+            if (!allowChange) {
+                return Result.failure(IllegalStateException("Ya has votado en este capricho"))
+            }
+            if (existingVote.option == option) {
+                return Result.success(Unit)
+            }
         }
 
         if (friendshipRepository != null) {
@@ -61,6 +71,6 @@ class CastVoteUseCase(
             option = option,
             timestamp = System.currentTimeMillis()
         )
-        return voteRepository.castVote(vote)
+        return voteRepository.castVote(vote, allowOverwrite = allowChange && existingVote != null)
     }
 }

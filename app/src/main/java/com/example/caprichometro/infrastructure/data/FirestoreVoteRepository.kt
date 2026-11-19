@@ -18,7 +18,7 @@ class FirestoreVoteRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : VoteRepository {
 
-    override suspend fun castVote(vote: Vote): Result<Unit> = withContext(ioDispatcher) {
+    override suspend fun castVote(vote: Vote, allowOverwrite: Boolean): Result<Unit> = withContext(ioDispatcher) {
         try {
             val capriceRef = db.collection("caprices").document(vote.capriceId)
             val voteRef = capriceRef.collection("votes").document(vote.voterId)
@@ -58,7 +58,7 @@ class FirestoreVoteRepository(
                 }
 
                 val previousVote = transaction.get(voteRef)
-                if (previousVote.exists()) {
+                if (previousVote.exists() && !allowOverwrite) {
                     throw IllegalStateException("Ya has votado en este capricho")
                 }
 
