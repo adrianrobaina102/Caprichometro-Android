@@ -516,7 +516,7 @@ fun CapriceScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "Foto opcional",
+                text = stringResource(R.string.create_photo_optional_label),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp

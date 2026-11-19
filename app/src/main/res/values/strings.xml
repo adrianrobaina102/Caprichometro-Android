@@ -111,6 +111,7 @@
     <string name="create_submit_friends">Lanzar a mis amigos</string>
     <string name="create_submit_general">Publicar en General</string>
     <string name="create_photo_sheet_title">Foto de tu capricho</string>
+    <string name="create_photo_optional_label">Foto opcional</string>
     <string name="create_photo_take">Hacer foto con la cámara</string>
     <string name="create_photo_gallery">Elegir de la galería</string>
     <string name="create_photo_remove">Quitar foto</string>

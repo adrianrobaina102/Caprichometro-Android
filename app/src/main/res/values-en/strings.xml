@@ -111,6 +111,7 @@
     <string name="create_submit_friends">Send to my friends</string>
     <string name="create_submit_general">Publish in General</string>
     <string name="create_photo_sheet_title">Photo for your poll</string>
+    <string name="create_photo_optional_label">Optional photo</string>
     <string name="create_photo_take">Take photo with camera</string>
     <string name="create_photo_gallery">Choose from gallery</string>
     <string name="create_photo_remove">Remove photo</string>

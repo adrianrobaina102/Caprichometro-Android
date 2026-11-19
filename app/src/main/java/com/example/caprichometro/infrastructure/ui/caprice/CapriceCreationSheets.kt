@@ -97,7 +97,7 @@ internal fun CapricePhotoSourceSheet(
                 )
                 Spacer(modifier = Modifier.width(14.dp))
                 Text(
-                    text = "Elegir de la galería",
+                    text = stringResource(R.string.create_photo_gallery),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.White
