@@ -187,7 +187,7 @@ class ActivePollViewModelTest {
         coEvery { voteRepo.getUserVote("cap_active", "voter_1") } returns Result.success(
             Vote(capriceId = "cap_active", voterId = "voter_1", option = 1)
         )
-        coEvery { voteRepo.castVote(any(), true) } returns Result.success(Unit)
+        coEvery { voteRepo.updateVote(any()) } returns Result.success(Unit)
 
         val useCase = CastVoteUseCase(voteRepo, friendshipRepository = null)
 
@@ -197,7 +197,7 @@ class ActivePollViewModelTest {
         val allowedWithChange = useCase.execute(activeCaprice, "voter_1", 2, allowChange = true)
         assertThat(allowedWithChange.isSuccess).isTrue()
         coVerify(exactly = 1) {
-            voteRepo.castVote(match { it.voterId == "voter_1" && it.option == 2 }, true)
+            voteRepo.updateVote(match { it.voterId == "voter_1" && it.option == 2 })
         }
     }
 }

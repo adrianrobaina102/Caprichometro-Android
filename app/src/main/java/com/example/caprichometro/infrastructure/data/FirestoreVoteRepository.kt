@@ -18,7 +18,13 @@ class FirestoreVoteRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : VoteRepository {
 
-    override suspend fun castVote(vote: Vote, allowOverwrite: Boolean): Result<Unit> = withContext(ioDispatcher) {
+    override suspend fun castVote(vote: Vote): Result<Unit> =
+        castVoteInternal(vote, allowOverwrite = false)
+
+    override suspend fun updateVote(vote: Vote): Result<Unit> =
+        castVoteInternal(vote, allowOverwrite = true)
+
+    private suspend fun castVoteInternal(vote: Vote, allowOverwrite: Boolean): Result<Unit> = withContext(ioDispatcher) {
         try {
             val capriceRef = db.collection("caprices").document(vote.capriceId)
             val voteRef = capriceRef.collection("votes").document(vote.voterId)

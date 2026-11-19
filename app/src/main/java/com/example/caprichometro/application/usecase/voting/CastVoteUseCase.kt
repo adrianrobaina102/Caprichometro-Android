@@ -71,6 +71,10 @@ class CastVoteUseCase(
             option = option,
             timestamp = System.currentTimeMillis()
         )
-        return voteRepository.castVote(vote, allowOverwrite = allowChange && existingVote != null)
+        return if (allowChange && existingVote != null) {
+            voteRepository.updateVote(vote)
+        } else {
+            voteRepository.castVote(vote)
+        }
     }
 }

@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.Flow
  * Puerto de Dominio para la persistencia y observacion en tiempo real de votos.
  */
 interface VoteRepository {
-    suspend fun castVote(vote: Vote, allowOverwrite: Boolean = false): Result<Unit>
+    suspend fun castVote(vote: Vote): Result<Unit>
+    suspend fun updateVote(vote: Vote): Result<Unit> = castVote(vote)
     fun observeVotes(capriceId: String): Flow<List<Vote>>
     suspend fun getVotes(capriceId: String): Result<List<Vote>>
     suspend fun getUserVote(capriceId: String, voterId: String): Result<Vote?>
