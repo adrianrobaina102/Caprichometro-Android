@@ -18,6 +18,7 @@ import com.example.caprichometro.infrastructure.ui.CapriceScreen
 import com.example.caprichometro.infrastructure.ui.ResultScreen
 import com.example.caprichometro.infrastructure.ui.home.FeedItemsList
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -251,13 +252,14 @@ class CapriceUiSmokeTest {
         )
         val viewModel = UiSmokeTestFactories.createActivePollViewModel(capriceRepo, voteRepo)
 
+        var navigatedHome = false
         composeTestRule.setContent {
             ResultScreen(
                 caprice = expiredCaprice,
                 viewModel = viewModel,
                 currentUserId = "user_1",
                 authorUsername = "adri",
-                onGoHome = {}
+                onGoHome = { navigatedHome = true }
             )
         }
 
@@ -266,6 +268,9 @@ class CapriceUiSmokeTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithText("A · Cogerla ya").performScrollTo().performClick()
 
+        composeTestRule.runOnIdle {
+            assertFalse("Selecting A must not tap the fixed home button", navigatedHome)
+        }
         composeTestRule.waitUntil(timeoutMillis = 3_000L) {
             capriceRepo.savedCaprices.first().finalDecision == 1
         }
@@ -280,6 +285,9 @@ class CapriceUiSmokeTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithText("B · Esperar").performScrollTo().performClick()
 
+        composeTestRule.runOnIdle {
+            assertFalse("Selecting B must not tap the fixed home button", navigatedHome)
+        }
         composeTestRule.waitUntil(timeoutMillis = 3_000L) {
             capriceRepo.savedCaprices.first().finalDecision == 2
         }
