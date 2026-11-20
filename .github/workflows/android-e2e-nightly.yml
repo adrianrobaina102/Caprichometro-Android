@@ -55,7 +55,7 @@ jobs:
   android-ui-and-firestore-integration:
     needs: check-window
     if: needs.check-window.outputs.should_run == 'true'
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 25
 
     steps:
@@ -137,7 +137,6 @@ jobs:
           target: google_apis
           arch: arm64-v8a
           profile: Nexus 6
-          emulator-boot-timeout: 240
           emulator-options: -no-window -no-boot-anim -no-audio -no-snapshot-load -no-snapshot-save
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --no-daemon --console=plain
