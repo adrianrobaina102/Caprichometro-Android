@@ -664,6 +664,20 @@ fun ActivePollScreen(
                             fontSize = 12.sp,
                             modifier = Modifier.weight(1f)
                         )
+                        if (vmState?.pendingVoteRetry != null) {
+                            TextButton(
+                                onClick = { viewModel?.retryPendingVoteIfAny() },
+                                enabled = vmState?.isCastingVote != true,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.action_retry),
+                                    color = LimeGreen,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                         TextButton(
                             onClick = { viewModel?.clearError() },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)

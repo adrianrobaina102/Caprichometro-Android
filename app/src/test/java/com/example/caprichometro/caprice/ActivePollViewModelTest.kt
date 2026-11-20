@@ -200,4 +200,49 @@ class ActivePollViewModelTest {
             voteRepo.updateVote(match { it.voterId == "voter_1" && it.option == 2 })
         }
     }
+
+    @Test
+    fun `castVote guarda pendingVoteRetry al fallar y retryPendingVoteIfAny lo reintenta con exito`() = runTest {
+        val voteRepo = mockk<VoteRepository>()
+        val castVoteUseCase = mockk<CastVoteUseCase>()
+        val observeVotesUseCase = mockk<ObserveVotesUseCase>()
+        val calculateVerdictUseCase = CalculateVerdictUseCase()
+        val activeCaprice = Caprice(
+            id = "cap_retry",
+            userId = "author_1",
+            question = "¿Lo pillo?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = System.currentTimeMillis() - 15_000L
+        )
+        coEvery { voteRepo.getUserVote("cap_retry", "voter_1") } returns Result.success(null)
+        every { observeVotesUseCase.execute("cap_retry") } returns flowOf(emptyList())
+        coEvery { castVoteUseCase.execute(activeCaprice, "voter_1", 1, allowChange = false) } returnsMany listOf(
+            Result.failure(RuntimeException("Sin conexión")),
+            Result.success(Unit)
+        )
+
+        val vm = ActivePollViewModel(
+            castVoteUseCase = castVoteUseCase,
+            observeVotesUseCase = observeVotesUseCase,
+            calculateVerdictUseCase = calculateVerdictUseCase,
+            voteRepository = voteRepo
+        )
+        vm.initialize(activeCaprice, currentUserId = "voter_1")
+        testScheduler.runCurrent()
+
+        vm.castVote(option = 1)
+        testScheduler.runCurrent()
+
+        assertThat(vm.state.value.errorMessage).isEqualTo("Sin conexión")
+        assertThat(vm.state.value.pendingVoteRetry?.capriceId).isEqualTo("cap_retry")
+        assertThat(vm.state.value.pendingVoteRetry?.option).isEqualTo(1)
+
+        vm.retryPendingVoteIfAny()
+        testScheduler.runCurrent()
+
+        assertThat(vm.state.value.errorMessage).isNull()
+        assertThat(vm.state.value.pendingVoteRetry).isNull()
+        assertThat(vm.state.value.userVote?.option).isEqualTo(1)
+    }
 }

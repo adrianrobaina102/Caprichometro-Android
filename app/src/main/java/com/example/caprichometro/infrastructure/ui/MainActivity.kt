@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,12 +63,14 @@ import com.example.caprichometro.infrastructure.notification.PollNotificationHel
 import com.example.caprichometro.infrastructure.security.AppCheckInstaller
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
+import com.example.caprichometro.infrastructure.ui.components.OfflineStatusBanner
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.ui.friendship.AddFriendScreen
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileScreen
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.example.caprichometro.infrastructure.util.AppLocaleManager
+import com.example.caprichometro.infrastructure.util.NetworkConnectivityMonitor
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -184,6 +187,12 @@ fun CapriceApp(
 
     // Solicitud del permiso de notificaciones en tiempo de ejecución (Android 13+ / API 33+)
     val context = LocalContext.current
+    val connectivityMonitor = remember(context) { NetworkConnectivityMonitor(context) }
+    DisposableEffect(connectivityMonitor) {
+        onDispose { connectivityMonitor.unregister() }
+    }
+    val isOnline by connectivityMonitor.isOnline.collectAsState()
+    var wasOffline by remember { mutableStateOf(!isOnline) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { /* El usuario decide si autoriza o deniega las notificaciones */ }
@@ -437,6 +446,35 @@ fun CapriceApp(
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    val triggerReconnectSync: () -> Unit = {
+                        capriceViewModel.loadFriendsFeed(isManualRefresh = true)
+                        if (capriceState.isNearbyDiscoveryEnabled) {
+                            capriceViewModel.loadNearbyFeed(isManualRefresh = true)
+                        }
+                        if (currentScreen == "profile" && currentUserId.isNotBlank()) {
+                            val profileTarget = viewingProfileUserId.ifBlank { currentUserId }
+                            profileViewModel.loadProfile(profileTarget, currentUserId)
+                        }
+                        activePollViewModel.retryPendingVoteIfAny()
+                    }
+                    LaunchedEffect(isOnline, authState.isAuthSuccessful) {
+                        if (!isOnline) {
+                            wasOffline = true
+                        } else if (wasOffline && authState.isAuthSuccessful) {
+                            wasOffline = false
+                            triggerReconnectSync()
+                        } else {
+                            wasOffline = false
+                        }
+                    }
+                    OfflineStatusBanner(
+                        isOffline = !isOnline,
+                        onRetry = {
+                            if (connectivityMonitor.refresh()) {
+                                triggerReconnectSync()
+                            }
+                        }
+                    )
                     Box(modifier = Modifier.weight(1f)) {
                         when (currentScreen) {
                             "home" -> {

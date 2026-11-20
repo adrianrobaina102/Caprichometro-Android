@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -209,49 +210,25 @@ fun CapriceScreen(
     val parsedPriceResult = remember(priceText) { CapricePrice.parseOptional(priceText) }
     val isPriceValid = parsedPriceResult.isSuccess
     val priceErrorText = stringResource(R.string.create_price_invalid_error)
+    val saveErrorTitleText = stringResource(R.string.create_save_error_title)
     val isFormFilled = questionText.isNotBlank() && answer1.isNotBlank() && answer2.isNotBlank() && isPriceValid
+    var saveErrorMessage by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(
-        containerColor = DarkBackground,
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.create_screen_title),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        },
-        bottomBar = {
-            Button(
-                onClick = {
-                    val questionResult = questionValidatorChain.validate(questionText)
-                    if (questionResult is ValidationResult.Error) {
-                        Toast.makeText(context, questionResult.message, Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    val optionsResult = optionsValidator.validate(Pair(answer1, answer2))
-                    if (optionsResult is ValidationResult.Error) {
-                        Toast.makeText(context, optionsResult.message, Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    val parsedPrice = parsedPriceResult.getOrElse {
-                        Toast.makeText(context, priceErrorText, Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
+    val submitCaprice: () -> Unit = {
+        val questionResult = questionValidatorChain.validate(questionText)
+        if (questionResult is ValidationResult.Error) {
+            Toast.makeText(context, questionResult.message, Toast.LENGTH_SHORT).show()
+        } else {
+            val optionsResult = optionsValidator.validate(Pair(answer1, answer2))
+            if (optionsResult is ValidationResult.Error) {
+                Toast.makeText(context, optionsResult.message, Toast.LENGTH_SHORT).show()
+            } else {
+                val parsedPrice = parsedPriceResult.getOrNull()
+                if (parsedPriceResult.isFailure) {
+                    Toast.makeText(context, priceErrorText, Toast.LENGTH_SHORT).show()
+                } else {
                     val typeString = if (isCompraType) "Compra" else "Plan"
-
+                    saveErrorMessage = null
                     coroutineScope.launch {
                         isSubmitting = true
                         val trimmedQuestion = questionText.trim()
@@ -297,6 +274,7 @@ fun CapriceScreen(
                             answer2 = ""
                             priceText = ""
                             selectedImageUri = null
+                            saveErrorMessage = null
                             PollNotificationHelper.showCapriceCreatedNotification(
                                 context = context,
                                 capriceQuestion = createdCaprice?.question ?: trimmedQuestion,
@@ -305,19 +283,92 @@ fun CapriceScreen(
                             )
                             onNavigateToActivePoll()
                         } else {
-                            Toast.makeText(context, "Error al guardar: ${saveResult.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                            saveErrorMessage = saveResult.exceptionOrNull()?.message
+                                ?: saveErrorTitleText
                         }
                     }
-                },
-                enabled = isFormFilled &&
-                    !isSubmitting &&
-                    !capriceState.isPreparingNearbyLocation &&
-                    (!capriceState.isNearbyDiscoveryEnabled || !capriceState.preparedNearbyCell.isNullOrBlank()),
+                }
+            }
+        }
+    }
+
+    Scaffold(
+        containerColor = DarkBackground,
+        topBar = {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
+                    .padding(horizontal = 16.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.create_screen_title),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        },
+        bottomBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                saveErrorMessage?.let { errorText ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B181A)),
+                        border = BorderStroke(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.create_save_error_title),
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = errorText,
+                                    color = Color(0xFFFFB4B4),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            TextButton(
+                                onClick = submitCaprice,
+                                enabled = !isSubmitting,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.action_retry),
+                                    color = LimeGreen,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+                Button(
+                    onClick = submitCaprice,
+                    enabled = isFormFilled &&
+                        !isSubmitting &&
+                        !capriceState.isPreparingNearbyLocation &&
+                        (!capriceState.isNearbyDiscoveryEnabled || !capriceState.preparedNearbyCell.isNullOrBlank()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = LimeGreen,
                     contentColor = Color.Black,
@@ -352,6 +403,7 @@ fun CapriceScreen(
                         )
                     }
                 }
+            }
             }
         }
     ) { paddingValues ->

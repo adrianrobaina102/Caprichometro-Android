@@ -29,6 +29,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
+data class PendingVoteAction(
+    val capriceId: String,
+    val option: Int,
+    val allowChange: Boolean
+)
+
 data class ActivePollUiState(
     val caprice: Caprice? = null,
     val authorUsername: String? = null,
@@ -42,7 +48,8 @@ data class ActivePollUiState(
     val approximateDistanceMeters: Double? = null,
     val isResolvingPlaceName: Boolean = false,
     val voterProfiles: Map<String, UserProfile> = emptyMap(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val pendingVoteRetry: PendingVoteAction? = null
 )
 
 class ActivePollViewModel(
@@ -65,7 +72,7 @@ class ActivePollViewModel(
     private val requestedVoterIds = ConcurrentHashMap.newKeySet<String>()
 
     fun clearError() {
-        _state.update { it.copy(errorMessage = null) }
+        _state.update { it.copy(errorMessage = null, pendingVoteRetry = null) }
     }
 
     fun resolveVoterProfilesIfNeeded(
@@ -254,7 +261,7 @@ class ActivePollViewModel(
         if (currentUserId.isBlank() || _state.value.isCastingVote) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isCastingVote = true, errorMessage = null) }
+            _state.update { it.copy(isCastingVote = true, errorMessage = null, pendingVoteRetry = null) }
 
             val result = castVoteUseCase.execute(caprice, currentUserId, option, allowChange = allowChange)
 
@@ -267,6 +274,7 @@ class ActivePollViewModel(
                             isCastingVote = false,
                             userVote = newVote,
                             votes = updatedVotes,
+                            pendingVoteRetry = null,
                             pollState = resolveCurrentPollState(caprice, currentUserId, newVote, updatedVotes)
                         )
                     }
@@ -275,12 +283,28 @@ class ActivePollViewModel(
                     _state.update {
                         it.copy(
                             isCastingVote = false,
-                            errorMessage = error.message ?: "No se pudo emitir el voto"
+                            errorMessage = error.message ?: "No se pudo emitir el voto",
+                            pendingVoteRetry = PendingVoteAction(
+                                capriceId = caprice.id,
+                                option = option,
+                                allowChange = allowChange
+                            )
                         )
                     }
                 }
             )
         }
+    }
+
+    fun retryPendingVoteIfAny() {
+        val pending = _state.value.pendingVoteRetry ?: return
+        val currentCaprice = _state.value.caprice ?: return
+        if (currentCaprice.id != pending.capriceId) return
+        if (PollTiming.isPollExpired(currentCaprice.timestamp)) {
+            _state.update { it.copy(pendingVoteRetry = null) }
+            return
+        }
+        castVote(option = pending.option, allowChange = pending.allowChange)
     }
 
     fun confirmFinalDecision(decision: Int, onUpdated: ((Caprice) -> Unit)? = null) {

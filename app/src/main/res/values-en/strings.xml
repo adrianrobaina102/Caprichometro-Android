@@ -237,4 +237,6 @@
     <string name="poll_vote_rectify_title">CHANGING YOUR VOTE</string>
     <string name="poll_vote_rectify_subtitle">Tap your new choice above before the poll closes.</string>
     <string name="fallback_username">user</string>
+    <string name="offline_banner_message">Offline · Showing cached data</string>
+    <string name="create_save_error_title">Could not save your poll</string>
 </resources>

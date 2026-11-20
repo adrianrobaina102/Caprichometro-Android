@@ -237,4 +237,6 @@
     <string name="poll_vote_rectify_title">RECTIFICANDO TU VOTO</string>
     <string name="poll_vote_rectify_subtitle">Toca arriba la nueva opción antes de que cierre la encuesta.</string>
     <string name="fallback_username">usuario</string>
+    <string name="offline_banner_message">Sin conexión · Mostrando datos guardados</string>
+    <string name="create_save_error_title">No se pudo guardar tu duda</string>
 </resources>
