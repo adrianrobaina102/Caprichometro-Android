@@ -81,8 +81,8 @@ class CapriceUiSmokeTest {
 
         composeTestRule.onNodeWithText(targetContext.getString(R.string.result_badge_closed)).assertIsDisplayed()
         composeTestRule.onNodeWithText("@adri").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Claro").assertIsDisplayed()
-        composeTestRule.onNodeWithText("En casa").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Claro").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("En casa").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -261,6 +261,9 @@ class CapriceUiSmokeTest {
             )
         }
 
+        composeTestRule.waitUntil(timeoutMillis = 3_000L) {
+            viewModel.state.value.votes.isNotEmpty()
+        }
         composeTestRule.onNodeWithText(targetContext.getString(R.string.result_decision_pending_author_title))
             .performScrollTo()
             .assertIsDisplayed()

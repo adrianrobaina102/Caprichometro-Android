@@ -1,5 +1,6 @@
 package com.example.caprichometro
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipStatus
@@ -22,6 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
@@ -30,6 +32,7 @@ import java.util.UUID
  * Tests de integración reales contra Firestore Emulator (`10.0.2.2:8080`).
  * En entornos locales sin emulador de Firebase activo se omiten limpiamente mediante `Assume`.
  */
+@RunWith(AndroidJUnit4::class)
 class FirestoreIntegrationTest {
 
     companion object {
