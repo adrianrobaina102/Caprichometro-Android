@@ -39,6 +39,8 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
         val nearbyCell = getString("nearbyCell")?.trim()?.takeIf { it.isNotEmpty() }
         val locationCell = getString("locationCell")?.trim()?.takeIf { it.isNotEmpty() }
         val price = (get("price") as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= 0.0 }
+        val legacyImageUrl = getString("imageUrl").orEmpty()
+        val hasImage = getBoolean("hasImage") ?: legacyImageUrl.isNotBlank()
 
         Caprice(
             id = id,
@@ -47,14 +49,15 @@ internal fun DocumentSnapshot.toCapriceOrNull(logTag: String): Caprice? {
             question = question,
             answer1 = answer1,
             answer2 = answer2,
-            imageUrl = getString("imageUrl").orEmpty(),
+            imageUrl = legacyImageUrl,
             timestamp = parsedTimestamp,
             visibleToUserIds = visibleToUserIds,
             finalDecision = finalDecision,
             finalDecisionAt = finalDecisionAt,
             nearbyCell = nearbyCell,
             locationCell = locationCell,
-            price = price
+            price = price,
+            hasImage = hasImage
         )
     } catch (e: Exception) {
         Log.e(logTag, "Documento caprice inválido $id: ${e.message}", e)

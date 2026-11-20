@@ -57,17 +57,16 @@ class FirestoreCapriceRepository(
 
     override suspend fun save(caprice: Caprice): Result<String> = withContext(ioDispatcher) {
         try {
+            val hasMedia = caprice.hasImage || caprice.imageUrl.isNotBlank()
             val data = mutableMapOf<String, Any>(
                 "userId" to caprice.userId,
                 "type" to caprice.type,
                 "question" to caprice.question,
                 "answer1" to caprice.answer1,
                 "answer2" to caprice.answer2,
-                "timestamp" to caprice.timestamp
+                "timestamp" to caprice.timestamp,
+                "hasImage" to hasMedia
             )
-            if (caprice.imageUrl.isNotBlank()) {
-                data["imageUrl"] = caprice.imageUrl
-            }
             if (caprice.visibleToUserIds.isNotEmpty()) {
                 data["visibleToUserIds"] = (listOf(caprice.userId) + caprice.visibleToUserIds)
                     .filter { it.isNotBlank() }
@@ -85,9 +84,25 @@ class FirestoreCapriceRepository(
             if (validPrice != null) {
                 data["price"] = validPrice
             }
-            val document = db.collection(collectionName).add(data).await()
+            val docRef = db.collection(collectionName).document()
+            val batch = db.batch()
+            batch.set(docRef, data)
+            if (caprice.imageUrl.isNotBlank()) {
+                val mediaRef = docRef
+                    .collection(FirestoreCapriceMediaRepository.MEDIA_COLLECTION)
+                    .document(FirestoreCapriceMediaRepository.IMAGE_DOCUMENT_ID)
+                batch.set(
+                    mediaRef,
+                    mapOf(
+                        "imageUrl" to caprice.imageUrl,
+                        "userId" to caprice.userId,
+                        "createdAt" to caprice.timestamp
+                    )
+                )
+            }
+            batch.commit().await()
             invalidateUser(caprice.userId)
-            Result.success(document.id)
+            Result.success(docRef.id)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -153,11 +168,17 @@ class FirestoreCapriceRepository(
 
                 for (doc in snapshot.documents) {
                     val votesSnapshot = doc.reference.collection("votes").get().await()
-                    if (!votesSnapshot.isEmpty) {
-                        votesSnapshot.documents.chunked(450).forEach { chunk ->
+                    val mediaSnapshot = doc.reference
+                        .collection(FirestoreCapriceMediaRepository.MEDIA_COLLECTION)
+                        .get()
+                        .await()
+                    val childRefs = votesSnapshot.documents.map { it.reference } +
+                        mediaSnapshot.documents.map { it.reference }
+                    if (childRefs.isNotEmpty()) {
+                        childRefs.chunked(450).forEach { chunk ->
                             val batch = db.batch()
-                            chunk.forEach { voteDoc ->
-                                batch.delete(voteDoc.reference)
+                            chunk.forEach { childRef ->
+                                batch.delete(childRef)
                             }
                             batch.commit().await()
                         }

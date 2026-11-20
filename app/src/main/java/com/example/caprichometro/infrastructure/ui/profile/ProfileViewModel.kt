@@ -19,6 +19,7 @@ import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.CapriceMediaRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -55,6 +56,7 @@ data class ProfileState(
     val verdicts: Map<String, Boolean?> = emptyMap(), // capriceId -> true (siguió al ganador), false (no siguió), null (empate/sin votos/activa)
     val decidedTieIds: Set<String> = emptySet(),
     val voteCounts: Map<String, Int> = emptyMap(),
+    val capriceImages: Map<String, String> = emptyMap(),
     val isOwnProfile: Boolean = true,
     val isSavingBio: Boolean = false,
     val bioErrorMessage: String? = null,
@@ -88,7 +90,8 @@ class ProfileViewModel(
     private val removeFriendUseCase: RemoveFriendUseCase? = null,
     private val blockUserUseCase: BlockUserUseCase? = null,
     private val updateProfilePhotoUseCase: UpdateProfilePhotoUseCase = UpdateProfilePhotoUseCase(userProfileRepository),
-    private val capriceCacheControl: CapriceCacheControl? = null
+    private val capriceCacheControl: CapriceCacheControl? = null,
+    private val capriceMediaRepository: CapriceMediaRepository? = null
 ) : ViewModel() {
 
     companion object {
@@ -101,6 +104,7 @@ class ProfileViewModel(
     // Cache en memoria thread-safe para veredictos de dudas cerradas (se invalida si cambia finalDecision)
     private val verdictCache = ConcurrentHashMap<String, CachedVerdictEntry>()
     private val voteCountCache = ConcurrentHashMap<String, Int>()
+    private val requestedImageIds = ConcurrentHashMap.newKeySet<String>()
     private var sessionGeneration = 0L
     private var loadedTargetUserId: String = ""
     private var loadedCurrentUserId: String = ""
@@ -123,6 +127,28 @@ class ProfileViewModel(
         _state.value = ProfileState()
         verdictCache.clear()
         voteCountCache.clear()
+        requestedImageIds.clear()
+    }
+
+    fun loadCapriceImageIfNeeded(caprice: Caprice) {
+        val repo = capriceMediaRepository ?: return
+        if (caprice.id.isBlank() || !caprice.hasImage || caprice.imageUrl.isNotBlank()) return
+        if (_state.value.capriceImages.containsKey(caprice.id)) return
+        if (!requestedImageIds.add(caprice.id)) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.getCapriceImageUrl(caprice.id)
+                .onSuccess { url ->
+                    if (!url.isNullOrBlank()) {
+                        _state.update { current ->
+                            current.copy(capriceImages = current.capriceImages + (caprice.id to url))
+                        }
+                    }
+                }
+                .onFailure {
+                    requestedImageIds.remove(caprice.id)
+                }
+        }
     }
 
     private fun computeVerdictStatus(caprice: Caprice, votes: List<com.example.caprichometro.domain.model.Vote>): CachedVerdict {

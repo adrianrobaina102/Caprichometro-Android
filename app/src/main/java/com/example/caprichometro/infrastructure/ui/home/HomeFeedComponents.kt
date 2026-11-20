@@ -362,6 +362,8 @@ internal fun FeedItemsList(
     nowMillis: Long,
     closedPollResults: Map<String, FeedPollResult> = emptyMap(),
     onRequestClosedPollResult: (String) -> Unit = {},
+    capriceImages: Map<String, String> = emptyMap(),
+    onRequestCapriceImage: (com.example.caprichometro.domain.model.Caprice) -> Unit = {},
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToUserProfile: (String) -> Unit,
     onOpenNonFriendProfile: (UserProfile) -> Unit,
@@ -387,6 +389,8 @@ internal fun FeedItemsList(
                 nowMillis = nowMillis,
                 closedPollResult = closedPollResults[item.caprice.id],
                 onRequestClosedPollResult = onRequestClosedPollResult,
+                resolvedImageUrl = capriceImages[item.caprice.id],
+                onRequestCapriceImage = onRequestCapriceImage,
                 onClick = { onSelectFeedItem(item) },
                 onNavigateToUserProfile = onNavigateToUserProfile,
                 onOpenNonFriendProfile = onOpenNonFriendProfile,
@@ -407,6 +411,8 @@ internal fun FeedItemsList(
                     nowMillis = nowMillis,
                     closedPollResult = closedPollResults[item.caprice.id],
                     onRequestClosedPollResult = onRequestClosedPollResult,
+                    resolvedImageUrl = capriceImages[item.caprice.id],
+                    onRequestCapriceImage = onRequestCapriceImage,
                     onClick = { onSelectFeedItem(item) },
                     onNavigateToUserProfile = onNavigateToUserProfile,
                     onOpenNonFriendProfile = onOpenNonFriendProfile,
@@ -537,6 +543,8 @@ internal fun CapriceFeedCard(
     nowMillis: Long,
     closedPollResult: FeedPollResult? = null,
     onRequestClosedPollResult: (String) -> Unit = {},
+    resolvedImageUrl: String? = null,
+    onRequestCapriceImage: (com.example.caprichometro.domain.model.Caprice) -> Unit = {},
     onClick: () -> Unit,
     onNavigateToUserProfile: (String) -> Unit = {},
     onOpenNonFriendProfile: (UserProfile) -> Unit = {},
@@ -545,11 +553,17 @@ internal fun CapriceFeedCard(
     val context = LocalContext.current
     val caprice = item.caprice
     val author = item.author
+    val effectiveImageUrl = caprice.imageUrl.ifBlank { resolvedImageUrl.orEmpty() }
     val isActive = !PollTiming.isPollExpired(caprice.timestamp, nowMillis)
 
     LaunchedEffect(caprice.id, isActive) {
         if (!isActive) {
             onRequestClosedPollResult(caprice.id)
+        }
+    }
+    LaunchedEffect(caprice.id, caprice.hasImage, effectiveImageUrl) {
+        if (caprice.hasImage && effectiveImageUrl.isBlank()) {
+            onRequestCapriceImage(caprice)
         }
     }
     val relativeTime = remember(caprice.timestamp, nowMillis, context) {
@@ -558,8 +572,8 @@ internal fun CapriceFeedCard(
     val statusText = remember(caprice.timestamp, nowMillis, context) {
         formatPollStatus(context, caprice.timestamp, nowMillis)
     }
-    val imageModel = remember(caprice.imageUrl) {
-        ImageModelHelper.parseImageModel(caprice.imageUrl)
+    val imageModel = remember(effectiveImageUrl) {
+        ImageModelHelper.parseImageModel(effectiveImageUrl)
     }
     val typeEmoji = if (caprice.type.contains("compra", ignoreCase = true)) "🛍️" else "🎉"
     val typeDisplay = localizedCapriceType(context, caprice.type)
@@ -703,7 +717,7 @@ internal fun CapriceFeedCard(
         }
 
         // Foto opcional debajo de la pregunta y antes de las opciones
-        if (caprice.imageUrl.isNotBlank()) {
+        if (effectiveImageUrl.isNotBlank()) {
             Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
@@ -711,7 +725,7 @@ internal fun CapriceFeedCard(
                     .height(230.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF121214))
-                    .clickable { onImageClick(caprice.imageUrl) }
+                    .clickable { onImageClick(effectiveImageUrl) }
             ) {
                 AsyncImage(
                     model = imageModel,

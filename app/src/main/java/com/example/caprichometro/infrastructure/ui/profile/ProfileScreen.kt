@@ -900,10 +900,19 @@ fun ProfileScreen(
                 decidedTieIds = state.decidedTieIds,
                 voteCounts = state.voteCounts,
                 isOwnProfile = state.isOwnProfile,
+                capriceImages = state.capriceImages,
+                onRequestCapriceImage = viewModel::loadCapriceImageIfNeeded,
                 hasMoreCaprices = state.hasMoreCaprices,
                 isLoadingMoreCaprices = state.isLoadingMoreCaprices,
                 onLoadMore = viewModel::loadMoreCaprices,
-                onSelectCaprice = onSelectCaprice
+                onSelectCaprice = { selected ->
+                    val resolved = if (selected.imageUrl.isBlank()) {
+                        state.capriceImages[selected.id]?.let { selected.copy(imageUrl = it) } ?: selected
+                    } else {
+                        selected
+                    }
+                    onSelectCaprice(resolved)
+                }
             )
         } else {
             ProfileStatsTab(

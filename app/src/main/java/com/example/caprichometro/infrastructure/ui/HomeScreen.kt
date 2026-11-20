@@ -331,7 +331,18 @@ fun HomeScreen(
                                 nowMillis = nowMillis,
                                 closedPollResults = state.closedPollResults,
                                 onRequestClosedPollResult = viewModel::loadClosedPollResultIfNeeded,
-                                onSelectFeedItem = onSelectFeedItem,
+                                capriceImages = state.capriceImages,
+                                onRequestCapriceImage = viewModel::loadCapriceImageIfNeeded,
+                                onSelectFeedItem = { selectedItem ->
+                                    val resolved = if (selectedItem.caprice.imageUrl.isBlank()) {
+                                        state.capriceImages[selectedItem.caprice.id]?.let {
+                                            selectedItem.copy(caprice = selectedItem.caprice.copy(imageUrl = it))
+                                        } ?: selectedItem
+                                    } else {
+                                        selectedItem
+                                    }
+                                    onSelectFeedItem(resolved)
+                                },
                                 onNavigateToUserProfile = onNavigateToUserProfile,
                                 onOpenNonFriendProfile = onOpenNonFriendProfile,
                                 onImageClick = { fullScreenImageUrl = it }
@@ -426,7 +437,18 @@ fun HomeScreen(
                                 nowMillis = nowMillis,
                                 closedPollResults = state.closedPollResults,
                                 onRequestClosedPollResult = viewModel::loadClosedPollResultIfNeeded,
-                                onSelectFeedItem = onSelectFeedItem,
+                                capriceImages = state.capriceImages,
+                                onRequestCapriceImage = viewModel::loadCapriceImageIfNeeded,
+                                onSelectFeedItem = { selectedItem ->
+                                    val resolved = if (selectedItem.caprice.imageUrl.isBlank()) {
+                                        state.capriceImages[selectedItem.caprice.id]?.let {
+                                            selectedItem.copy(caprice = selectedItem.caprice.copy(imageUrl = it))
+                                        } ?: selectedItem
+                                    } else {
+                                        selectedItem
+                                    }
+                                    onSelectFeedItem(resolved)
+                                },
                                 onNavigateToUserProfile = onNavigateToUserProfile,
                                 onOpenNonFriendProfile = onOpenNonFriendProfile,
                                 onImageClick = { fullScreenImageUrl = it }

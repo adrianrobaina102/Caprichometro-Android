@@ -37,6 +37,7 @@ import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.infrastructure.auth.FirebaseAuthRepository
 import com.example.caprichometro.infrastructure.data.Base64ImageStorageRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceDetailsRepository
+import com.example.caprichometro.infrastructure.data.FirestoreCapriceMediaRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceObservationRepository
 import com.example.caprichometro.infrastructure.data.FirestoreCapriceRepository
 import com.example.caprichometro.infrastructure.data.FirestoreFriendshipRepository
@@ -60,7 +61,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
     private val authRepository by lazy { FirebaseAuthRepository() }
     private val friendshipRepository by lazy { FirestoreFriendshipRepository() }
     private val imageStorageRepository by lazy { Base64ImageStorageRepository() }
-    private val capriceDetailsRepository by lazy { FirestoreCapriceDetailsRepository() }
+    private val capriceMediaRepository by lazy { FirestoreCapriceMediaRepository() }
+    private val capriceDetailsRepository by lazy { FirestoreCapriceDetailsRepository(mediaRepository = capriceMediaRepository) }
     private val capriceObservationRepository by lazy { FirestoreCapriceObservationRepository() }
     private val nearbyCapriceRepository by lazy { FirestoreNearbyCapriceRepository() }
     private val voteRepository by lazy { FirestoreVoteRepository() }
@@ -107,7 +109,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
             getNearbyCapricesUseCase = getNearbyCapricesUseCase,
             locationRepository = locationRepository,
             userProfileRepository = userProfileRepository,
-            getFeedPollResultUseCase = GetFeedPollResultUseCase(voteRepository, userProfileRepository)
+            getFeedPollResultUseCase = GetFeedPollResultUseCase(voteRepository, userProfileRepository),
+            capriceMediaRepository = capriceMediaRepository
         )
     }
 
@@ -149,7 +152,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
             updateBioUseCase = UpdateBioUseCase(userProfileRepository),
             removeFriendUseCase = RemoveFriendUseCase(friendshipRepository),
             blockUserUseCase = BlockUserUseCase(friendshipRepository),
-            capriceCacheControl = capriceRepository
+            capriceCacheControl = capriceRepository,
+            capriceMediaRepository = capriceMediaRepository
         )
     }
 

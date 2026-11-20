@@ -16,7 +16,8 @@ data class Caprice(
     val finalDecisionAt: Long? = null,
     val nearbyCell: String? = null,
     val locationCell: String? = null,
-    val price: Double? = null
+    val price: Double? = null,
+    val hasImage: Boolean = imageUrl.isNotBlank()
 ) {
     /**
      * Comprueba si [viewerUserId] tiene permiso para ver este capricho.
@@ -60,6 +61,7 @@ data class Caprice(
         private var nearbyCell: String? = null
         private var locationCell: String? = null
         private var price: Double? = null
+        private var hasImage: Boolean = false
 
         fun setId(id: String) = apply { this.id = id }
         fun setUserId(userId: String) = apply { this.userId = userId }
@@ -87,6 +89,7 @@ data class Caprice(
         fun setPrice(price: Double?) = apply {
             this.price = price?.takeIf { it.isFinite() && it >= 0.0 }
         }
+        fun setHasImage(hasImage: Boolean) = apply { this.hasImage = hasImage }
 
         fun build(): Caprice {
             check(question.isNotBlank()) { "La pregunta es obligatoria" }
@@ -105,7 +108,8 @@ data class Caprice(
                 finalDecisionAt = finalDecisionAt,
                 nearbyCell = nearbyCell,
                 locationCell = locationCell,
-                price = price
+                price = price,
+                hasImage = hasImage || imageUrl.isNotBlank()
             )
         }
     }

@@ -19,6 +19,7 @@ import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.CapriceMediaRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
@@ -69,7 +70,8 @@ data class CapriceState(
     val preparedNearbyCell: String? = null,
     val preparedLocationCell: String? = null,
     val nearbyCreationError: String? = null,
-    val closedPollResults: Map<String, FeedPollResult> = emptyMap()
+    val closedPollResults: Map<String, FeedPollResult> = emptyMap(),
+    val capriceImages: Map<String, String> = emptyMap()
 )
 
 class CapriceViewModel(
@@ -85,7 +87,8 @@ class CapriceViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val capriceCacheControl: CapriceCacheControl? = null,
     private val userProfileRepository: UserProfileRepository? = null,
-    private val getFeedPollResultUseCase: GetFeedPollResultUseCase? = null
+    private val getFeedPollResultUseCase: GetFeedPollResultUseCase? = null,
+    private val capriceMediaRepository: CapriceMediaRepository? = null
 ) : ViewModel() {
 
     companion object {
@@ -134,6 +137,7 @@ class CapriceViewModel(
     private val nearbyController = PagedFeedController()
     private val syncedLocationCells = ConcurrentHashMap<String, String>()
     private val requestedClosedPollIds = ConcurrentHashMap.newKeySet<String>()
+    private val requestedImageIds = ConcurrentHashMap.newKeySet<String>()
     @Volatile
     private var sessionFriends: List<UserProfile>? = null
 
@@ -164,6 +168,27 @@ class CapriceViewModel(
         }
     }
 
+    fun loadCapriceImageIfNeeded(caprice: Caprice) {
+        val repo = capriceMediaRepository ?: return
+        if (caprice.id.isBlank() || !caprice.hasImage || caprice.imageUrl.isNotBlank()) return
+        if (_state.value.capriceImages.containsKey(caprice.id)) return
+        if (!requestedImageIds.add(caprice.id)) return
+
+        viewModelScope.launch(ioDispatcher) {
+            repo.getCapriceImageUrl(caprice.id)
+                .onSuccess { url ->
+                    if (!url.isNullOrBlank()) {
+                        _state.update { current ->
+                            current.copy(capriceImages = current.capriceImages + (caprice.id to url))
+                        }
+                    }
+                }
+                .onFailure {
+                    requestedImageIds.remove(caprice.id)
+                }
+        }
+    }
+
     fun reset() {
         feedLoadJob?.cancel()
         feedLoadJob = null
@@ -180,6 +205,7 @@ class CapriceViewModel(
         sessionFriends = null
         syncedLocationCells.clear()
         requestedClosedPollIds.clear()
+        requestedImageIds.clear()
         friendsController.reset()
         nearbyController.reset()
         _state.value = CapriceState()
