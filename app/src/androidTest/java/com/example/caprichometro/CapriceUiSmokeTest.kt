@@ -82,8 +82,8 @@ class CapriceUiSmokeTest {
 
         composeTestRule.onNodeWithText(targetContext.getString(R.string.result_badge_closed)).assertIsDisplayed()
         composeTestRule.onNodeWithText("@adri").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Claro").assertIsDisplayed()
-        composeTestRule.onNodeWithText("En casa").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Claro").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("En casa").performScrollTo().assertIsDisplayed()
     }
 
     @Test
