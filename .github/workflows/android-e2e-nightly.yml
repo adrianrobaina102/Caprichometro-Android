@@ -1,5 +1,8 @@
 name: Android Nightly E2E (UI + Firestore)
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # Todos los días a las 04:23 UTC (05:23 hora peninsular, evitando horas en punto saturadas)
@@ -42,9 +45,9 @@ jobs:
             exit 0
           fi
 
-          RECENT_COMMITS=$(git log -1 --since="24 hours ago" --format=%H)
+          RECENT_COMMITS=$(git log -1 --since="24 hours ago" --format=%H -- . ':!shared-docs/**' ':!*.md')
           if [ -z "$RECENT_COMMITS" ]; then
-            echo "No new commits on develop in the last 24h. Skipping."
+            echo "No new code commits on develop in the last 24h (ignoring docs). Skipping."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

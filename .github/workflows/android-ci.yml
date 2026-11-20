@@ -1,5 +1,8 @@
 name: Android CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main, develop ]
@@ -32,16 +35,10 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Prepare CI Firebase & local config
-        env:
-          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
-          WEB_CLIENT_ID: ${{ secrets.WEB_CLIENT_ID }}
+      - name: Prepare CI stub Firebase & local config
         run: |
-          echo "WEB_CLIENT_ID=${WEB_CLIENT_ID:-}" > local.properties
-          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
-            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > app/google-services.json
-          else
-            cat << 'EOF' > app/google-services.json
+          echo "WEB_CLIENT_ID=" > local.properties
+          cat << 'EOF' > app/google-services.json
           {
             "project_info": {
               "project_number": "000000000000",
@@ -66,7 +63,6 @@ jobs:
             "configuration_version": "1"
           }
           EOF
-          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
