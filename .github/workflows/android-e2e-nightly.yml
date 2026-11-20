@@ -55,7 +55,7 @@ jobs:
   android-ui-and-firestore-integration:
     needs: check-window
     if: needs.check-window.outputs.should_run == 'true'
-    runs-on: macos-latest
+    runs-on: macos-14
     timeout-minutes: 25
 
     steps:
@@ -133,13 +133,12 @@ jobs:
       - name: Run Compose UI & Firestore Integration tests on Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 31
+          api-level: 33
           target: google_apis
           arch: arm64-v8a
-          profile: pixel_6
-          ram-size: 4096M
-          force-avd-creation: false
-          emulator-options: -no-window -gpu host -no-snapshot -noaudio -no-boot-anim
+          profile: Nexus 6
+          emulator-boot-timeout: 240
+          emulator-options: -no-window -no-boot-anim -no-audio -no-snapshot-load -no-snapshot-save
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --no-daemon --console=plain
 
