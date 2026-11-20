@@ -55,7 +55,7 @@ jobs:
   android-ui-and-firestore-integration:
     needs: check-window
     if: needs.check-window.outputs.should_run == 'true'
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 25
 
     steps:
@@ -130,14 +130,20 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Enable KVM for Android Emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Run Compose UI & Firestore Integration tests on Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
           target: google_apis
-          arch: arm64-v8a
+          arch: x86_64
           profile: Nexus 6
-          emulator-options: -no-window -no-boot-anim -no-audio -no-snapshot-load -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -no-audio -no-snapshot-load -no-snapshot-save
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --no-daemon --console=plain
 
