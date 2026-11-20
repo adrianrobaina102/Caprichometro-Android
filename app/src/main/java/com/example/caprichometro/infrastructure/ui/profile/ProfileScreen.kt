@@ -900,6 +900,9 @@ fun ProfileScreen(
                 decidedTieIds = state.decidedTieIds,
                 voteCounts = state.voteCounts,
                 isOwnProfile = state.isOwnProfile,
+                hasMoreCaprices = state.hasMoreCaprices,
+                isLoadingMoreCaprices = state.isLoadingMoreCaprices,
+                onLoadMore = viewModel::loadMoreCaprices,
                 onSelectCaprice = onSelectCaprice
             )
         } else {

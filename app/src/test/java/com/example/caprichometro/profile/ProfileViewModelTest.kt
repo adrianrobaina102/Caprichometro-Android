@@ -83,7 +83,7 @@ class ProfileViewModelTest {
 
         every { getCurrentUserUseCase.execute() } returns myUser
         coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(myProfile)
-        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(capricesList)
+        coEvery { getCapricesUseCase.execute(myUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(capricesList)
         coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(listOf(blockedProfile))
         coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(listOf(friendProfile))
 
@@ -110,7 +110,7 @@ class ProfileViewModelTest {
         )
 
         coEvery { userProfileRepository.getUserById(friendUid) } returns Result.success(friendProfile)
-        coEvery { getCapricesUseCase.execute(friendUid, 50) } returns Result.success(friendCaprices)
+        coEvery { getCapricesUseCase.execute(friendUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(friendCaprices)
         coEvery { getAcceptedFriendsUseCase.execute(friendUid) } returns flowOf(emptyList())
 
         viewModel.loadProfile(targetUserId = friendUid, currentUserId = myUid)
@@ -134,7 +134,7 @@ class ProfileViewModelTest {
 
         every { getCurrentUserUseCase.execute() } returns myUser
         coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(UserProfile(uid = myUid, username = "me"))
-        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getCapricesUseCase.execute(myUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(emptyList())
         coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(listOf(blockedUser))
         coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
         coEvery { unblockUserUseCase.execute(myUid, blockedUid) } returns Result.success(Unit)
@@ -180,7 +180,7 @@ class ProfileViewModelTest {
 
         every { getCurrentUserUseCase.execute() } returns myUser
         coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(initialProfile)
-        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getCapricesUseCase.execute(myUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(emptyList())
         coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
         coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
         coEvery { userProfileRepository.updateBio(myUid, "Nueva bio genial") } returns Result.success(Unit)
@@ -208,7 +208,7 @@ class ProfileViewModelTest {
 
         every { getCurrentUserUseCase.execute() } returns myUser
         coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(initialProfile)
-        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getCapricesUseCase.execute(myUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(emptyList())
         coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
         coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
         coEvery { userProfileRepository.updateBio(myUid, "Borrador sin guardar") } returns Result.failure(RuntimeException("Sin conexión"))
@@ -234,7 +234,7 @@ class ProfileViewModelTest {
 
         every { getCurrentUserUseCase.execute() } returns myUser
         coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(initialProfile)
-        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(emptyList())
+        coEvery { getCapricesUseCase.execute(myUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(emptyList())
         coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
         coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
         coEvery { userProfileRepository.updateBio(myUid, "Bio tardía") } coAnswers {
@@ -334,7 +334,7 @@ class ProfileViewModelTest {
 
         every { getCurrentUserUseCase.execute() } returns User(id = myUid, email = "me@test.com", name = "Adrian")
         coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(UserProfile(uid = myUid, username = "adrian"))
-        coEvery { getCapricesUseCase.execute(myUid, 50) } returns Result.success(listOf(tieCaprice, majorityCaprice))
+        coEvery { getCapricesUseCase.execute(myUid, ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE + 1) } returns Result.success(listOf(tieCaprice, majorityCaprice))
         coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
         coEvery { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
         coEvery { voteRepository.getVotes("c_tie") } returns Result.success(
@@ -374,5 +374,41 @@ class ProfileViewModelTest {
 
         assertThat(vm.state.value.verdicts["c_maj"]).isFalse()
         assertThat(vm.state.value.decidedTieIds).containsExactly("c_tie")
+    }
+
+    @Test
+    fun `loadMoreCaprices fetches next page and clears hasMoreCaprices at end`() = runTest {
+        val myUid = "user_1"
+        val pageSize = ProfileViewModel.PROFILE_CAPRICES_PAGE_SIZE
+        val allCaprices = (1..(pageSize + 3)).map { idx ->
+            Caprice(
+                id = "c_$idx",
+                userId = myUid,
+                question = "Q$idx",
+                answer1 = "A",
+                answer2 = "B",
+                timestamp = 1000L + idx
+            )
+        }
+        val firstBatch = allCaprices.take(pageSize + 1)
+        every { getCurrentUserUseCase.execute() } returns User(id = myUid, email = "yo@test.com", name = "Yo")
+        coEvery { userProfileRepository.getUserById(myUid) } returns Result.success(UserProfile(uid = myUid, username = "yo"))
+        coEvery { getCapricesUseCase.execute(myUid, pageSize + 1) } returns Result.success(firstBatch)
+        coEvery { getCapricesUseCase.execute(myUid, pageSize * 2 + 1) } returns Result.success(allCaprices)
+        coEvery { getBlockedUsersUseCase.execute(myUid) } returns Result.success(emptyList())
+        every { getAcceptedFriendsUseCase.execute(myUid) } returns flowOf(emptyList())
+
+        viewModel.loadProfile(myUid, myUid)
+        advanceUntilIdle()
+
+        assertThat(viewModel.state.value.caprices).hasSize(pageSize)
+        assertThat(viewModel.state.value.hasMoreCaprices).isTrue()
+
+        viewModel.loadMoreCaprices()
+        advanceUntilIdle()
+
+        assertThat(viewModel.state.value.caprices).hasSize(pageSize + 3)
+        assertThat(viewModel.state.value.hasMoreCaprices).isFalse()
+        assertThat(viewModel.state.value.isLoadingMoreCaprices).isFalse()
     }
 }

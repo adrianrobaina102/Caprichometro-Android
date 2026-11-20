@@ -9,7 +9,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -91,6 +94,9 @@ internal fun ProfileMemoriesTab(
     decidedTieIds: Set<String>,
     voteCounts: Map<String, Int>,
     isOwnProfile: Boolean,
+    hasMoreCaprices: Boolean = false,
+    isLoadingMoreCaprices: Boolean = false,
+    onLoadMore: () -> Unit = {},
     onSelectCaprice: (Caprice) -> Unit
 ) {
     val displayMemories = if (caprices.isNotEmpty()) {
@@ -166,6 +172,35 @@ internal fun ProfileMemoriesTab(
                 if (rowItems.size < 3) {
                     repeat(3 - rowItems.size) {
                         Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        if (hasMoreCaprices) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                OutlinedButton(
+                    onClick = onLoadMore,
+                    enabled = !isLoadingMoreCaprices,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isLoadingMoreCaprices) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.profile_memories_load_more),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }

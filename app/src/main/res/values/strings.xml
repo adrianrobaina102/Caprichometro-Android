@@ -168,6 +168,7 @@
     <string name="profile_memories_empty_own_sub">Toca la cámara inferior para publicar tu primera duda.</string>
     <string name="profile_memories_empty_other_sub">Sus dudas aparecerán aquí cuando las comparta.</string>
     <string name="profile_memories_footer">Ver mis recuerdos</string>
+    <string name="profile_memories_load_more">Cargar más recuerdos</string>
     <string name="profile_badge_pending">Pendiente</string>
     <string name="profile_badge_tie_cd">Decisión guardada en empate</string>
     <string name="profile_stats_listened_title">Hice caso</string>
