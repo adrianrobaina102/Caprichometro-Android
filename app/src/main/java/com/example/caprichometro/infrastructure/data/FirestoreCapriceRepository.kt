@@ -6,6 +6,8 @@ import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceRepository
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -24,6 +26,7 @@ class FirestoreCapriceRepository(
 
     private data class CachedCapricesEntry(
         val caprices: List<Caprice>,
+        val fetchedLimit: Int,
         val cachedAtMillis: Long
     )
 
@@ -45,14 +48,14 @@ class FirestoreCapriceRepository(
         userCapricesCache.clear()
     }
 
-    private fun getCachedIfFresh(userId: String): List<Caprice>? {
+    private fun getCachedIfFresh(userId: String, requiredLimit: Int): List<Caprice>? {
         val entry = userCapricesCache[userId] ?: return null
-        return if ((clockMillis() - entry.cachedAtMillis) < CAPRICE_CACHE_TTL_MS) {
-            entry.caprices
-        } else {
+        if ((clockMillis() - entry.cachedAtMillis) >= CAPRICE_CACHE_TTL_MS) {
             userCapricesCache.remove(userId, entry)
-            null
+            return null
         }
+        val coversLimit = entry.fetchedLimit >= requiredLimit || entry.caprices.size < entry.fetchedLimit
+        return if (coversLimit) entry.caprices else null
     }
 
     override suspend fun save(caprice: Caprice): Result<String> = withContext(ioDispatcher) {
@@ -115,24 +118,24 @@ class FirestoreCapriceRepository(
         withContext(ioDispatcher) {
             if (userId.isBlank() || limit <= 0) return@withContext Result.success(emptyList())
 
-            getCachedIfFresh(userId)?.let { cached ->
+            getCachedIfFresh(userId, limit)?.let { cached ->
                 return@withContext Result.success(cached.take(limit))
             }
 
             val lock = userFetchLocks.computeIfAbsent(userId) { Mutex() }
             lock.withLock {
-                getCachedIfFresh(userId)?.let { cached ->
+                getCachedIfFresh(userId, limit)?.let { cached ->
                     return@withLock Result.success(cached.take(limit))
                 }
                 try {
                     val startedAt = clockMillis()
-                    val allSorted = fetchSortedCaprices(userId = userId, source = null)
-                    userCapricesCache[userId] = CachedCapricesEntry(allSorted, clockMillis())
+                    val sorted = fetchSortedCaprices(userId = userId, limit = limit, source = null)
+                    userCapricesCache[userId] = CachedCapricesEntry(sorted, limit, clockMillis())
                     Log.d(
                         "FeedPerf",
-                        "caprices(uid=$userId): ${allSorted.size} docs en ${clockMillis() - startedAt} ms"
+                        "caprices(uid=$userId, limit=$limit): ${sorted.size} docs en ${clockMillis() - startedAt} ms"
                     )
-                    Result.success(allSorted.take(limit))
+                    Result.success(sorted.take(limit))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -145,11 +148,13 @@ class FirestoreCapriceRepository(
     override suspend fun getCachedCaprices(userId: String, limit: Int): List<Caprice> =
         withContext(ioDispatcher) {
             if (userId.isBlank() || limit <= 0) return@withContext emptyList()
-            userCapricesCache[userId]?.let { entry ->
-                return@withContext entry.caprices.take(limit)
-            }
+            userCapricesCache[userId]
+                ?.takeIf { it.fetchedLimit >= limit || it.caprices.size < it.fetchedLimit }
+                ?.let { entry ->
+                    return@withContext entry.caprices.take(limit)
+                }
             try {
-                fetchSortedCaprices(userId = userId, source = Source.CACHE).take(limit)
+                fetchSortedCaprices(userId = userId, limit = limit, source = Source.CACHE).take(limit)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -228,15 +233,32 @@ class FirestoreCapriceRepository(
         }
     }
 
-    private suspend fun fetchSortedCaprices(userId: String, source: Source?): List<Caprice> {
-        val query = db.collection(collectionName).whereEqualTo("userId", userId)
-        val snapshot = if (source != null) {
-            query.get(source).await()
-        } else {
-            query.get().await()
+    private suspend fun fetchSortedCaprices(userId: String, limit: Int, source: Source?): List<Caprice> {
+        val indexedQuery = db.collection(collectionName)
+            .whereEqualTo("userId", userId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(limit.toLong())
+        return try {
+            val snapshot = if (source != null) {
+                indexedQuery.get(source).await()
+            } else {
+                indexedQuery.get().await()
+            }
+            snapshot.documents
+                .mapNotNull { doc -> doc.toCapriceOrNull("FirestoreCapriceRepo") }
+        } catch (e: FirebaseFirestoreException) {
+            if (e.code != FirebaseFirestoreException.Code.FAILED_PRECONDITION) throw e
+            Log.w("FirestoreCapriceRepo", "Índice compuesto (userId, timestamp) aún no disponible; usando ordenación local")
+            val fallbackQuery = db.collection(collectionName).whereEqualTo("userId", userId)
+            val fallbackSnapshot = if (source != null) {
+                fallbackQuery.get(source).await()
+            } else {
+                fallbackQuery.get().await()
+            }
+            fallbackSnapshot.documents
+                .mapNotNull { doc -> doc.toCapriceOrNull("FirestoreCapriceRepo") }
+                .sortedByDescending { it.timestamp }
+                .take(limit)
         }
-        return snapshot.documents
-            .mapNotNull { doc -> doc.toCapriceOrNull("FirestoreCapriceRepo") }
-            .sortedByDescending { it.timestamp }
     }
 }
