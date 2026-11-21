@@ -351,7 +351,7 @@ internal fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Verified,
+                    imageVector = AppIcons.Verified,
                     contentDescription = stringResource(R.string.profile_badge_tie_cd),
                     tint = Color(0xFF1A2E05),
                     modifier = Modifier.size(16.dp)
