@@ -22,16 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -636,7 +632,7 @@ fun CapriceScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = Icons.Default.CameraAlt,
+                            imageVector = AppIcons.PhotoCamera,
                             contentDescription = "Añadir foto",
                             tint = LimeGreen,
                             modifier = Modifier.size(28.dp)
@@ -660,7 +656,7 @@ fun CapriceScreen(
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Schedule, contentDescription = null, tint = LimeGreen)
+                Icon(AppIcons.Schedule, contentDescription = null, tint = LimeGreen)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(text = stringResource(R.string.create_duration_title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -690,7 +686,7 @@ fun CapriceScreen(
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Group, contentDescription = null, tint = LimeGreen)
+                Icon(AppIcons.Group, contentDescription = null, tint = LimeGreen)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = audienceTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)

@@ -8,9 +8,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -67,7 +66,7 @@ internal fun CapricePhotoSourceSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.PhotoCamera,
+                    imageVector = AppIcons.PhotoCamera,
                     contentDescription = null,
                     tint = LimeGreen,
                     modifier = Modifier.size(24.dp)
@@ -90,7 +89,7 @@ internal fun CapricePhotoSourceSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Image,
+                    imageVector = AppIcons.Image,
                     contentDescription = "Galería",
                     tint = LimeGreen,
                     modifier = Modifier.size(24.dp)

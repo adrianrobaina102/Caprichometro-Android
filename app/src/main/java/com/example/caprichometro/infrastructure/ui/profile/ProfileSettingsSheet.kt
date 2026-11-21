@@ -10,13 +10,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -296,7 +295,7 @@ internal fun ProfileSettingsModalSheet(
                                 modifier = Modifier.height(32.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.LockOpen,
+                                    imageVector = AppIcons.LockOpen,
                                     contentDescription = null,
                                     tint = LimeGreen,
                                     modifier = Modifier.size(14.dp)
@@ -324,7 +323,7 @@ internal fun ProfileSettingsModalSheet(
                         .height(48.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.DeleteForever,
+                        imageVector = AppIcons.DeleteForever,
                         contentDescription = null,
                         tint = BadgeRed,
                         modifier = Modifier.size(18.dp)

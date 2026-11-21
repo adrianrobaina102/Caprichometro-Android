@@ -10,7 +10,7 @@ import com.example.caprichometro.domain.model.Caprice
  */
 internal enum class ProfileCategory(
     val label: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes val labelRes: Int,
     val emoji: String
 ) {
     COMPRAS("Compras", R.string.category_compras, "\uD83D\uDECD\uFE0F"),

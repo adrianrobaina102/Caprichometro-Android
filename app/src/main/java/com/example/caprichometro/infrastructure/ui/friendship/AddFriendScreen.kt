@@ -17,13 +17,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.runtime.*
@@ -609,7 +608,7 @@ fun AddFriendScreen(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.VerifiedUser,
+                imageVector = AppIcons.VerifiedUser,
                 contentDescription = null,
                 tint = SubtleGray,
                 modifier = Modifier.size(16.dp)
@@ -767,7 +766,7 @@ private fun InviteFriendBottomSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
-                        imageVector = Icons.Default.ContentCopy,
+                        imageVector = AppIcons.ContentCopy,
                         contentDescription = "Copiar enlace",
                         tint = SubtleGray,
                         modifier = Modifier.size(16.dp)
@@ -818,7 +817,7 @@ private fun InviteFriendBottomSheet(
                     .height(48.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.ContentCopy,
+                    imageVector = AppIcons.ContentCopy,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(16.dp)

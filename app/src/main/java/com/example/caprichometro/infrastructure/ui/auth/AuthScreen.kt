@@ -14,8 +14,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.caprichometro.R
+import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -238,7 +237,7 @@ fun AuthScreen(
             placeholder = { Text(stringResource(R.string.auth_password_placeholder), color = Color.Gray) },
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Contraseña", tint = Color.Gray) },
             trailingIcon = {
-                val icon = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                val icon = if (isPasswordVisible) AppIcons.Visibility else AppIcons.VisibilityOff
                 IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                     Icon(icon, contentDescription = "Ver contraseña", tint = Color.Gray)
                 }
