@@ -154,24 +154,6 @@ fun ResultScreen(
                     }
                 )
             }
-        },
-        bottomBar = {
-            Button(
-                onClick = onGoHome,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-            ) {
-                Text(
-                    text = if (isPublicNearby) "Volver al feed" else "Volver con mis amigos",
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            }
         }
     ) { paddingValues ->
         Column(
@@ -226,84 +208,109 @@ fun ResultScreen(
                 hasDistanceCell = !displayedCaprice?.effectiveDistanceCell(authorLocationCell).isNullOrBlank()
             )
 
-            displayedCaprice?.price?.let { capricePrice ->
-                Spacer(modifier = Modifier.height(10.dp))
+            val finalDecisionSummary = displayedCaprice?.finalDecision?.let { decision ->
+                val chosenAnswer = if (decision == 1) displayedCaprice.answer1 else displayedCaprice.answer2
+                "${stringResource(R.string.result_decision_author_final)}: $chosenAnswer"
+            }
+
+            if (displayedCaprice?.question?.isNotBlank() == true) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = displayedCaprice.question,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 29.sp
+                )
+            }
+
+            val hasImage = !caprice?.imageUrl.isNullOrBlank()
+            if (!hasImage && finalDecisionSummary != null) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(LimeGreen.copy(alpha = 0.14f))
                         .border(1.dp, LimeGreen.copy(alpha = 0.45f), RoundedCornerShape(50))
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = CapricePrice.formatEuros(capricePrice),
+                        text = finalDecisionSummary,
                         color = LimeGreen,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val localizedHeadline = when {
-                verdict == null -> stringResource(R.string.result_verdict_winner_headline)
-                verdict.totalVotes == 0 -> stringResource(R.string.result_verdict_empty_headline)
-                verdict.winningOption == null -> stringResource(R.string.result_verdict_tie_headline)
-                else -> stringResource(R.string.result_verdict_winner_headline)
-            }
-            val localizedSubtitle = when {
-                verdict == null -> stringResource(R.string.result_verdict_empty_subtitle)
-                verdict.totalVotes == 0 -> stringResource(R.string.result_verdict_empty_subtitle)
-                verdict.winningOption == 1 -> stringResource(
-                    R.string.result_verdict_winner_subtitle,
-                    caprice?.answer1.orEmpty(),
-                    verdict.option1Percentage.toInt()
-                )
-                verdict.winningOption == 2 -> stringResource(
-                    R.string.result_verdict_winner_subtitle,
-                    caprice?.answer2.orEmpty(),
-                    verdict.option2Percentage.toInt()
-                )
-                else -> stringResource(R.string.result_verdict_tie_subtitle)
-            }
-
-            Text(
-                text = localizedHeadline,
-                color = Color.White,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                lineHeight = 34.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = localizedSubtitle,
-                color = TextGray,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val hasImage = !caprice?.imageUrl.isNullOrBlank()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF1C1C1E))
-                    .then(
-                        if (hasImage) Modifier.clickable { isImageExpanded = true } else Modifier
-                    )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (hasImage) {
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF1C1C1E), RoundedCornerShape(50))
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = caprice?.type ?: "Duda",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                displayedCaprice?.price?.let { capricePrice ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(LimeGreen.copy(alpha = 0.14f))
+                            .border(1.dp, LimeGreen.copy(alpha = 0.45f), RoundedCornerShape(50))
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = CapricePrice.formatEuros(capricePrice),
+                            color = LimeGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            if (hasImage) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1C1C1E))
+                        .clickable { isImageExpanded = true }
+                ) {
                     AsyncImage(
                         model = imageModel,
                         contentDescription = caprice?.question.orEmpty(),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+                    if (finalDecisionSummary != null) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(12.dp)
+                                .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(50))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = finalDecisionSummary,
+                                color = LimeGreen,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -319,40 +326,31 @@ fun ResultScreen(
                         )
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .padding(12.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(50))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = caprice?.type ?: "Duda",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             val opt1Pct = verdict?.option1Percentage?.toInt() ?: 0
             val opt2Pct = verdict?.option2Percentage?.toInt() ?: 0
             val winner = verdict?.winningOption
 
-            ResultBar(
-                label = "A",
-                answerText = caprice?.answer1 ?: "Opción A",
-                percentage = opt1Pct,
-                isWinner = winner == 1
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            ResultBar(
-                label = "B",
-                answerText = caprice?.answer2 ?: "Opción B",
-                percentage = opt2Pct,
-                isWinner = winner == 2
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ResultBar(
+                    answerText = caprice?.answer1 ?: "Opción A",
+                    percentage = opt1Pct,
+                    isWinner = winner == 1,
+                    modifier = Modifier.weight(1f)
+                )
+                ResultBar(
+                    answerText = caprice?.answer2 ?: "Opción B",
+                    percentage = opt2Pct,
+                    isWinner = winner == 2,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             Spacer(modifier = Modifier.height(18.dp))
             val totalVotes = verdict?.totalVotes ?: 0
@@ -426,100 +424,51 @@ fun ResultScreen(
 
 @Composable
 fun ResultBar(
-    label: String,
     answerText: String,
     percentage: Int,
-    isWinner: Boolean
+    isWinner: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    val animatedProgress by animateFloatAsState(
-        targetValue = (percentage / 100f).coerceIn(0f, 1f),
-        label = "result_bar_progress"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(58.dp)
+    Column(
+        modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1A1A1D))
+            .background(if (isWinner) LimeGreen.copy(alpha = 0.14f) else Color(0xFF1A1A1D))
             .border(
                 width = if (isWinner) 2.dp else 1.dp,
                 color = if (isWinner) LimeGreen else Color(0xFF2C2C30),
                 shape = RoundedCornerShape(14.dp)
             )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        // Barra de progreso interior (anclada a la izquierda y ocupando la altura completa del contenedor)
-        if (animatedProgress > 0f) {
-            Box(
-                modifier = Modifier.matchParentSize(),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedProgress)
-                        .background(
-                            when {
-                                isWinner -> LimeGreen.copy(alpha = 0.32f)
-                                percentage > 0 -> LimeGreen.copy(alpha = 0.20f)
-                                else -> Color.Transparent
-                            }
-                        )
-                )
-            }
-        }
-
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(if (isWinner) LimeGreen else Color(0xFF2C2C30)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        color = if (isWinner) Color.Black else Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = answerText,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = if (isWinner) FontWeight.Bold else FontWeight.SemiBold
-                    )
-                    if (isWinner) {
-                        Text(
-                            text = stringResource(R.string.poll_winner_badge),
-                            color = LimeGreen,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+            if (isWinner) {
+                Text(
+                    text = stringResource(R.string.poll_winner_badge),
+                    color = LimeGreen,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
             }
-
             Text(
                 text = "$percentage%",
                 color = if (isWinner || percentage > 0) LimeGreen else Color.White,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
         }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = answerText,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = if (isWinner) FontWeight.Bold else FontWeight.SemiBold
+        )
     }
 }
 

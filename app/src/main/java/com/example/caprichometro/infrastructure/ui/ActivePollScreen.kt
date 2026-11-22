@@ -377,13 +377,13 @@ fun ActivePollScreen(
             Text(
                 text = when {
                     isPollExpired -> "Votación cerrada · Resultados finales"
-                    currentPollState is PollState.Voted -> "¡Ya has votado! Esperando a los demás"
+                    currentPollState is PollState.Voted -> "Tu voto está guardado."
                     currentPollState is PollState.Author -> if (isPublicNearby) {
-                        "La comunidad está votando en directo"
+                        "La comunidad está votando."
                     } else {
-                        "Tus amigos están votando en directo"
+                        "Tus amigos están votando."
                     }
-                    isFriendPoll -> "Toca tu opción favorita para votar"
+                    isFriendPoll -> "Elige una opción."
                     else -> if (isPublicNearby) {
                         "para que la comunidad opine"
                     } else {

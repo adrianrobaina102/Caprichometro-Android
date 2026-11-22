@@ -78,10 +78,17 @@ fun CapriceScreen(
     val coroutineScope = rememberCoroutineScope()
     val capriceState by viewModel.state.collectAsState()
 
+    val defaultCompraA = stringResource(R.string.create_default_compra_a)
+    val defaultCompraB = stringResource(R.string.create_default_compra_b)
+    val defaultPlanA = stringResource(R.string.create_default_plan_a)
+    val defaultPlanB = stringResource(R.string.create_default_plan_b)
+    val compraDefaults = remember(defaultCompraA, defaultCompraB) { defaultCompraA to defaultCompraB }
+    val planDefaults = remember(defaultPlanA, defaultPlanB) { defaultPlanA to defaultPlanB }
+
     var isCompraType by remember { mutableStateOf(true) }
     var questionText by remember { mutableStateOf("") }
-    var answer1 by remember { mutableStateOf("") }
-    var answer2 by remember { mutableStateOf("") }
+    var answer1 by remember { mutableStateOf(defaultCompraA) }
+    var answer2 by remember { mutableStateOf(defaultCompraB) }
     var priceText by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
@@ -263,11 +270,12 @@ fun CapriceScreen(
                         isSubmitting = false
                         if (saveResult.isSuccess) {
                             val createdCaprice = saveResult.getOrNull()
+                            isCompraType = true
                             selectAllFriends = true
                             customSelectedFriendIds = emptySet()
                             questionText = ""
-                            answer1 = ""
-                            answer2 = ""
+                            answer1 = defaultCompraA
+                            answer2 = defaultCompraB
                             priceText = ""
                             selectedImageUri = null
                             saveErrorMessage = null
@@ -424,7 +432,19 @@ fun CapriceScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
-                    onClick = { isCompraType = true },
+                    onClick = {
+                        val (nextA, nextB) = viewModel.selectType(
+                            previousIsCompra = isCompraType,
+                            nextIsCompra = true,
+                            currentAnswer1 = answer1,
+                            currentAnswer2 = answer2,
+                            compraDefaults = compraDefaults,
+                            planDefaults = planDefaults
+                        )
+                        isCompraType = true
+                        answer1 = nextA
+                        answer2 = nextB
+                    },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -436,7 +456,19 @@ fun CapriceScreen(
                 }
 
                 Button(
-                    onClick = { isCompraType = false },
+                    onClick = {
+                        val (nextA, nextB) = viewModel.selectType(
+                            previousIsCompra = isCompraType,
+                            nextIsCompra = false,
+                            currentAnswer1 = answer1,
+                            currentAnswer2 = answer2,
+                            compraDefaults = compraDefaults,
+                            planDefaults = planDefaults
+                        )
+                        isCompraType = false
+                        answer1 = nextA
+                        answer2 = nextB
+                    },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -460,7 +492,14 @@ fun CapriceScreen(
             OutlinedTextField(
                 value = questionText,
                 onValueChange = { questionText = it },
-                placeholder = { Text(text = stringResource(R.string.create_question_placeholder), color = TextGray) },
+                placeholder = {
+                    Text(
+                        text = stringResource(
+                            if (isCompraType) R.string.create_question_placeholder else R.string.create_question_placeholder_plan
+                        ),
+                        color = TextGray
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -483,7 +522,14 @@ fun CapriceScreen(
             OutlinedTextField(
                 value = answer1,
                 onValueChange = { answer1 = it },
-                placeholder = { Text(text = stringResource(R.string.create_option_a_placeholder), color = TextGray) },
+                placeholder = {
+                    Text(
+                        text = stringResource(
+                            if (isCompraType) R.string.create_option_a_placeholder else R.string.create_option_a_placeholder_plan
+                        ),
+                        color = TextGray
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -506,7 +552,14 @@ fun CapriceScreen(
             OutlinedTextField(
                 value = answer2,
                 onValueChange = { answer2 = it },
-                placeholder = { Text(text = stringResource(R.string.create_option_b_placeholder), color = TextGray) },
+                placeholder = {
+                    Text(
+                        text = stringResource(
+                            if (isCompraType) R.string.create_option_b_placeholder else R.string.create_option_b_placeholder_plan
+                        ),
+                        color = TextGray
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(

@@ -148,6 +148,24 @@ class CapriceViewModel(
         sessionFriends = friends
     }
 
+    fun selectType(
+        previousIsCompra: Boolean,
+        nextIsCompra: Boolean,
+        currentAnswer1: String,
+        currentAnswer2: String,
+        compraDefaults: Pair<String, String>,
+        planDefaults: Pair<String, String>
+    ): Pair<String, String> {
+        if (previousIsCompra == nextIsCompra) return currentAnswer1 to currentAnswer2
+        val prevDefaults = if (previousIsCompra) compraDefaults else planDefaults
+        val nextDefaults = if (nextIsCompra) compraDefaults else planDefaults
+        return if (currentAnswer1 == prevDefaults.first && currentAnswer2 == prevDefaults.second) {
+            nextDefaults
+        } else {
+            currentAnswer1 to currentAnswer2
+        }
+    }
+
     fun loadClosedPollResultIfNeeded(capriceId: String) {
         val useCase = getFeedPollResultUseCase ?: return
         if (capriceId.isBlank()) return
