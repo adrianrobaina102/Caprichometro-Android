@@ -173,7 +173,12 @@ fun ActivePollScreen(
                     localTimeDisplay = "00:00"
                     localIsExpired = true
                     if (!isFriendPoll) {
-                        PollNotificationHelper.showPollClosedNotification(context, caprice.question, caprice.id)
+                        PollNotificationHelper.showPollClosedNotification(
+                            context = context,
+                            capriceQuestion = caprice.question,
+                            capriceId = caprice.id,
+                            recipientUserId = currentUserId
+                        )
                         onTimerFinished()
                     }
                     break
@@ -189,9 +194,9 @@ fun ActivePollScreen(
     }
 
     // Solo programa la notificación local en segundo plano cuando la duda es propia
-    LaunchedEffect(caprice?.timestamp, caprice?.question, isFriendPoll) {
+    LaunchedEffect(caprice?.timestamp, caprice?.question, isFriendPoll, currentUserId) {
         if (caprice != null && !isFriendPoll) {
-            PollNotificationScheduler.schedulePollExpiration(context, caprice)
+            PollNotificationScheduler.schedulePollExpiration(context, caprice, currentUserId)
         }
     }
 

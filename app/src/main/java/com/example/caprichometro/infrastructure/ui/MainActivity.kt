@@ -297,7 +297,9 @@ fun CapriceApp(
             val capriceId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_ID)
                 ?: targetIntent.data?.lastPathSegment
             val navigateTo = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO)
-            val recipientUserId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID) ?: currentUserId
+            val recipientUserId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID)
+                ?.takeIf { it.isNotBlank() }
+                ?: currentUserId
 
             if (!capriceId.isNullOrBlank()) {
                 val result = getNotificationCapriceUseCase.execute(capriceId, recipientUserId)

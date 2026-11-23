@@ -26,6 +26,7 @@ class SignInWithGoogleUseCase(
             // 1. Verificamos si el usuario ya tiene un perfil registrado en Firestore
             val existingProfileResult = userProfileRepository.getUserById(user.id)
             if (existingProfileResult.isFailure) {
+                runCatching { authRepository.signOut() }
                 return Result.failure(
                     existingProfileResult.exceptionOrNull() ?: Exception("Error al comprobar el perfil existente")
                 )
@@ -50,6 +51,7 @@ class SignInWithGoogleUseCase(
 
             val saveResult = userProfileRepository.saveProfile(profile)
             if (saveResult.isFailure) {
+                runCatching { authRepository.signOut() }
                 return Result.failure(
                     saveResult.exceptionOrNull() ?: Exception("Error al registrar el perfil de Google en la base de datos")
                 )
@@ -59,6 +61,7 @@ class SignInWithGoogleUseCase(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            runCatching { authRepository.signOut() }
             Result.failure(e)
         }
     }

@@ -40,9 +40,11 @@ class FirebaseAuthRepository(
     }
 
     override suspend fun register(email: String, password: String, name: String): Result<User> = withContext(ioDispatcher) {
+        var createdUser: com.google.firebase.auth.FirebaseUser? = null
         try {
             val authResult = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUser = authResult.user ?: throw Exception("Error al crear el usuario en Firebase")
+            createdUser = firebaseUser
 
             val profileUpdates = UserProfileChangeRequest.Builder()
                 .setDisplayName(name)
@@ -53,6 +55,12 @@ class FirebaseAuthRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (createdUser != null) {
+                val deleted = runCatching { createdUser.delete().await() }.isSuccess
+                if (!deleted) {
+                    runCatching { firebaseAuth.signOut() }
+                }
+            }
             Result.failure(e)
         }
     }
@@ -124,7 +132,7 @@ class FirebaseAuthRepository(
         val currentUser = firebaseAuth.currentUser
             ?: return@withContext Result.failure(IllegalStateException("No hay usuario autenticado"))
         val lastSignInMs = currentUser.metadata?.lastSignInTimestamp ?: 0L
-        if (lastSignInMs > 0L && (System.currentTimeMillis() - lastSignInMs) > RECENT_LOGIN_WINDOW_MS) {
+        if (lastSignInMs <= 0L || (System.currentTimeMillis() - lastSignInMs) > RECENT_LOGIN_WINDOW_MS) {
             return@withContext Result.failure(
                 IllegalStateException("Por seguridad, cierra sesión y vuelve a iniciar sesión antes de eliminar tu cuenta.")
             )

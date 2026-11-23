@@ -3,6 +3,7 @@ package com.example.caprichometro.infrastructure.data
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.model.UsernameRules
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -251,26 +252,34 @@ class FirestoreUserProfileRepository(
         }
 
     override suspend fun deleteProfile(userId: String, username: String): Result<Unit> = withContext(ioDispatcher) {
+        if (userId.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("UID de usuario inválido"))
+        }
         try {
             userProfileCache.remove(userId)
-            val batch = db.batch()
-            batch.delete(db.collection("users").document(userId))
+            val normalizedCandidate = UsernameRules.normalize(username)
+            val ownedUsernameDocs = db.collection("usernames")
+                .whereEqualTo("uid", userId)
+                .get()
+                .await()
+                .documents
+                .map { it.id }
+            val candidateUsernames = (ownedUsernameDocs + listOf(normalizedCandidate))
+                .filter { it.isNotBlank() }
+                .distinct()
 
-            var targetUsername = username
-            if (targetUsername.isBlank()) {
-                val usernameDoc = db.collection("usernames")
-                    .whereEqualTo("uid", userId)
-                    .limit(1)
-                    .get()
-                    .await()
-                targetUsername = usernameDoc.documents.firstOrNull()?.id ?: ""
-            }
-
-            if (targetUsername.isNotBlank()) {
-                batch.delete(db.collection("usernames").document(targetUsername))
-            }
-
-            batch.commit().await()
+            db.runTransaction { transaction ->
+                val userRef = db.collection("users").document(userId)
+                val usernameRefsToDelete = candidateUsernames.mapNotNull { uname ->
+                    val ref = db.collection("usernames").document(uname)
+                    val snap = transaction.get(ref)
+                    if (snap.exists() && snap.getString("uid") == userId) ref else null
+                }
+                transaction.delete(userRef)
+                usernameRefsToDelete.forEach { ref ->
+                    transaction.delete(ref)
+                }
+            }.await()
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e

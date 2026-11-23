@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
@@ -174,15 +175,15 @@ class CapriceUiSmokeTest {
         composeTestRule.onNodeWithText(targetContext.getString(R.string.create_type_plan_chip))
             .performScrollTo()
             .performClick()
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_question_placeholder))
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_question_placeholder_plan))
             .performScrollTo()
             .performTextInput("¿Vamos al concierto del viernes?")
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_a_placeholder))
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_default_plan_a))
             .performScrollTo()
-            .performTextInput("De cabeza")
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_b_placeholder))
+            .performTextReplacement("De cabeza")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_default_plan_b))
             .performScrollTo()
-            .performTextInput("Mejor en casa")
+            .performTextReplacement("Mejor en casa")
 
         composeTestRule.onNodeWithText(targetContext.getString(R.string.create_submit_friends)).performClick()
 
@@ -221,12 +222,12 @@ class CapriceUiSmokeTest {
         composeTestRule.onNodeWithText(targetContext.getString(R.string.create_question_placeholder))
             .performScrollTo()
             .performTextInput("¿Compro la chaqueta verde?")
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_a_placeholder))
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_default_compra_a))
             .performScrollTo()
-            .performTextInput("Cómprala")
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_option_b_placeholder))
+            .performTextReplacement("Cómprala")
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_default_compra_b))
             .performScrollTo()
-            .performTextInput("Pasa")
+            .performTextReplacement("Pasa")
 
         composeTestRule.onNodeWithText(targetContext.getString(R.string.create_submit_general)).performClick()
 

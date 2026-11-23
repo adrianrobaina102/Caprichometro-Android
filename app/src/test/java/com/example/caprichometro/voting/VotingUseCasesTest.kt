@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 
 class FakeVoteRepository : VoteRepository {
     val votes = mutableListOf<Vote>()
@@ -49,11 +49,11 @@ class VotingUseCasesTest {
         id = "caprice_1",
         userId = "author_123",
         type = "Compra",
-        question = "¿Me compro esta chaqueta?",
-        answer1 = "Sí, cómpratela",
-        answer2 = "No, es carísima",
+        question = "Â¿Me compro esta chaqueta?",
+        answer1 = "SÃ­, cÃ³mpratela",
+        answer2 = "No, es carÃ­sima",
         imageUrl = "",
-        timestamp = System.currentTimeMillis() // Activo ahora mismo
+        timestamp = System.currentTimeMillis()
     )
 
     @Test
