@@ -172,6 +172,7 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
     fun invalidateSessionCaches() {
         userProfileRepository.invalidateAll()
         capriceRepository.invalidateAll()
+        capriceMediaRepository.clearCache()
         ImageModelHelper.clearCache()
     }
 

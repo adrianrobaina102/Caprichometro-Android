@@ -57,7 +57,13 @@ class FirestoreCapriceObservationRepository : CapriceObservationRepository {
 
         val registration = query.addSnapshotListener { snapshot, error ->
             if (error != null) {
-                Log.w("FirestoreCapriceObs", "Error observando caprichos de $friendUserId: ${error.message}")
+                val isLoggedOut = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
+                if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED && isLoggedOut) {
+                    close()
+                } else {
+                    Log.w("FirestoreCapriceObs", "Error observando caprichos de $friendUserId: ${error.message}")
+                    close(error)
+                }
                 return@addSnapshotListener
             }
             if (snapshot == null) return@addSnapshotListener

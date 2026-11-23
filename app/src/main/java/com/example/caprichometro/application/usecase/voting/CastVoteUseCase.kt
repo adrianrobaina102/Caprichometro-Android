@@ -34,7 +34,14 @@ class CastVoteUseCase(
             return Result.failure(IllegalArgumentException("Opción inválida (debe ser 1 o 2)"))
         }
 
-        val existingVote = voteRepository.getUserVote(caprice.id, voterId).getOrNull()
+        val userVoteResult = voteRepository.getUserVote(caprice.id, voterId)
+        if (allowChange && userVoteResult.isFailure) {
+            return Result.failure(
+                userVoteResult.exceptionOrNull()
+                    ?: IllegalStateException("No se pudo comprobar tu voto anterior")
+            )
+        }
+        val existingVote = userVoteResult.getOrNull()
         if (existingVote != null) {
             if (!allowChange) {
                 return Result.failure(IllegalStateException("Ya has votado en este capricho"))
@@ -57,7 +64,14 @@ class CastVoteUseCase(
             }
 
             if (caprice.nearbyCell.isNullOrBlank()) {
-                val isFriend = friendshipRepository.getFriendships(voterId).first()
+                val friendships = try {
+                    friendshipRepository.getFriendships(voterId).first()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    return Result.failure(e)
+                }
+                val isFriend = friendships
                     .any { it.status == FriendshipStatus.ACCEPTED && caprice.userId in it.memberIDs }
                 if (!isFriend) {
                     return Result.failure(IllegalStateException("Solo los amigos del autor pueden votar en este capricho"))

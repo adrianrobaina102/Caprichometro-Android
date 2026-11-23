@@ -296,30 +296,41 @@ class ProfileViewModel(
         val currentUserId = loadedCurrentUserId
         val isOwn = targetId == currentUserId
 
-        _state.update { it.copy(isLoadingMoreCaprices = true) }
+        _state.update { it.copy(isLoadingMoreCaprices = true, errorMessage = null) }
         loadMoreJob?.cancel()
         loadMoreJob = viewModelScope.launch {
-            val rawCaprices = getCapricesUseCase.execute(targetId, limit = nextLimit + 1)
-                .getOrDefault(emptyList())
+            val result = getCapricesUseCase.execute(targetId, limit = nextLimit + 1)
             if (requestSession != sessionGeneration) return@launch
 
-            val hasMore = rawCaprices.size > nextLimit
-            val pageCaprices = rawCaprices.take(nextLimit)
-            val loadedCaprices = if (isOwn) {
-                pageCaprices
-            } else {
-                pageCaprices.filter { it.isVisibleTo(currentUserId) }
-            }
-            currentCapriceLimit = nextLimit
+            result.fold(
+                onSuccess = { rawCaprices ->
+                    val hasMore = rawCaprices.size > nextLimit
+                    val pageCaprices = rawCaprices.take(nextLimit)
+                    val loadedCaprices = if (isOwn) {
+                        pageCaprices
+                    } else {
+                        pageCaprices.filter { it.isVisibleTo(currentUserId) }
+                    }
+                    currentCapriceLimit = nextLimit
 
-            _state.update { current ->
-                current.copy(
-                    caprices = loadedCaprices,
-                    hasMoreCaprices = hasMore,
-                    isLoadingMoreCaprices = false
-                )
-            }
-            loadMissingVerdicts(loadedCaprices, requestSession)
+                    _state.update { current ->
+                        current.copy(
+                            caprices = loadedCaprices,
+                            hasMoreCaprices = hasMore,
+                            isLoadingMoreCaprices = false
+                        )
+                    }
+                    loadMissingVerdicts(loadedCaprices, requestSession)
+                },
+                onFailure = { error ->
+                    _state.update { current ->
+                        current.copy(
+                            isLoadingMoreCaprices = false,
+                            errorMessage = error.message ?: "No se pudieron cargar más recuerdos"
+                        )
+                    }
+                }
+            )
         }
     }
 

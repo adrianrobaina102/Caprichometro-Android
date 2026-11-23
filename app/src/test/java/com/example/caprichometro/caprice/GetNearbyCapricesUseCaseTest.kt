@@ -73,6 +73,8 @@ class GetNearbyCapricesUseCaseTest {
             listOf(tokyo, ownCaprice, madridOlder, valencia, blockedCaprice, invalidCell, madridNewer, madridTieIdA)
         )
         coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(listOf("blocked_u"))
+        coEvery { friendshipRepo.isBlocked(any(), any()) } returns Result.success(false)
+        coEvery { friendshipRepo.isCachedBlocked(any(), any()) } returns false
         coEvery { userRepo.getUserById("author_1") } returns Result.success(UserProfile(uid = "author_1", username = "laura"))
         coEvery { userRepo.getUserById("author_2") } returns Result.success(UserProfile(uid = "author_2", username = "pablo"))
         coEvery { userRepo.getUserById("author_3") } returns Result.success(UserProfile(uid = "author_3", username = "kenji"))
@@ -140,6 +142,8 @@ class GetNearbyCapricesUseCaseTest {
         coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
         coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
         coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked(any(), any()) } returns Result.success(false)
+        coEvery { friendshipRepo.isCachedBlocked(any(), any()) } returns false
         coEvery { userRepo.getCachedUserById("a_tokyo") } returns UserProfile(uid = "a_tokyo", username = "kenji_cache")
         coEvery { userRepo.getUserById("a_tokyo") } returns Result.success(UserProfile(uid = "a_tokyo", username = "kenji"))
         coEvery { userRepo.getUserById("a_val") } returns Result.success(UserProfile(uid = "a_val", username = "marta"))
@@ -192,6 +196,8 @@ class GetNearbyCapricesUseCaseTest {
         coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
         coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
         coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked(any(), any()) } returns Result.success(false)
+        coEvery { friendshipRepo.isCachedBlocked(any(), any()) } returns false
         coEvery { userRepo.getCachedUserById(any()) } answers {
             val uid = firstArg<String>()
             UserProfile(uid = uid, username = "cached_$uid")
@@ -266,6 +272,8 @@ class GetNearbyCapricesUseCaseTest {
 
         coEvery { locationRepo.currentApproximateLocation() } returns Result.success(madrid)
         coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(listOf("blocked_1"))
+        coEvery { friendshipRepo.isBlocked(any(), any()) } returns Result.success(false)
+        coEvery { friendshipRepo.isCachedBlocked(any(), any()) } returns false
         every {
             nearbyRepo.streamDiscoverableCaprices(initialBatchSize = 5, pageSize = 20, includeCache = false)
         } returns flowOf(

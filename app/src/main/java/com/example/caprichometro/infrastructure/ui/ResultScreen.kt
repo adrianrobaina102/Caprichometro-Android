@@ -80,17 +80,18 @@ fun ResultScreen(
         ?: displayedCaprice?.userId?.firstOrNull()?.uppercaseChar()?.toString()
         ?: "A"
 
-    LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters, authorLocationCell) {
+    LaunchedEffect(caprice?.id, caprice?.finalDecision, currentUserId, approximateDistanceMeters, authorLocationCell) {
         val effectiveUserId = currentUserId.ifBlank { caprice?.userId.orEmpty() }
-        if (caprice != null && viewModel != null && (vmState?.caprice?.id != caprice.id || vmState?.currentUserId != effectiveUserId)) {
+        if (caprice != null && viewModel != null) {
+            viewModel.clearError()
             viewModel.initialize(caprice, effectiveUserId, resolvedUsername, approximateDistanceMeters, authorLocationCell)
         }
     }
 
-    val verdict = remember(vmState?.votes, vmState?.pollState, caprice) {
-        if (caprice != null) {
+    val verdict = remember(vmState?.votes, vmState?.pollState, displayedCaprice) {
+        if (displayedCaprice != null) {
             val expiredVerdict = (vmState?.pollState as? PollState.Expired)?.verdictResult
-            expiredVerdict ?: CalculateVerdictUseCase().execute(caprice, vmState?.votes.orEmpty())
+            expiredVerdict ?: CalculateVerdictUseCase().execute(displayedCaprice, vmState?.votes.orEmpty())
         } else null
     }
     var showVotersSheet by remember { mutableStateOf(false) }

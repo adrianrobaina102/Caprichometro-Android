@@ -128,7 +128,8 @@ class FirestoreVoteRepository(
                 if (error != null) {
                     val isLoggedOut = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
                     if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED && isLoggedOut) {
-                        Log.d("FirestoreVoteRepo", "Usuario desconectado, manteniendo canal abierto para reconexion")
+                        Log.d("FirestoreVoteRepo", "Usuario desconectado, cerrando canal de votos")
+                        close()
                         return@addSnapshotListener
                     }
                     Log.w("FirestoreVoteRepo", "Error escuchando votos de $capriceId: ${error.message}")

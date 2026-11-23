@@ -131,11 +131,16 @@ class GetNearbyCapricesUseCase(
             } else {
                 serverBlockedDeferred.await()
             }
-            val candidates = buildSortedCandidates(
+            val rawCandidates = buildSortedCandidates(
                 currentUserId = currentUserId,
                 location = location,
                 rawCaprices = rawBatch.caprices,
                 blockedIds = blockedIds
+            )
+            val candidates = filterBidirectionalBlocks(
+                currentUserId = currentUserId,
+                candidates = rawCandidates,
+                useCacheOnly = rawBatch.isFromCache
             )
             cachedSnapshots[currentUserId] = NearbyPageSnapshot(
                 candidates = candidates,
@@ -251,6 +256,32 @@ class GetNearbyCapricesUseCase(
             distanceOf = { it.distanceMeters },
             capriceOf = { it.caprice }
         )
+    }
+
+    private suspend fun filterBidirectionalBlocks(
+        currentUserId: String,
+        candidates: List<Candidate>,
+        useCacheOnly: Boolean
+    ): List<Candidate> {
+        val repo = friendshipRepository ?: return candidates
+        if (candidates.isEmpty()) return candidates
+        val authorIds = candidates.map { it.caprice.userId }.distinct()
+        val semaphore = Semaphore(MAX_CONCURRENT_AUTHOR_QUERIES)
+        val blockedAuthors = coroutineScope {
+            authorIds.map { authorId ->
+                async(ioDispatcher) {
+                    semaphore.withPermit {
+                        val blocked = if (useCacheOnly) {
+                            repo.isCachedBlocked(currentUserId, authorId)
+                        } else {
+                            repo.isBlocked(currentUserId, authorId).getOrDefault(false)
+                        }
+                        if (blocked) authorId else null
+                    }
+                }
+            }.awaitAll().filterNotNull().toSet()
+        }
+        return if (blockedAuthors.isEmpty()) candidates else candidates.filterNot { it.caprice.userId in blockedAuthors }
     }
 
     private suspend fun resolveAuthorProfiles(

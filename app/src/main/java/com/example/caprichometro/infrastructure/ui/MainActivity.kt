@@ -212,6 +212,7 @@ fun CapriceApp(
     var currentScreen by rememberSaveable { mutableStateOf("home") }
     var viewingProfileUserId by rememberSaveable { mutableStateOf("") }
     var previousScreenBeforeProfile by rememberSaveable { mutableStateOf("home") }
+    var previousScreenBeforeAddFriend by rememberSaveable { mutableStateOf("profile") }
     var selectedFeedItem by remember { mutableStateOf(sessionNavViewModel.selectedFeedItem) }
     var selectedProfileCaprice by remember { mutableStateOf(sessionNavViewModel.selectedProfileCaprice) }
     var selectedPublicAuthor by remember { mutableStateOf(sessionNavViewModel.selectedPublicAuthor) }
@@ -235,7 +236,11 @@ fun CapriceApp(
             return@BackHandler
         }
         when (currentScreen) {
-            "friend_poll", "create" -> currentScreen = "home"
+            "friend_poll" -> {
+                selectedFeedItem = null
+                currentScreen = "home"
+            }
+            "create" -> currentScreen = "home"
             "active" -> {
                 if (selectedProfileCaprice != null) {
                     selectedProfileCaprice = null
@@ -252,8 +257,10 @@ fun CapriceApp(
                 currentScreen = if (wasFromProfile) "profile" else "home"
             }
             "add_friend" -> {
-                viewingProfileUserId = currentUserId
-                currentScreen = "profile"
+                if (previousScreenBeforeAddFriend == "profile") {
+                    viewingProfileUserId = currentUserId
+                }
+                currentScreen = previousScreenBeforeAddFriend
             }
             "profile" -> {
                 if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank() && previousScreenBeforeProfile != "profile") {
@@ -314,7 +321,8 @@ fun CapriceApp(
                         }
                     } else {
                         if (navigateTo == "result") {
-                            selectedProfileCaprice = item.caprice
+                            selectedFeedItem = item
+                            selectedProfileCaprice = null
                             currentScreen = "result"
                         } else {
                             selectedFeedItem = item
@@ -433,6 +441,13 @@ fun CapriceApp(
             friendshipViewModel.stopListening()
             activePollViewModel.reset()
             capriceViewModel.reset()
+            selectedFeedItem = null
+            selectedProfileCaprice = null
+            selectedPublicAuthor = null
+            viewingProfileUserId = ""
+            previousScreenBeforeProfile = "home"
+            previousScreenBeforeAddFriend = "profile"
+            currentScreen = "home"
         }
     }
 
@@ -450,7 +465,7 @@ fun CapriceApp(
                 Column(modifier = Modifier.fillMaxSize()) {
                     val triggerReconnectSync: () -> Unit = {
                         capriceViewModel.loadFriendsFeed(isManualRefresh = true)
-                        if (capriceState.isNearbyDiscoveryEnabled) {
+                        if (capriceState.selectedHomeTab == HomeFeedTab.GENERAL || capriceState.nearbyFeedItems.isNotEmpty()) {
                             capriceViewModel.loadNearbyFeed(isManualRefresh = true)
                         }
                         if (currentScreen == "profile" && currentUserId.isNotBlank()) {
@@ -487,6 +502,7 @@ fun CapriceApp(
                                         currentScreen = "friend_poll"
                                     },
                                     onNavigateToFriends = {
+                                        previousScreenBeforeAddFriend = "home"
                                         currentScreen = "add_friend"
                                     },
                                     onNavigateToUserProfile = { authorId ->
@@ -633,8 +649,10 @@ fun CapriceApp(
                                     viewModel = friendshipViewModel,
                                     currentUserId = currentUserId,
                                     onBack = {
-                                        viewingProfileUserId = currentUserId
-                                        currentScreen = "profile"
+                                        if (previousScreenBeforeAddFriend == "profile") {
+                                            viewingProfileUserId = currentUserId
+                                        }
+                                        currentScreen = previousScreenBeforeAddFriend
                                     },
                                     onOpenOwnProfile = {
                                         openProfile(currentUserId, "add_friend")
@@ -762,6 +780,7 @@ fun CapriceApp(
                         },
                         onSearchFriend = {
                             selectedPublicAuthor = null
+                            previousScreenBeforeAddFriend = if (currentScreen == "profile") "profile" else "home"
                             currentScreen = "add_friend"
                             friendshipViewModel.openInviteForUsername(cleanUsername)
                         }

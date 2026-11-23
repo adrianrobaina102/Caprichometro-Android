@@ -70,6 +70,7 @@ class ActivePollViewModel(
     private var tickerJob: Job? = null
     private var placeNameJob: Job? = null
     private val requestedVoterIds = ConcurrentHashMap.newKeySet<String>()
+    private var hasLoadedVotesForCurrentPoll: Boolean = false
 
     fun clearError() {
         _state.update { it.copy(errorMessage = null, pendingVoteRetry = null) }
@@ -96,7 +97,12 @@ class ActivePollViewModel(
                 missingIds.map { uid ->
                     async {
                         val profile = runCatching { repo.getUserById(uid).getOrNull() }.getOrNull()
-                        if (profile != null) uid to profile else null
+                        if (profile == null) {
+                            requestedVoterIds.remove(uid)
+                            null
+                        } else {
+                            uid to profile
+                        }
                     }
                 }.awaitAll().filterNotNull().toMap()
             }
@@ -118,6 +124,7 @@ class ActivePollViewModel(
         tickerJob = null
         placeNameJob = null
         requestedVoterIds.clear()
+        hasLoadedVotesForCurrentPoll = false
         _state.value = ActivePollUiState()
     }
 
@@ -133,7 +140,7 @@ class ActivePollViewModel(
         val isSameUserAndCaprice = previousCaprice?.id == caprice.id && previousState.currentUserId == currentUserId
         val isAlreadyTracking = votesJob?.isActive == true ||
             userVoteJob?.isActive == true ||
-            previousState.pollState is PollState.Expired
+            (previousState.pollState is PollState.Expired && hasLoadedVotesForCurrentPoll)
         if (isSameUserAndCaprice && isAlreadyTracking) {
             if ((approximateDistanceMeters != null && previousState.approximateDistanceMeters == null) ||
                 previousCaprice != caprice ||
@@ -157,6 +164,10 @@ class ActivePollViewModel(
         userVoteJob?.cancel()
         tickerJob?.cancel()
         placeNameJob?.cancel()
+        if (!isSameUserAndCaprice) {
+            requestedVoterIds.clear()
+        }
+        hasLoadedVotesForCurrentPoll = false
 
         val cell = caprice.effectiveDistanceCell(authorLocationCell)
         _state.value = ActivePollUiState(
@@ -191,15 +202,17 @@ class ActivePollViewModel(
         // 1. Cargamos el voto emitido previamente por el usuario actual (si existe)
         userVoteJob = viewModelScope.launch {
             val userVoteResult = voteRepository.getUserVote(caprice.id, currentUserId)
-            val userVote = userVoteResult.getOrNull()
+            val loadedVote = userVoteResult.getOrNull()
             _state.update { current ->
-                if (current.caprice?.id != caprice.id) return@update current
-                val updatedVotes = if (userVote != null && current.votes.none { it.voterId == userVote.voterId }) {
-                    current.votes + userVote
+                if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
+                val effectiveUserVote = current.userVote ?: loadedVote
+                val updatedVotes = if (effectiveUserVote != null && current.votes.none { it.voterId == effectiveUserVote.voterId }) {
+                    current.votes + effectiveUserVote
                 } else current.votes
                 current.copy(
-                    userVote = userVote,
-                    pollState = resolveCurrentPollState(current.caprice, current.currentUserId, userVote, updatedVotes)
+                    votes = updatedVotes,
+                    userVote = effectiveUserVote,
+                    pollState = resolveCurrentPollState(current.caprice, current.currentUserId, effectiveUserVote, updatedVotes)
                 )
             }
         }
@@ -209,15 +222,17 @@ class ActivePollViewModel(
             observeVotesUseCase.execute(caprice.id)
                 .catch { e ->
                     if (e is CancellationException) throw e
+                    hasLoadedVotesForCurrentPoll = false
                     _state.update { current ->
-                        if (current.caprice?.id != caprice.id) return@update current
+                        if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
                         current.copy(errorMessage = e.message ?: "No se pudieron sincronizar los votos")
                     }
                 }
                 .collect { votesList ->
+                    hasLoadedVotesForCurrentPoll = true
                     _state.update { current ->
-                        if (current.caprice?.id != caprice.id) return@update current
-                        val myVote = current.userVote ?: votesList.firstOrNull { it.voterId == current.currentUserId }
+                        if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
+                        val myVote = votesList.firstOrNull { it.voterId == current.currentUserId } ?: current.userVote
                         current.copy(
                             votes = votesList,
                             userVote = myVote,
@@ -269,6 +284,7 @@ class ActivePollViewModel(
                 onSuccess = {
                     val newVote = Vote(capriceId = caprice.id, voterId = currentUserId, option = option)
                     _state.update { current ->
+                        if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
                         val updatedVotes = current.votes.filterNot { it.voterId == currentUserId } + newVote
                         current.copy(
                             isCastingVote = false,
@@ -280,8 +296,9 @@ class ActivePollViewModel(
                     }
                 },
                 onFailure = { error ->
-                    _state.update {
-                        it.copy(
+                    _state.update { current ->
+                        if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
+                        current.copy(
                             isCastingVote = false,
                             errorMessage = error.message ?: "No se pudo emitir el voto",
                             pendingVoteRetry = PendingVoteAction(

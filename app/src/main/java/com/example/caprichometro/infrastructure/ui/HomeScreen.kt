@@ -109,6 +109,7 @@ fun HomeScreen(
     }
 
     // Si el usuario vuelve desde Ajustes tras conceder ubicación, recalculamos Amigos y/o General al instante
+    val latestNeedsNearbyPermission by rememberUpdatedState(state.nearbyNeedsLocationPermission)
     DisposableEffect(context, state.selectedHomeTab) {
         val lifecycleOwner = context as? LifecycleOwner
         if (lifecycleOwner == null) {
@@ -120,7 +121,7 @@ fun HomeScreen(
                     viewModel.onLocationPermissionChanged(hasPerm)
                     if (hasPerm) {
                         isLocationPermanentlyDenied = false
-                        if (state.selectedHomeTab == HomeFeedTab.GENERAL && state.nearbyNeedsLocationPermission) {
+                        if (state.selectedHomeTab == HomeFeedTab.GENERAL && latestNeedsNearbyPermission) {
                             nowMillis = System.currentTimeMillis()
                             viewModel.loadNearbyFeedIfNeeded()
                         }
