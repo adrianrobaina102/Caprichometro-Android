@@ -371,8 +371,8 @@ internal fun FeedItemsList(
 ) {
     val listState = rememberLazyListState()
     val sections = remember(items) { splitByDistanceRadius(items) }
-    val showPaginationFooter = (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE) &&
-        (!isBackgroundSyncing || !hasMore || (items.size >= CapriceViewModel.FEED_PAGE_SIZE && items.size % CapriceViewModel.FEED_PAGE_SIZE == 0))
+    val showPaginationFooter = !isBackgroundSyncing &&
+        (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE)
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),

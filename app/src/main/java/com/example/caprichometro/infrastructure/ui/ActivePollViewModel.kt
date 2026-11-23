@@ -142,19 +142,53 @@ class ActivePollViewModel(
             userVoteJob?.isActive == true ||
             (previousState.pollState is PollState.Expired && hasLoadedVotesForCurrentPoll)
         if (isSameUserAndCaprice && isAlreadyTracking) {
+            val mergedCaprice = if (caprice.finalDecision == null && previousCaprice.finalDecision != null) {
+                caprice.copy(
+                    finalDecision = previousCaprice.finalDecision,
+                    finalDecisionAt = previousCaprice.finalDecisionAt
+                )
+            } else {
+                caprice
+            }
+            val cell = mergedCaprice.effectiveDistanceCell(authorLocationCell)
+            val shouldResolvePlaceName = cell != null &&
+                previousState.approximatePlaceName == null &&
+                placeNameJob?.isActive != true &&
+                getApproximatePlaceNameUseCase != null
             if ((approximateDistanceMeters != null && previousState.approximateDistanceMeters == null) ||
-                previousCaprice != caprice ||
-                (authorUsername != null && previousState.authorUsername != authorUsername)
+                previousCaprice != mergedCaprice ||
+                (authorUsername != null && previousState.authorUsername != authorUsername) ||
+                shouldResolvePlaceName
             ) {
                 _state.update { current ->
                     current.copy(
-                        caprice = caprice,
+                        caprice = mergedCaprice,
                         authorUsername = authorUsername ?: current.authorUsername,
                         approximateDistanceMeters = current.approximateDistanceMeters ?: approximateDistanceMeters,
-                        pollState = if (previousCaprice != caprice) {
-                            resolveCurrentPollState(caprice, current.currentUserId, current.userVote, current.votes)
+                        isResolvingPlaceName = current.isResolvingPlaceName || shouldResolvePlaceName,
+                        pollState = if (previousCaprice != mergedCaprice) {
+                            resolveCurrentPollState(mergedCaprice, current.currentUserId, current.userVote, current.votes)
                         } else current.pollState
                     )
+                }
+            }
+            if (shouldResolvePlaceName && cell != null && getApproximatePlaceNameUseCase != null) {
+                placeNameJob = viewModelScope.launch {
+                    val resolved = try {
+                        getApproximatePlaceNameUseCase.execute(cell)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        null
+                    }
+                    _state.update { current ->
+                        if (current.caprice?.id == caprice.id) {
+                            current.copy(
+                                approximatePlaceName = resolved,
+                                isResolvingPlaceName = false
+                            )
+                        } else current
+                    }
                 }
             }
             return
@@ -232,11 +266,23 @@ class ActivePollViewModel(
                     hasLoadedVotesForCurrentPoll = true
                     _state.update { current ->
                         if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
-                        val myVote = votesList.firstOrNull { it.voterId == current.currentUserId } ?: current.userVote
+                        val remoteVote = votesList.firstOrNull { it.voterId == current.currentUserId }
+                        val localVote = current.userVote
+                        val myVote = when {
+                            remoteVote != null && localVote != null && localVote.timestamp > remoteVote.timestamp -> localVote
+                            remoteVote != null -> remoteVote
+                            else -> localVote
+                        }
+                        val effectiveVotes = when {
+                            myVote == null -> votesList
+                            votesList.none { it.voterId == myVote.voterId } -> votesList + myVote
+                            remoteVote != myVote -> votesList.filterNot { it.voterId == myVote.voterId } + myVote
+                            else -> votesList
+                        }
                         current.copy(
-                            votes = votesList,
+                            votes = effectiveVotes,
                             userVote = myVote,
-                            pollState = resolveCurrentPollState(current.caprice, current.currentUserId, myVote, votesList)
+                            pollState = resolveCurrentPollState(current.caprice, current.currentUserId, myVote, effectiveVotes)
                         )
                     }
                 }
@@ -335,8 +381,9 @@ class ActivePollViewModel(
             val result = useCase.execute(caprice, currentUserId, decision)
             result.fold(
                 onSuccess = { updatedCaprice ->
-                    _state.update {
-                        it.copy(
+                    _state.update { current ->
+                        if (current.caprice?.id != caprice.id) return@update current
+                        current.copy(
                             caprice = updatedCaprice,
                             isSavingFinalDecision = false,
                             errorMessage = null
@@ -345,8 +392,9 @@ class ActivePollViewModel(
                     onUpdated?.invoke(updatedCaprice)
                 },
                 onFailure = { error ->
-                    _state.update {
-                        it.copy(
+                    _state.update { current ->
+                        if (current.caprice?.id != caprice.id) return@update current
+                        current.copy(
                             isSavingFinalDecision = false,
                             errorMessage = error.message ?: "No se pudo guardar tu decisión final"
                         )

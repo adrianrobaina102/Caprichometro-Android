@@ -405,11 +405,14 @@ class ProfileViewModel(
         }
         val targetCaprice = updatedCaprice ?: return
         val repo = voteRepository ?: return
+        val requestSession = sessionGeneration
         viewModelScope.launch {
             val votes = repo.getVotes(capriceId).getOrDefault(emptyList())
+            if (requestSession != sessionGeneration) return@launch
             val cachedVerdict = computeVerdictStatus(targetCaprice, votes)
             verdictCache[capriceId] = CachedVerdictEntry(targetCaprice.finalDecision, cachedVerdict)
             _state.update { current ->
+                if (requestSession != sessionGeneration) return@update current
                 val updatedTieIds = if (cachedVerdict == CachedVerdict.DECIDED_TIE) {
                     current.decidedTieIds + capriceId
                 } else {

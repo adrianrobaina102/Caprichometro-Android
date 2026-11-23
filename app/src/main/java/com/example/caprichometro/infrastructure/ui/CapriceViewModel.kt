@@ -273,46 +273,52 @@ class CapriceViewModel(
         val preliminaryCaprice = capriceBuilder.build()
         _state.update { it.copy(isLoading = true, error = null) }
 
-        var finalImageUrl = ""
-        if (imageBytes != null && uploadCapriceImageUseCase != null) {
-            val uploadResult = uploadCapriceImageUseCase.execute(imageBytes, preliminaryCaprice.id)
-            val uploadError = uploadResult.exceptionOrNull()
-            if (uploadError != null) {
-                runCatching { Log.e("CapriceViewModel", "Error procesando imagen", uploadError) }
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        error = uploadError.message ?: "No se pudo subir la imagen del capricho"
-                    )
+        return try {
+            var finalImageUrl = ""
+            if (imageBytes != null && uploadCapriceImageUseCase != null) {
+                val uploadResult = uploadCapriceImageUseCase.execute(imageBytes, preliminaryCaprice.id)
+                val uploadError = uploadResult.exceptionOrNull()
+                if (uploadError != null) {
+                    runCatching { Log.e("CapriceViewModel", "Error procesando imagen", uploadError) }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            error = uploadError.message ?: "No se pudo subir la imagen del capricho"
+                        )
+                    }
+                    return Result.failure(uploadError)
                 }
-                return Result.failure(uploadError)
+                finalImageUrl = uploadResult.getOrThrow()
             }
-            finalImageUrl = uploadResult.getOrThrow()
-        }
 
-        val capriceToSave = capriceBuilder.setImageUrl(finalImageUrl).build()
-        val result = saveCapriceUseCase.execute(capriceToSave)
-        return result.fold(
-            onSuccess = { docId ->
-                val savedCaprice = capriceToSave.copy(id = docId)
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        latestCaprices = listOf(savedCaprice),
-                        isNearbyDiscoveryEnabled = false,
-                        isPreparingNearbyLocation = false,
-                        preparedNearbyCell = null,
-                        preparedLocationCell = null,
-                        nearbyCreationError = null
-                    )
+            val capriceToSave = capriceBuilder.setImageUrl(finalImageUrl).build()
+            val result = saveCapriceUseCase.execute(capriceToSave)
+            result.fold(
+                onSuccess = { docId ->
+                    val savedCaprice = capriceToSave.copy(id = docId)
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            latestCaprices = listOf(savedCaprice),
+                            isNearbyDiscoveryEnabled = false,
+                            isPreparingNearbyLocation = false,
+                            preparedNearbyCell = null,
+                            preparedLocationCell = null,
+                            nearbyCreationError = null
+                        )
+                    }
+                    Result.success(savedCaprice)
+                },
+                onFailure = { e ->
+                    _state.update { it.copy(isLoading = false, error = e.message) }
+                    Result.failure(e)
                 }
-                Result.success(savedCaprice)
-            },
-            onFailure = { e ->
-                _state.update { it.copy(isLoading = false, error = e.message) }
-                Result.failure(e)
+            )
+        } finally {
+            _state.update { current ->
+                if (current.isLoading) current.copy(isLoading = false) else current
             }
-        )
+        }
     }
 
     fun fetchUserCaprices(limit: Int = 1) {
@@ -737,7 +743,8 @@ class CapriceViewModel(
             return
         }
 
-        if (controller.loadMoreJob?.isActive == true) return
+        val activeInitialJob = if (publishState === ::publishFriendsState) feedLoadJob else nearbyFeedLoadJob
+        if (controller.loadMoreJob?.isActive == true || activeInitialJob?.isActive == true) return
         controller.isSourceComplete = false
         publishControllerSnapshot(controller, publishState)
         controller.loadMoreJob = viewModelScope.launch(ioDispatcher) {

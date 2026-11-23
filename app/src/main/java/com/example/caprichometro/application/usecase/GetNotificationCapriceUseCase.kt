@@ -6,6 +6,7 @@ import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
 class GetNotificationCapriceUseCase(
@@ -19,35 +20,43 @@ class GetNotificationCapriceUseCase(
      * - Si es de un amigo, comprueba que sea un amigo aceptado (y no bloqueado) y devuelve el capricho con su autor.
      * - Si el capricho no existe o no tiene permiso, devuelve null.
      */
-    suspend fun execute(capriceId: String, recipientUserId: String): Result<CapriceFeedItem?> = runCatching {
-        if (capriceId.isBlank() || recipientUserId.isBlank()) return@runCatching null
+    suspend fun execute(capriceId: String, recipientUserId: String): Result<CapriceFeedItem?> {
+        return try {
+            if (capriceId.isBlank() || recipientUserId.isBlank()) return Result.success(null)
 
-        val caprice = capriceDetailsRepository.getCapriceById(capriceId).getOrThrow()
-            ?: return@runCatching null
+            val caprice = capriceDetailsRepository.getCapriceById(capriceId).getOrThrow()
+                ?: return Result.success(null)
 
-        (userProfileRepository as? ProfileCacheControl)?.invalidateUser(caprice.userId)
+            (userProfileRepository as? ProfileCacheControl)?.invalidateUser(caprice.userId)
 
-        // 1. Capricho propio
-        if (caprice.userId == recipientUserId) {
-            val ownProfile = userProfileRepository.getUserById(recipientUserId).getOrNull()
-            return@runCatching CapriceFeedItem(
-                caprice = caprice,
-                author = ownProfile ?: UserProfile(
-                    uid = recipientUserId,
-                    username = "tú"
+            // 1. Capricho propio
+            if (caprice.userId == recipientUserId) {
+                val ownProfile = userProfileRepository.getUserById(recipientUserId).getOrNull()
+                return Result.success(
+                    CapriceFeedItem(
+                        caprice = caprice,
+                        author = ownProfile ?: UserProfile(
+                            uid = recipientUserId,
+                            username = "tú"
+                        )
+                    )
                 )
-            )
-        }
+            }
 
-        // 2. Capricho de un amigo: verificar que la relación esté aceptada y sin bloqueos
-        val acceptedFriends = getAcceptedFriendsUseCase.execute(recipientUserId).first()
-        val authorFriend = acceptedFriends.find { it.uid == caprice.userId }
+            // 2. Capricho de un amigo: verificar que la relación esté aceptada y sin bloqueos
+            val acceptedFriends = getAcceptedFriendsUseCase.execute(recipientUserId).first()
+            val authorFriend = acceptedFriends.find { it.uid == caprice.userId }
 
-        if (authorFriend != null && caprice.isVisibleTo(recipientUserId)) {
-            CapriceFeedItem(caprice = caprice, author = authorFriend)
-        } else {
-            // Acceso denegado: el autor no es amigo aceptado o el capricho no incluye al receptor
-            null
+            if (authorFriend != null && caprice.isVisibleTo(recipientUserId)) {
+                Result.success(CapriceFeedItem(caprice = caprice, author = authorFriend))
+            } else {
+                // Acceso denegado: el autor no es amigo aceptado o el capricho no incluye al receptor
+                Result.success(null)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

@@ -6,6 +6,7 @@ import com.example.caprichometro.domain.repository.CapriceDetailsRepository
 import com.example.caprichometro.domain.repository.CapriceMediaRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -26,6 +27,8 @@ class FirestoreCapriceDetailsRepository(
             val docRef = db.collection(collectionName).document(capriceId)
             val snapshot = try {
                 docRef.get(Source.SERVER).await()
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 docRef.get().await()
             }
@@ -43,6 +46,8 @@ class FirestoreCapriceDetailsRepository(
                 }
                 Result.success(resolvedCaprice)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("FirestoreCapriceDetails", "Error obteniendo capricho con id $capriceId: ${e.message}", e)
             Result.failure(e)

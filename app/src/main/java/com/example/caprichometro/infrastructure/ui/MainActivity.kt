@@ -266,6 +266,9 @@ fun CapriceApp(
                 if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank() && previousScreenBeforeProfile != "profile") {
                     viewingProfileUserId = currentUserId
                     currentScreen = previousScreenBeforeProfile
+                } else if (previousScreenBeforeProfile == "add_friend") {
+                    viewingProfileUserId = currentUserId
+                    currentScreen = "add_friend"
                 } else {
                     currentScreen = "home"
                 }
@@ -668,16 +671,22 @@ fun CapriceApp(
                                     viewModel = profileViewModel,
                                     targetUserId = targetId,
                                     currentUserId = currentUserId,
-                                    onNavigateToFriends = { currentScreen = "add_friend" },
+                                    onNavigateToFriends = {
+                                        previousScreenBeforeAddFriend = "profile"
+                                        currentScreen = "add_friend"
+                                    },
                                     onSelectCaprice = { caprice ->
                                         selectedProfileCaprice = caprice
                                         val isExpired = PollTiming.isPollExpired(caprice.timestamp)
                                         currentScreen = if (isExpired) "result" else "active"
                                     },
                                     onBack = {
-                                        if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank()) {
+                                        if (viewingProfileUserId != currentUserId && viewingProfileUserId.isNotBlank() && previousScreenBeforeProfile != "profile") {
                                             viewingProfileUserId = currentUserId
                                             currentScreen = previousScreenBeforeProfile
+                                        } else if (previousScreenBeforeProfile == "add_friend") {
+                                            viewingProfileUserId = currentUserId
+                                            currentScreen = "add_friend"
                                         } else {
                                             currentScreen = "home"
                                         }
@@ -717,7 +726,11 @@ fun CapriceApp(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clickable { currentScreen = "home" },
+                                .clickable {
+                                    selectedProfileCaprice = null
+                                    selectedFeedItem = null
+                                    currentScreen = "home"
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -735,6 +748,7 @@ fun CapriceApp(
                                 .size(44.dp)
                                 .clickable {
                                     selectedProfileCaprice = null
+                                    selectedFeedItem = null
                                     currentScreen = "create"
                                 },
                             contentAlignment = Alignment.Center
@@ -748,6 +762,7 @@ fun CapriceApp(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clickable {
+                                    selectedFeedItem = null
                                     viewingProfileUserId = currentUserId
                                     currentScreen = "profile"
                                 },

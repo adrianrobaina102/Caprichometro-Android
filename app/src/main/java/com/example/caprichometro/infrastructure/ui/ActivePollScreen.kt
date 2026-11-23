@@ -158,7 +158,8 @@ fun ActivePollScreen(
         }
     }
 
-    val vmState by viewModel?.state?.collectAsState() ?: remember { mutableStateOf(null) }
+    val rawVmState by viewModel?.state?.collectAsState() ?: remember { mutableStateOf(null) }
+    val vmState = rawVmState?.takeIf { it.caprice?.id == caprice?.id }
 
     // Fallback de tiempo local si no hay ViewModel conectado
     var localTimeDisplay by remember { mutableStateOf("--:--") }

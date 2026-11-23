@@ -67,11 +67,16 @@ class GetNearbyCapricesUseCase(
                 }
                 capricesDeferred.await() to blockedDeferred.await()
             }
-            val candidates = buildSortedCandidates(
+            val rawCandidates = buildSortedCandidates(
                 currentUserId = currentUserId,
                 location = location,
                 rawCaprices = discoverableCaprices,
                 blockedIds = outgoingBlockedIds
+            )
+            val candidates = filterBidirectionalBlocks(
+                currentUserId = currentUserId,
+                candidates = rawCandidates,
+                useCacheOnly = false
             )
             val resolvedAuthors = ConcurrentHashMap<String, UserProfile>()
             resolveAuthorProfiles(

@@ -66,8 +66,9 @@ fun ResultScreen(
     approximateDistanceMeters: Double? = null
 ) {
     var isImageExpanded by remember { mutableStateOf(false) }
-    val vmState by viewModel?.state?.collectAsState() ?: remember { mutableStateOf(null) }
-    val displayedCaprice = vmState?.caprice?.takeIf { it.id == caprice?.id } ?: caprice
+    val rawVmState by viewModel?.state?.collectAsState() ?: remember { mutableStateOf(null) }
+    val vmState = rawVmState?.takeIf { it.caprice?.id == caprice?.id }
+    val displayedCaprice = vmState?.caprice ?: caprice
     val isPublicNearby = !displayedCaprice?.nearbyCell.isNullOrBlank()
 
     val imageModel = remember(displayedCaprice?.imageUrl) {

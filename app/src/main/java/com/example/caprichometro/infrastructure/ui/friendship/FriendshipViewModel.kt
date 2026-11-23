@@ -57,6 +57,8 @@ class FriendshipViewModel(
     val state: StateFlow<FriendshipSearchState> = _state.asStateFlow()
 
     private var listenRequestsJob: Job? = null
+    private var refreshProfilesJob: Job? = null
+    private var searchJob: Job? = null
     private var listeningUserId: String? = null
 
     fun listenToIncomingRequests(currentUserId: String) {
@@ -101,9 +103,19 @@ class FriendshipViewModel(
     fun stopListening() {
         listenRequestsJob?.cancel()
         listenRequestsJob = null
+        refreshProfilesJob?.cancel()
+        refreshProfilesJob = null
+        searchJob?.cancel()
+        searchJob = null
         listeningUserId = null
         _state.update {
             it.copy(
+                searchQuery = "",
+                isLoading = false,
+                errorMessage = null,
+                userFound = null,
+                isFriendRequestBlocked = false,
+                requestSentSuccess = false,
                 incomingRequests = emptyList(),
                 friends = emptyList(),
                 hasLoadedFriends = false,
@@ -119,8 +131,11 @@ class FriendshipViewModel(
         val currentFriends = _state.value.friends
         val currentRequests = _state.value.incomingRequests
         if (currentUserId.isBlank() && currentFriends.isEmpty() && currentRequests.isEmpty()) return
+        val targetUserId = currentUserId.ifBlank { listeningUserId.orEmpty() }
 
-        viewModelScope.launch {
+        refreshProfilesJob?.cancel()
+        refreshProfilesJob = viewModelScope.launch {
+            if (targetUserId.isNotBlank() && listeningUserId != targetUserId) return@launch
             val semaphore = Semaphore(4)
             val refreshedOwn = if (currentUserId.isNotBlank()) {
                 cacheControl?.invalidateUser(currentUserId)
@@ -149,6 +164,7 @@ class FriendshipViewModel(
                     }
                 }.awaitAll()
             }
+            if (targetUserId.isNotBlank() && listeningUserId != targetUserId) return@launch
             _state.update {
                 it.copy(
                     currentUsername = refreshedOwn?.username ?: it.currentUsername,
@@ -217,7 +233,8 @@ class FriendshipViewModel(
             )
         }
 
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             val result = searchUserByUsernameUseCase.execute(query)
 
             result.fold(

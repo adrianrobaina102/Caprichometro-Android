@@ -150,6 +150,34 @@ internal fun ProfileMemoriesTab(
                 )
             }
         }
+        if (hasMoreCaprices) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                OutlinedButton(
+                    onClick = onLoadMore,
+                    enabled = !isLoadingMoreCaprices,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isLoadingMoreCaprices) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.profile_memories_load_more),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
     } else {
         val rows = displayMemories.chunked(3)
         rows.forEachIndexed { rowIndex, rowItems ->
