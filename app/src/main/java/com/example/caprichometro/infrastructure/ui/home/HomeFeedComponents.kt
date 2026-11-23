@@ -367,9 +367,9 @@ internal fun FeedItemsList(
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToUserProfile: (String) -> Unit,
     onOpenNonFriendProfile: (UserProfile) -> Unit,
-    onImageClick: (String) -> Unit
+    onImageClick: (String) -> Unit,
+    listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState()
 ) {
-    val listState = rememberLazyListState()
     val sections = remember(items) { splitByDistanceRadius(items) }
     val showPaginationFooter = !isBackgroundSyncing &&
         (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE)

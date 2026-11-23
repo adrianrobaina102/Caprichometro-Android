@@ -595,6 +595,7 @@ fun ProfileScreen(
                 onNavigateToFriends()
             },
             onUnblockUser = { blockedUserId -> viewModel.unblockUser(currentUserId, blockedUserId) },
+            unblockingUserIds = state.unblockingUserIds,
             onSignOut = {
                 showSettingsSheet = false
                 viewModel.signOut()
@@ -622,7 +623,7 @@ fun ProfileScreen(
 
     val totalDudas = state.caprices.size
     val expiredCaprices = state.caprices.filter { PollTiming.isPollExpired(it.timestamp) }
-    val resolvedCaprices = expiredCaprices.filter { state.verdicts[it.id] != null }
+    val resolvedCaprices = expiredCaprices.filter { state.verdicts[it.id] != null || it.id in state.decidedTieIds }
     val totalResueltas = resolvedCaprices.size
     val positiveVerdicts = resolvedCaprices.count { state.verdicts[it.id] == true }
     val hiceCasoPercent = if (totalResueltas > 0) {
@@ -631,10 +632,11 @@ fun ProfileScreen(
         0
     }
 
-    val comprasCount = state.caprices.count { it.type.contains("compra", ignoreCase = true) }
-    val planesCount = state.caprices.count { it.type.contains("plan", ignoreCase = true) }
-    val ropaCount = state.caprices.count { it.type.contains("ropa", ignoreCase = true) }
-    val otrosCount = (totalDudas - (comprasCount + planesCount + ropaCount)).coerceAtLeast(0)
+    val categoryCounts = remember(state.caprices) { ProfileCategory.countsOf(state.caprices) }
+    val comprasCount = categoryCounts[ProfileCategory.COMPRAS] ?: 0
+    val planesCount = categoryCounts[ProfileCategory.PLANES] ?: 0
+    val ropaCount = categoryCounts[ProfileCategory.ROPA] ?: 0
+    val otrosCount = categoryCounts[ProfileCategory.OTROS] ?: 0
 
     Column(
         modifier = Modifier
@@ -940,7 +942,7 @@ fun ProfileScreen(
         )
     }
 
-    if (state.isDeletingAccount) {
+    if (state.isDeletingAccount || state.isPerformingFriendAction) {
         BackHandler(enabled = true) {}
         androidx.compose.ui.window.Dialog(
             onDismissRequest = {},
@@ -960,7 +962,7 @@ fun ProfileScreen(
                     CircularProgressIndicator(color = LimeGreen)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Eliminando cuenta...",
+                        text = if (state.isDeletingAccount) "Eliminando cuenta..." else "Procesando...",
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium

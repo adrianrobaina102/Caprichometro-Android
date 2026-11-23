@@ -63,6 +63,8 @@ data class ProfileState(
     val isSavingPhoto: Boolean = false,
     val photoErrorMessage: String? = null,
     val isDeletingAccount: Boolean = false,
+    val isPerformingFriendAction: Boolean = false,
+    val unblockingUserIds: Set<String> = emptySet(),
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
 )
@@ -511,22 +513,31 @@ class ProfileViewModel(
     }
 
     fun unblockUser(currentUserId: String, blockedUserId: String) {
-        if (currentUserId.isBlank() || blockedUserId.isBlank()) return
+        if (currentUserId.isBlank() || blockedUserId.isBlank() || blockedUserId in _state.value.unblockingUserIds) return
+        val requestSession = sessionGeneration
+        _state.update { it.copy(unblockingUserIds = it.unblockingUserIds + blockedUserId, errorMessage = null) }
 
         viewModelScope.launch {
-            val result = unblockUserUseCase.execute(currentUserId, blockedUserId)
-            result.fold(
-                onSuccess = {
-                    _state.update { current ->
-                        current.copy(
-                            blockedUsers = current.blockedUsers.filterNot { it.uid == blockedUserId }
-                        )
+            try {
+                val result = unblockUserUseCase.execute(currentUserId, blockedUserId)
+                if (requestSession != sessionGeneration) return@launch
+                result.fold(
+                    onSuccess = {
+                        _state.update { current ->
+                            current.copy(
+                                blockedUsers = current.blockedUsers.filterNot { it.uid == blockedUserId }
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        _state.update { it.copy(errorMessage = error.message ?: "No se pudo desbloquear al usuario") }
                     }
-                },
-                onFailure = { error ->
-                    _state.update { it.copy(errorMessage = error.message ?: "No se pudo desbloquear al usuario") }
+                )
+            } finally {
+                if (requestSession == sessionGeneration) {
+                    _state.update { it.copy(unblockingUserIds = it.unblockingUserIds - blockedUserId) }
                 }
-            )
+            }
         }
     }
 
@@ -567,34 +578,38 @@ class ProfileViewModel(
     }
 
     fun removeFriend(currentUserId: String, friendUserId: String, onSuccess: () -> Unit = {}) {
-        if (currentUserId.isBlank() || friendUserId.isBlank()) return
+        if (currentUserId.isBlank() || friendUserId.isBlank() || _state.value.isPerformingFriendAction) return
+        val requestSession = sessionGeneration
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            _state.update { it.copy(isPerformingFriendAction = true, errorMessage = null) }
             val result = removeFriendUseCase?.execute(currentUserId, friendUserId) ?: Result.success(Unit)
+            if (requestSession != sessionGeneration) return@launch
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isLoading = false) }
+                    _state.update { it.copy(isPerformingFriendAction = false) }
                     onSuccess()
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "Error al eliminar amigo") }
+                    _state.update { it.copy(isPerformingFriendAction = false, errorMessage = error.message ?: "Error al eliminar amigo") }
                 }
             )
         }
     }
 
     fun blockUser(currentUserId: String, targetUserId: String, onSuccess: () -> Unit = {}) {
-        if (currentUserId.isBlank() || targetUserId.isBlank()) return
+        if (currentUserId.isBlank() || targetUserId.isBlank() || _state.value.isPerformingFriendAction) return
+        val requestSession = sessionGeneration
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            _state.update { it.copy(isPerformingFriendAction = true, errorMessage = null) }
             val result = blockUserUseCase?.execute(currentUserId, targetUserId) ?: Result.success(Unit)
+            if (requestSession != sessionGeneration) return@launch
             result.fold(
                 onSuccess = {
-                    _state.update { it.copy(isLoading = false) }
+                    _state.update { it.copy(isPerformingFriendAction = false) }
                     onSuccess()
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = error.message ?: "Error al bloquear usuario") }
+                    _state.update { it.copy(isPerformingFriendAction = false, errorMessage = error.message ?: "Error al bloquear usuario") }
                 }
             )
         }

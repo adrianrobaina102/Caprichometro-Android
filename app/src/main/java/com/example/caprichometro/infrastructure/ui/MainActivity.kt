@@ -60,6 +60,7 @@ import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.factory.ViewModelFactory
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
+import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import com.example.caprichometro.infrastructure.security.AppCheckInstaller
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
@@ -203,19 +204,35 @@ fun CapriceApp(
     }
     val isOnline by connectivityMonitor.isOnline.collectAsState()
     var wasOffline by remember { mutableStateOf(!isOnline) }
+    var isNotificationPromptPending by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+        )
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { /* El usuario decide si autoriza o deniega las notificaciones */ }
+    ) {
+        isNotificationPromptPending = false
+    }
 
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    LaunchedEffect(authState.isAuthSuccessful) {
+        if (authState.isAuthSuccessful && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val isGranted = ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
             if (!isGranted) {
+                isNotificationPromptPending = true
                 notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                isNotificationPromptPending = false
             }
+        } else if (!authState.isAuthSuccessful) {
+            isNotificationPromptPending = false
         }
     }
 
@@ -308,24 +325,33 @@ fun CapriceApp(
         if (targetIntent != null && authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             val invitedUsername = InviteDeepLink.extractUsername(targetIntent.dataString)
             if (invitedUsername != null) {
+                previousScreenBeforeAddFriend = currentScreen
                 currentScreen = "add_friend"
                 friendshipViewModel.openInviteForUsername(invitedUsername)
                 onClearPendingIntent()
                 return@LaunchedEffect
             }
 
+            val dataUri = targetIntent.data
+            val isInviteUri = dataUri?.scheme == "caprichometro" ||
+                dataUri?.pathSegments?.contains("invite") == true
             val capriceId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_ID)
-                ?: targetIntent.data?.lastPathSegment
+                ?: if (!isInviteUri) dataUri?.lastPathSegment else null
             val navigateTo = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO)
-            val recipientUserId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID)
+            val extraRecipientUserId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID)
                 ?.takeIf { it.isNotBlank() }
-                ?: currentUserId
+            if (extraRecipientUserId != null && extraRecipientUserId != currentUserId) {
+                onClearPendingIntent()
+                return@LaunchedEffect
+            }
+            val recipientUserId = extraRecipientUserId ?: currentUserId
 
             if (!capriceId.isNullOrBlank()) {
                 val result = getNotificationCapriceUseCase.execute(capriceId, recipientUserId)
                 val item = result.getOrNull()
                 if (item != null) {
                     if (item.caprice.userId == currentUserId) {
+                        viewingProfileUserId = currentUserId
                         selectedProfileCaprice = item.caprice
                         currentScreen = if (navigateTo == "result" || PollTiming.isPollExpired(item.caprice.timestamp)) {
                             "result"
@@ -445,6 +471,12 @@ fun CapriceApp(
                                     caprice = item.caprice
                                 )
                             } else {
+                                notifyFriendCapriceUseCase.recordNotification(
+                                    recipientUserId = currentUserId,
+                                    friendUserId = item.author.uid,
+                                    capriceId = item.caprice.id,
+                                    timestamp = item.caprice.timestamp
+                                )
                                 PollNotificationHelper.showFriendCapriceNotification(
                                     context = context,
                                     recipientUserId = currentUserId,
@@ -528,6 +560,7 @@ fun CapriceApp(
                                         previousScreenBeforeAddFriend = "home"
                                         currentScreen = "add_friend"
                                     },
+                                    deferLocationAutoPrompt = isNotificationPromptPending,
                                     onNavigateToUserProfile = { authorId ->
                                         openProfile(authorId, "home")
                                     },
@@ -714,6 +747,10 @@ fun CapriceApp(
                                         }
                                     },
                                     onSignedOut = {
+                                        androidx.core.app.NotificationManagerCompat.from(context).cancelAll()
+                                        capriceState.latestCaprices.forEach { caprice ->
+                                            PollNotificationScheduler.cancelPollExpiration(context, caprice)
+                                        }
                                         sessionNavViewModel.reset()
                                         onClearSessionCaches()
                                         profileViewModel.reset()

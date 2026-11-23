@@ -296,7 +296,7 @@ class GetFriendsCapricesUseCase(
                                 mutex.withLock { capricesByFriend.remove(friendId) }
                                 return@withPermit
                             }
-                            val visible = capricesDeferred.await().filter { it.isVisibleTo(currentUserId) }
+                            val visible = capricesDeferred.await().filter { it.isVisibleInFriendsTo(currentUserId) }
                             mutex.withLock {
                                 capricesByFriend[friendId] = visible.map { it to null }
                             }
@@ -508,7 +508,7 @@ class GetFriendsCapricesUseCase(
                         val blockedDeferred = async { fRepo.isCachedBlocked(currentUserId, friendId) }
                         val capricesDeferred = async { capriceRepository.getCachedCaprices(friendId, perFriendLimit) }
                         if (blockedDeferred.await()) return@withPermit null
-                        val caprices = capricesDeferred.await().filter { it.isVisibleTo(currentUserId) }
+                        val caprices = capricesDeferred.await().filter { it.isVisibleInFriendsTo(currentUserId) }
                         if (caprices.isEmpty()) null else friendId to caprices
                     }
                 }

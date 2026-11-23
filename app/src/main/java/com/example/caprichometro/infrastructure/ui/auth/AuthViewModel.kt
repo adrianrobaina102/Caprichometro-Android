@@ -49,26 +49,29 @@ class AuthViewModel(
     fun updateBirthday(date: LocalDate) { _state.update { it.copy(birthday = date) } }
 
     private fun isValidEmail(email: String): Boolean {
+        val trimmed = email.trim()
         val pattern = android.util.Patterns.EMAIL_ADDRESS
-        return pattern?.matcher(email)?.matches() ?: emailRegex.matches(email.trim())
+        return pattern?.matcher(trimmed)?.matches() ?: emailRegex.matches(trimmed)
     }
 
     fun signIn() {
         val currentState = _state.value
-        if (currentState.email.isBlank() || currentState.password.isBlank()) {
+        if (currentState.isSubmitting) return
+        val trimmedEmail = currentState.email.trim()
+        if (trimmedEmail.isBlank() || currentState.password.isBlank()) {
             _state.update { it.copy(errorMessage = "El email y la contraseña son obligatorios") }
             return
         }
 
-        if (!isValidEmail(currentState.email)) {
+        if (!isValidEmail(trimmedEmail)) {
             _state.update { it.copy(errorMessage = "Por favor, introduce un correo electrónico válido") }
             return
         }
 
-        _state.update { it.copy(isSubmitting = true, errorMessage = null) }
+        _state.update { it.copy(email = trimmedEmail, isSubmitting = true, errorMessage = null) }
 
         viewModelScope.launch {
-            val result = signInUseCase.execute(currentState.email, currentState.password)
+            val result = signInUseCase.execute(trimmedEmail, currentState.password)
             result.fold(
                 onSuccess = {
                     _state.update { it.copy(password = "", isSubmitting = false, isAuthSuccessful = true) }
@@ -87,8 +90,10 @@ class AuthViewModel(
 
     fun register() {
         val currentState = _state.value
+        if (currentState.isSubmitting) return
+        val trimmedEmail = currentState.email.trim()
 
-        if (currentState.name.isBlank() || currentState.email.isBlank() || currentState.password.isBlank() || currentState.birthday == null) {
+        if (currentState.name.isBlank() || trimmedEmail.isBlank() || currentState.password.isBlank() || currentState.birthday == null) {
             _state.update { it.copy(errorMessage = "Todos los campos, incluida la fecha, son obligatorios") }
             return
         }
@@ -98,7 +103,7 @@ class AuthViewModel(
             return
         }
 
-        if (!isValidEmail(currentState.email)) {
+        if (!isValidEmail(trimmedEmail)) {
             _state.update { it.copy(errorMessage = "Por favor, introduce un correo electrónico válido") }
             return
         }
@@ -108,11 +113,11 @@ class AuthViewModel(
             return
         }
 
-        _state.update { it.copy(isSubmitting = true, errorMessage = null) }
+        _state.update { it.copy(email = trimmedEmail, isSubmitting = true, errorMessage = null) }
 
         viewModelScope.launch {
             val result = registerUseCase.execute(
-                currentState.email,
+                trimmedEmail,
                 currentState.password,
                 currentState.name
             )

@@ -316,7 +316,7 @@ class ActivePollViewModel(
         }
     }
 
-    fun castVote(option: Int, allowChange: Boolean = false) {
+    fun castVote(option: Int, allowChange: Boolean = false, suppressAlreadyVotedError: Boolean = false) {
         val caprice = _state.value.caprice ?: return
         val currentUserId = _state.value.currentUserId
         if (currentUserId.isBlank() || _state.value.isCastingVote) return
@@ -342,17 +342,27 @@ class ActivePollViewModel(
                     }
                 },
                 onFailure = { error ->
+                    val alreadyVoted = suppressAlreadyVotedError &&
+                        error.message?.contains("Ya has votado", ignoreCase = true) == true
                     _state.update { current ->
                         if (current.caprice?.id != caprice.id || current.currentUserId != currentUserId) return@update current
-                        current.copy(
-                            isCastingVote = false,
-                            errorMessage = error.message ?: "No se pudo emitir el voto",
-                            pendingVoteRetry = PendingVoteAction(
-                                capriceId = caprice.id,
-                                option = option,
-                                allowChange = allowChange
+                        if (alreadyVoted) {
+                            current.copy(
+                                isCastingVote = false,
+                                errorMessage = null,
+                                pendingVoteRetry = null
                             )
-                        )
+                        } else {
+                            current.copy(
+                                isCastingVote = false,
+                                errorMessage = error.message ?: "No se pudo emitir el voto",
+                                pendingVoteRetry = PendingVoteAction(
+                                    capriceId = caprice.id,
+                                    option = option,
+                                    allowChange = allowChange
+                                )
+                            )
+                        }
                     }
                 }
             )
@@ -367,7 +377,7 @@ class ActivePollViewModel(
             _state.update { it.copy(pendingVoteRetry = null) }
             return
         }
-        castVote(option = pending.option, allowChange = pending.allowChange)
+        castVote(option = pending.option, allowChange = pending.allowChange, suppressAlreadyVotedError = true)
     }
 
     fun confirmFinalDecision(decision: Int, onUpdated: ((Caprice) -> Unit)? = null) {

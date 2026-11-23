@@ -107,6 +107,27 @@ fun CapriceScreen(
         viewModel.onLocationPermissionChanged(hasPerm)
     }
 
+    DisposableEffect(context) {
+        val lifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val hasPerm = ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                viewModel.onLocationPermissionChanged(hasPerm)
+                if (!hasPerm && viewModel.state.value.isNearbyDiscoveryEnabled) {
+                    viewModel.onNearbyCreationPermissionDenied()
+                }
+            }
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose {
+            lifecycleOwner?.lifecycle?.removeObserver(observer)
+            viewModel.resetNearbyCreationState()
+        }
+    }
+
     LaunchedEffect(friends) {
         val validIds = friends.map { it.uid }.toSet()
         customSelectedFriendIds = customSelectedFriendIds.intersect(validIds)
@@ -218,7 +239,8 @@ fun CapriceScreen(
     val isFormFilled = questionText.isNotBlank() && answer1.isNotBlank() && answer2.isNotBlank() && isPriceValid
     var saveErrorMessage by remember { mutableStateOf<String?>(null) }
 
-    val submitCaprice: () -> Unit = {
+    val submitCaprice: () -> Unit = submit@{
+        if (isSubmitting) return@submit
         val questionResult = questionValidatorChain.validate(questionText)
         if (questionResult is ValidationResult.Error) {
             Toast.makeText(context, questionResult.message, Toast.LENGTH_SHORT).show()
@@ -233,8 +255,8 @@ fun CapriceScreen(
                 } else {
                     val typeString = if (isCompraType) "Compra" else "Plan"
                     saveErrorMessage = null
+                    isSubmitting = true
                     coroutineScope.launch {
-                        isSubmitting = true
                         val trimmedQuestion = questionText.trim()
                         val imageBytes = selectedImageUri?.let { uri ->
                             try {
@@ -851,10 +873,14 @@ fun CapriceScreen(
                         }
                         TextButton(
                             onClick = {
-                                val settingsIntent = Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.fromParts("package", context.packageName, null)
-                                )
+                                val settingsIntent = if (capriceState.nearbyCreationNeedsLocationServices) {
+                                    Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                } else {
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.fromParts("package", context.packageName, null)
+                                    )
+                                }
                                 context.startActivity(settingsIntent)
                             },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)

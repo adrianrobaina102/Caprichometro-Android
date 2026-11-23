@@ -38,7 +38,7 @@ class NotifyFriendCapriceUseCase(
                     async {
                         val capricesResult = capriceRepository.getCaprices(friend.uid, limit = 20)
                         val latestCaprice = capricesResult.getOrNull()
-                            ?.firstOrNull { it.isVisibleTo(recipientUserId) }
+                            ?.firstOrNull { it.isVisibleInFriendsTo(recipientUserId) }
                             ?: return@async null
 
                         val lastId = historyRepository.getLastNotifiedCapriceId(recipientUserId, friend.uid)
@@ -93,7 +93,7 @@ class NotifyFriendCapriceUseCase(
                         val caprices = capriceRepository.getCaprices(friend.uid, limit = 20).getOrNull()
                             ?: return@async null
                         val latestDecided = caprices
-                            .filter { it.isVisibleTo(recipientUserId) && (it.finalDecision == 1 || it.finalDecision == 2) }
+                            .filter { it.isVisibleInFriendsTo(recipientUserId) && (it.finalDecision == 1 || it.finalDecision == 2) }
                             .maxByOrNull { it.finalDecisionAt ?: it.timestamp }
                             ?: return@async null
 

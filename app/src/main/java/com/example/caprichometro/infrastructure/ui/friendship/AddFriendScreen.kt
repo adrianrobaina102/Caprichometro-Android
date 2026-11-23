@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
+import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -84,6 +85,8 @@ fun AddFriendScreen(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
     var showInviteSheet by remember { mutableStateOf(false) }
+    var friendToRemove by remember { mutableStateOf<UserProfile?>(null) }
+    var friendToBlock by remember { mutableStateOf<UserProfile?>(null) }
 
     val actualUserId = remember(currentUserId) {
         currentUserId.ifBlank { FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
@@ -319,10 +322,18 @@ fun AddFriendScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                    state.incomingRequests.any { it.sender.uid == user.uid } -> {
+                        Text(
+                            text = "Te envió solicitud",
+                            color = LimeGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     else -> {
                         Button(
                             onClick = { viewModel.sendRequest(actualUserId) },
-                            enabled = !state.isLoading,
+                            enabled = !state.isSendingRequest,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = LimeGreen,
@@ -331,11 +342,19 @@ fun AddFriendScreen(
                             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
                             modifier = Modifier.height(36.dp)
                         ) {
-                            Text(
-                                text = "Añadir",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
+                            if (state.isSendingRequest) {
+                                CircularProgressIndicator(
+                                    color = Color.Black,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "Añadir",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -564,14 +583,14 @@ fun AddFriendScreen(
                                 text = { Text("Eliminar amigo", color = Color.White) },
                                 onClick = {
                                     menuExpanded = false
-                                    viewModel.removeFriend(actualUserId, friend.uid)
+                                    friendToRemove = friend
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("Bloquear", color = Color(0xFFFF5252)) },
                                 onClick = {
                                     menuExpanded = false
-                                    viewModel.blockUser(actualUserId, friend.uid)
+                                    friendToBlock = friend
                                 }
                             )
                         }
@@ -633,9 +652,66 @@ fun AddFriendScreen(
         Spacer(modifier = Modifier.height(16.dp))
     }
 
+    friendToRemove?.let { target ->
+        AlertDialog(
+            onDismissRequest = { friendToRemove = null },
+            title = { Text("Eliminar amigo", color = Color.White) },
+            text = {
+                Text(
+                    "¿Seguro que quieres eliminar a @${target.username} de tus amigos?",
+                    color = SubtleGray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.removeFriend(actualUserId, target.uid)
+                        friendToRemove = null
+                    }
+                ) {
+                    Text("Eliminar", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { friendToRemove = null }) {
+                    Text("Cancelar", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1E1E20)
+        )
+    }
+
+    friendToBlock?.let { target ->
+        AlertDialog(
+            onDismissRequest = { friendToBlock = null },
+            title = { Text("Bloquear usuario", color = Color.White) },
+            text = {
+                Text(
+                    "¿Seguro que quieres bloquear a @${target.username}? Ya no podréis veros ni enviarse solicitudes.",
+                    color = SubtleGray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.blockUser(actualUserId, target.uid)
+                        friendToBlock = null
+                    }
+                ) {
+                    Text("Bloquear", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { friendToBlock = null }) {
+                    Text("Cancelar", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1E1E20)
+        )
+    }
+
     if (showInviteSheet) {
         val usernameToShare = state.currentUsername?.takeIf { it.isNotBlank() }
-            ?: FirebaseAuth.getInstance().currentUser?.displayName?.replace(" ", "")?.takeIf { it.isNotBlank() }
         val inviteChooserTitle = stringResource(R.string.friends_invite_button)
         InviteFriendBottomSheet(
             username = usernameToShare,

@@ -33,6 +33,16 @@ data class Caprice(
     }
 
     /**
+     * Comprueba si [viewerUserId] tiene permiso para ver este capricho en Amigos y notificaciones
+     * de amistad, respetando estrictamente `visibleToUserIds` incluso si también se publicó en General.
+     */
+    fun isVisibleInFriendsTo(viewerUserId: String): Boolean {
+        if (viewerUserId.isBlank()) return false
+        if (userId == viewerUserId) return true
+        return visibleToUserIds.isEmpty() || viewerUserId in visibleToUserIds
+    }
+
+    /**
      * Celda aproximada usada para calcular distancia tanto en Amigos como en General.
      */
     fun distanceCell(): String? =

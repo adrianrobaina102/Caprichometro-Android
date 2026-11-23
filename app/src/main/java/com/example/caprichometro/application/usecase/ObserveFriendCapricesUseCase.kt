@@ -62,7 +62,7 @@ class ObserveFriendCapricesUseCase(
                     friends.forEach { friend ->
                         launch {
                             streamProvider(friend.uid).collect { update ->
-                                if (update.caprice.isVisibleTo(currentUserId)) {
+                                if (update.caprice.isVisibleInFriendsTo(currentUserId)) {
                                     send(
                                         ObservedFriendUpdate(
                                             feedItem = CapriceFeedItem(

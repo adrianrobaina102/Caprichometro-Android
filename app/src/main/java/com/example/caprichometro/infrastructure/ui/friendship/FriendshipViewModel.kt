@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.withPermit
 data class FriendshipSearchState(
     val searchQuery: String = "",
     val isLoading: Boolean = false,
+    val isSendingRequest: Boolean = false,
     val respondingRequestIds: Set<String> = emptySet(),
     val userFound: UserProfile? = null,
     val isFriendRequestBlocked: Boolean = false,
@@ -60,6 +61,7 @@ class FriendshipViewModel(
     private var listenRequestsJob: Job? = null
     private var refreshProfilesJob: Job? = null
     private var searchJob: Job? = null
+    private var sendRequestJob: Job? = null
     private var listeningUserId: String? = null
 
     fun listenToIncomingRequests(currentUserId: String) {
@@ -108,11 +110,14 @@ class FriendshipViewModel(
         refreshProfilesJob = null
         searchJob?.cancel()
         searchJob = null
+        sendRequestJob?.cancel()
+        sendRequestJob = null
         listeningUserId = null
         _state.update {
             it.copy(
                 searchQuery = "",
                 isLoading = false,
+                isSendingRequest = false,
                 respondingRequestIds = emptySet(),
                 errorMessage = null,
                 userFound = null,
@@ -179,10 +184,13 @@ class FriendshipViewModel(
     }
 
     fun updateSearchQuery(query: String) {
+        searchJob?.cancel()
+        searchJob = null
         val extracted = InviteDeepLink.extractUsername(query)
         _state.update {
             it.copy(
                 searchQuery = extracted ?: query,
+                isLoading = false,
                 errorMessage = null,
                 userFound = null,
                 isFriendRequestBlocked = false,
@@ -256,21 +264,23 @@ class FriendshipViewModel(
 
     fun sendRequest(currentUserId: String) {
         val targetUser = _state.value.userFound ?: return
-        if (_state.value.isLoading || _state.value.isFriendRequestBlocked || targetUser.uid == currentUserId) return
+        if (_state.value.isSendingRequest || _state.value.isFriendRequestBlocked || targetUser.uid == currentUserId) return
 
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        _state.update { it.copy(isSendingRequest = true, errorMessage = null) }
 
-        viewModelScope.launch {
+        sendRequestJob?.cancel()
+        sendRequestJob = viewModelScope.launch {
             val result = sendFriendRequestUseCase.execute(
                 currentUserId = currentUserId,
                 targetUserId = targetUser.uid
             )
+            if (listeningUserId != currentUserId) return@launch
 
             result.fold(
                 onSuccess = {
                     _state.update {
                         it.copy(
-                            isLoading = false,
+                            isSendingRequest = false,
                             requestSentSuccess = true,
                             userFound = null,
                             searchQuery = ""
@@ -281,7 +291,7 @@ class FriendshipViewModel(
                     val isBlockedError = error.message?.contains("bloqueado", ignoreCase = true) == true
                     _state.update {
                         it.copy(
-                            isLoading = false,
+                            isSendingRequest = false,
                             isFriendRequestBlocked = isBlockedError,
                             errorMessage = error.message ?: "Error al enviar la solicitud."
                         )
@@ -303,6 +313,7 @@ class FriendshipViewModel(
         viewModelScope.launch {
             _state.update { it.copy(errorMessage = null) }
             val result = removeFriendUseCase.execute(currentUserId, friendId)
+            if (listeningUserId != currentUserId) return@launch
             result.fold(
                 onSuccess = {
                     _state.update { state ->
@@ -323,6 +334,7 @@ class FriendshipViewModel(
         viewModelScope.launch {
             _state.update { it.copy(errorMessage = null) }
             val result = blockUserUseCase.execute(currentUserId, blockedUserId)
+            if (listeningUserId != currentUserId) return@launch
             result.fold(
                 onSuccess = {
                     _state.update { state ->

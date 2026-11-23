@@ -70,6 +70,7 @@ data class CapriceState(
     val preparedNearbyCell: String? = null,
     val preparedLocationCell: String? = null,
     val nearbyCreationError: String? = null,
+    val nearbyCreationNeedsLocationServices: Boolean = false,
     val closedPollResults: Map<String, FeedPollResult> = emptyMap(),
     val capriceImages: Map<String, String> = emptyMap()
 )
@@ -390,7 +391,7 @@ class CapriceViewModel(
                 perFriendLimit = 100,
                 totalLimit = FRIENDS_FETCH_LIMIT,
                 includeCache = !isManualRefresh,
-                preloadedFriends = preloadedFriends ?: sessionFriends
+                preloadedFriends = if (isManualRefresh) null else (preloadedFriends ?: sessionFriends)
             ).catch { e ->
                 if (e is CancellationException) throw e
                 if (currentUserId != uid) return@catch
@@ -491,17 +492,6 @@ class CapriceViewModel(
         if (uid.isBlank() || _state.value.isNearbyFeedLoading || _state.value.isNearbyBackgroundSyncing) return
 
         val sameUser = lastNearbyLoadedUserId == uid
-        val loadedAt = lastNearbyLoadedAtMillis
-        val isFreshCache = sameUser &&
-            loadedAt != null &&
-            _state.value.hasLoadedNearbyFeed &&
-            _state.value.nearbyFeedError == null &&
-            !_state.value.nearbyNeedsLocationPermission &&
-            !_state.value.nearbyNeedsLocationServices &&
-            (clockMillis() - loadedAt) < NEARBY_CACHE_TTL_MS
-
-        if (isFreshCache) return
-
         if (locationRepository != null && !locationRepository.hasLocationPermission()) {
             if (!sameUser) {
                 nearbyController.reset()
@@ -520,6 +510,17 @@ class CapriceViewModel(
             }
             return
         }
+
+        val loadedAt = lastNearbyLoadedAtMillis
+        val isFreshCache = sameUser &&
+            loadedAt != null &&
+            _state.value.hasLoadedNearbyFeed &&
+            _state.value.nearbyFeedError == null &&
+            !_state.value.nearbyNeedsLocationPermission &&
+            !_state.value.nearbyNeedsLocationServices &&
+            (clockMillis() - loadedAt) < NEARBY_CACHE_TTL_MS
+
+        if (isFreshCache) return
 
         loadNearbyFeed()
     }
@@ -733,6 +734,7 @@ class CapriceViewModel(
         ) {
             return
         }
+        val previousVisibleLimit = controller.visiblePageLimit
         controller.visiblePageLimit = nextLimit
 
         if (controller.loadedItems.size >= nextLimit || nextPageFlowProvider == null) {
@@ -751,6 +753,7 @@ class CapriceViewModel(
             nextPageFlowProvider(controller.loadedItems.size)
                 .catch { e ->
                     if (e is CancellationException) throw e
+                    controller.visiblePageLimit = previousVisibleLimit
                     controller.isSourceComplete = true
                     publishControllerSnapshot(controller, publishState)
                     _state.update { current ->
@@ -914,7 +917,8 @@ class CapriceViewModel(
                     isNearbyDiscoveryEnabled = false,
                     isPreparingNearbyLocation = false,
                     preparedNearbyCell = null,
-                    nearbyCreationError = null
+                    nearbyCreationError = null,
+                    nearbyCreationNeedsLocationServices = false
                 )
             }
             return
@@ -927,7 +931,8 @@ class CapriceViewModel(
                     isNearbyDiscoveryEnabled = false,
                     isPreparingNearbyLocation = false,
                     preparedNearbyCell = null,
-                    nearbyCreationError = "Ubicación no disponible en este dispositivo."
+                    nearbyCreationError = "Ubicación no disponible en este dispositivo.",
+                    nearbyCreationNeedsLocationServices = false
                 )
             }
             return
@@ -938,7 +943,8 @@ class CapriceViewModel(
                 isNearbyDiscoveryEnabled = true,
                 isPreparingNearbyLocation = true,
                 preparedNearbyCell = null,
-                nearbyCreationError = null
+                nearbyCreationError = null,
+                nearbyCreationNeedsLocationServices = false
             )
         }
 
@@ -967,7 +973,8 @@ class CapriceViewModel(
                             isNearbyDiscoveryEnabled = false,
                             isPreparingNearbyLocation = false,
                             preparedNearbyCell = null,
-                            nearbyCreationError = e.message ?: "No se pudo obtener tu ubicación aproximada."
+                            nearbyCreationError = e.message ?: "No se pudo obtener tu ubicación aproximada.",
+                            nearbyCreationNeedsLocationServices = e is DeviceLocationException.LocationServicesDisabled
                         )
                     }
                 }
@@ -983,13 +990,28 @@ class CapriceViewModel(
                 isNearbyDiscoveryEnabled = false,
                 isPreparingNearbyLocation = false,
                 preparedNearbyCell = null,
-                nearbyCreationError = "Necesitas permitir la ubicación aproximada para publicar también en General."
+                nearbyCreationError = "Necesitas permitir la ubicación aproximada para publicar también en General.",
+                nearbyCreationNeedsLocationServices = false
             )
         }
     }
 
     fun clearNearbyCreationError() {
-        _state.update { it.copy(nearbyCreationError = null) }
+        _state.update { it.copy(nearbyCreationError = null, nearbyCreationNeedsLocationServices = false) }
+    }
+
+    fun resetNearbyCreationState() {
+        nearbyCreationJob?.cancel()
+        nearbyCreationJob = null
+        _state.update {
+            it.copy(
+                isNearbyDiscoveryEnabled = false,
+                isPreparingNearbyLocation = false,
+                preparedNearbyCell = null,
+                nearbyCreationError = null,
+                nearbyCreationNeedsLocationServices = false
+            )
+        }
     }
 
     fun markFinalDecision(capriceId: String, decision: Int, decidedAt: Long) {

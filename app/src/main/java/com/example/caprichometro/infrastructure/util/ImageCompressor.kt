@@ -2,10 +2,12 @@ package com.example.caprichometro.infrastructure.util
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -24,8 +26,7 @@ object ImageCompressor {
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             }
         } else {
-            @Suppress("DEPRECATION")
-            MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
+            decodeSampledAndRotatedBitmap(context, imageUri, maxDimension)
         }
 
         val width = originalBitmap.width
@@ -62,5 +63,63 @@ object ImageCompressor {
         originalBitmap.recycle()
 
         outputStream.toByteArray()
+    }
+
+    private fun decodeSampledAndRotatedBitmap(
+        context: Context,
+        imageUri: Uri,
+        maxDimension: Int
+    ): Bitmap {
+        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(imageUri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, boundsOptions)
+        }
+
+        var inSampleSize = 1
+        if (boundsOptions.outHeight > maxDimension || boundsOptions.outWidth > maxDimension) {
+            val halfHeight = boundsOptions.outHeight / 2
+            val halfWidth = boundsOptions.outWidth / 2
+            while ((halfHeight / inSampleSize) >= maxDimension && (halfWidth / inSampleSize) >= maxDimension) {
+                inSampleSize *= 2
+            }
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            this.inSampleSize = inSampleSize
+        }
+        val decoded = context.contentResolver.openInputStream(imageUri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, decodeOptions)
+        } ?: throw IllegalStateException("No se pudo decodificar la imagen seleccionada")
+
+        val orientation = context.contentResolver.openInputStream(imageUri)?.use { stream ->
+            ExifInterface(stream).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: ExifInterface.ORIENTATION_NORMAL
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.postRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.postRotate(270f)
+                matrix.postScale(-1f, 1f)
+            }
+            else -> return decoded
+        }
+
+        val rotated = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+        if (rotated != decoded) {
+            decoded.recycle()
+        }
+        return rotated
     }
 }

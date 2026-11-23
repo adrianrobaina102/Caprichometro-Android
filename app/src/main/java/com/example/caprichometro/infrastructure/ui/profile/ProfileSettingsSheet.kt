@@ -51,6 +51,7 @@ internal fun ProfileSettingsModalSheet(
     onEditProfile: () -> Unit,
     onNavigateToFriends: () -> Unit,
     onUnblockUser: (blockedUserId: String) -> Unit,
+    unblockingUserIds: Set<String> = emptySet(),
     onSignOut: () -> Unit,
     onRequestDeleteAccount: () -> Unit
 ) {
@@ -287,8 +288,10 @@ internal fun ProfileSettingsModalSheet(
                                 )
                             }
 
+                            val isUnblocking = blockedUser.uid in unblockingUserIds
                             OutlinedButton(
                                 onClick = { onUnblockUser(blockedUser.uid) },
+                                enabled = !isUnblocking,
                                 shape = RoundedCornerShape(50),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -301,7 +304,7 @@ internal fun ProfileSettingsModalSheet(
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Desbloquear", fontSize = 12.sp)
+                                Text(if (isUnblocking) "..." else "Desbloquear", fontSize = 12.sp)
                             }
                         }
                     }

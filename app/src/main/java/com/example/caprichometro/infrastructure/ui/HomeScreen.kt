@@ -68,7 +68,8 @@ fun HomeScreen(
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToFriends: () -> Unit = {},
     onNavigateToUserProfile: (String) -> Unit = {},
-    onOpenNonFriendProfile: (UserProfile) -> Unit = {}
+    onOpenNonFriendProfile: (UserProfile) -> Unit = {},
+    deferLocationAutoPrompt: Boolean = false
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -109,7 +110,10 @@ fun HomeScreen(
     }
 
     // Si el usuario vuelve desde Ajustes tras conceder ubicación, recalculamos Amigos y/o General al instante
+    val friendsListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val nearbyListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val latestNeedsNearbyPermission by rememberUpdatedState(state.nearbyNeedsLocationPermission)
+    val latestNeedsNearbyServices by rememberUpdatedState(state.nearbyNeedsLocationServices)
     DisposableEffect(context, state.selectedHomeTab) {
         val lifecycleOwner = context as? LifecycleOwner
         if (lifecycleOwner == null) {
@@ -121,7 +125,9 @@ fun HomeScreen(
                     viewModel.onLocationPermissionChanged(hasPerm)
                     if (hasPerm) {
                         isLocationPermanentlyDenied = false
-                        if (state.selectedHomeTab == HomeFeedTab.GENERAL && latestNeedsNearbyPermission) {
+                        if (state.selectedHomeTab == HomeFeedTab.GENERAL &&
+                            (latestNeedsNearbyPermission || latestNeedsNearbyServices)
+                        ) {
                             nowMillis = System.currentTimeMillis()
                             viewModel.loadNearbyFeedIfNeeded()
                         }
@@ -135,7 +141,7 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(state.selectedHomeTab) {
+    LaunchedEffect(state.selectedHomeTab, deferLocationAutoPrompt) {
         nowMillis = System.currentTimeMillis()
         val hasPerm = hasCoarseLocationPermission(context)
         viewModel.onLocationPermissionChanged(hasPerm)
@@ -143,7 +149,7 @@ fun HomeScreen(
         when (state.selectedHomeTab) {
             HomeFeedTab.FRIENDS -> {
                 viewModel.loadFriendsFeedIfNeeded()
-                if (!hasPerm && !state.hasAutoPromptedLocation) {
+                if (!hasPerm && !state.hasAutoPromptedLocation && !deferLocationAutoPrompt) {
                     viewModel.markLocationPermissionAutoPrompted()
                     coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                 }
@@ -151,7 +157,7 @@ fun HomeScreen(
             HomeFeedTab.GENERAL -> {
                 if (hasPerm) {
                     viewModel.loadNearbyFeedIfNeeded()
-                } else if (!state.hasAutoPromptedLocation) {
+                } else if (!state.hasAutoPromptedLocation && !deferLocationAutoPrompt) {
                     viewModel.markLocationPermissionAutoPrompted()
                     viewModel.onNearbyFeedPermissionDenied()
                     coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -307,6 +313,16 @@ fun HomeScreen(
 
                     else -> {
                         Column(modifier = Modifier.fillMaxSize()) {
+                            if (state.feedError != null) {
+                                Text(
+                                    text = state.feedError ?: "",
+                                    color = Color(0xFFFF8A80),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
                             if (!state.isLocationPermissionGranted &&
                                 state.hasAutoPromptedLocation &&
                                 !isLocationBannerDismissed
@@ -346,7 +362,8 @@ fun HomeScreen(
                                 },
                                 onNavigateToUserProfile = onNavigateToUserProfile,
                                 onOpenNonFriendProfile = onOpenNonFriendProfile,
-                                onImageClick = { fullScreenImageUrl = it }
+                                onImageClick = { fullScreenImageUrl = it },
+                                listState = friendsListState
                             )
                         }
                     }
@@ -452,7 +469,8 @@ fun HomeScreen(
                                 },
                                 onNavigateToUserProfile = onNavigateToUserProfile,
                                 onOpenNonFriendProfile = onOpenNonFriendProfile,
-                                onImageClick = { fullScreenImageUrl = it }
+                                onImageClick = { fullScreenImageUrl = it },
+                                listState = nearbyListState
                             )
                         }
                     }

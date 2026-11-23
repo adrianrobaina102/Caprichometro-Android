@@ -457,6 +457,11 @@ class FirestoreFriendshipRepository(
     }
 
     override fun getFriendships(userId: String): Flow<List<Friendship>> = callbackFlow {
+        if (userId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
         val subscription = db.collection("friendships")
             .whereArrayContains("memberIDs", userId)
             .addSnapshotListener { snapshot, error ->

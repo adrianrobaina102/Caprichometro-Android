@@ -73,7 +73,7 @@ class FirebaseAuthRepository(
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(BuildConfig.WEB_CLIENT_ID)
-                .setAutoSelectEnabled(true)
+                .setAutoSelectEnabled(false)
                 .build()
 
             val request = GetCredentialRequest.Builder()

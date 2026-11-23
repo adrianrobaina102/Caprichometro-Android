@@ -85,7 +85,23 @@ class FirestoreNearbyCapriceRepository(
                 query = query.startAfter(lastDocument)
             }
 
-            val snapshot = query.get(Source.SERVER).await()
+            val snapshot = try {
+                query.get(Source.SERVER).await()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (cachedList.isNotEmpty() || collected.isNotEmpty()) {
+                    emit(
+                        NearbyCapriceBatch(
+                            caprices = collected.ifEmpty { cachedList },
+                            isFromCache = collected.isEmpty(),
+                            isComplete = true
+                        )
+                    )
+                    return@flow
+                }
+                throw e
+            }
             val documents = snapshot.documents
             for (doc in documents) {
                 doc.toCapriceOrNull("FirestoreNearbyCapriceRepo")?.let { caprice ->
