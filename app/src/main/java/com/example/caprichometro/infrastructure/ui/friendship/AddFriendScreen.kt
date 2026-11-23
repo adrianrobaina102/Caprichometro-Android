@@ -106,6 +106,7 @@ fun AddFriendScreen(
     LaunchedEffect(state.requestSentSuccess) {
         if (state.requestSentSuccess) {
             Toast.makeText(context, "¡Solicitud de amistad enviada!", Toast.LENGTH_LONG).show()
+            viewModel.clearRequestSentSuccess()
         }
     }
 
@@ -321,6 +322,7 @@ fun AddFriendScreen(
                     else -> {
                         Button(
                             onClick = { viewModel.sendRequest(actualUserId) },
+                            enabled = !state.isLoading,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = LimeGreen,
@@ -499,6 +501,7 @@ fun AddFriendScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -515,12 +518,16 @@ fun AddFriendScreen(
                                 text = formatDisplayName(friend.username),
                                 color = Color.White,
                                 fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "@${friend.username}",
                                 color = SubtleGray,
-                                fontSize = 13.sp
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
                     }

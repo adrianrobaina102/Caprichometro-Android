@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -110,11 +111,11 @@ fun ProfileScreen(
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable(targetUserId) { mutableIntStateOf(0) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showAvatarOptionsSheet by remember { mutableStateOf(false) }
-    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var tempCameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showFriendOptionsSheet by remember { mutableStateOf(false) }
     var showRemoveFriendDialog by remember { mutableStateOf(false) }
@@ -891,6 +892,13 @@ fun ProfileScreen(
         HorizontalDivider(color = DividerDark, thickness = 1.dp)
         Spacer(modifier = Modifier.height(16.dp))
 
+        val resolveCapriceWithImage: (Caprice) -> Caprice = { selected ->
+            if (selected.imageUrl.isBlank()) {
+                state.capriceImages[selected.id]?.let { selected.copy(imageUrl = it) } ?: selected
+            } else {
+                selected
+            }
+        }
         if (selectedTab == 0) {
             ProfileMemoriesTab(
                 caprices = state.caprices,
@@ -903,14 +911,7 @@ fun ProfileScreen(
                 hasMoreCaprices = state.hasMoreCaprices,
                 isLoadingMoreCaprices = state.isLoadingMoreCaprices,
                 onLoadMore = viewModel::loadMoreCaprices,
-                onSelectCaprice = { selected ->
-                    val resolved = if (selected.imageUrl.isBlank()) {
-                        state.capriceImages[selected.id]?.let { selected.copy(imageUrl = it) } ?: selected
-                    } else {
-                        selected
-                    }
-                    onSelectCaprice(resolved)
-                }
+                onSelectCaprice = { selected -> onSelectCaprice(resolveCapriceWithImage(selected)) }
             )
         } else {
             ProfileStatsTab(
@@ -922,7 +923,8 @@ fun ProfileScreen(
                 ropaCount = ropaCount,
                 otrosCount = otrosCount,
                 caprices = state.caprices,
-                onSelectCaprice = onSelectCaprice
+                isOwnProfile = state.isOwnProfile,
+                onSelectCaprice = { selected -> onSelectCaprice(resolveCapriceWithImage(selected)) }
             )
         }
 

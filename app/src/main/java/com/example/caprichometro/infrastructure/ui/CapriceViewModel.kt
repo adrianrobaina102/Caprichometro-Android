@@ -746,6 +746,13 @@ class CapriceViewModel(
                     if (e is CancellationException) throw e
                     controller.isSourceComplete = true
                     publishControllerSnapshot(controller, publishState)
+                    _state.update { current ->
+                        if (publishState === ::publishFriendsState) {
+                            current.copy(feedError = e.message ?: "No se pudieron cargar más caprichos")
+                        } else {
+                            current.copy(nearbyFeedError = e.message ?: "No se pudieron cargar más caprichos")
+                        }
+                    }
                 }
                 .collect { batch ->
                     if (currentUserId != uid) return@collect

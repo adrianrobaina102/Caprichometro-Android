@@ -220,7 +220,7 @@ internal fun ProfileMemoriesTab(
 
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = stringResource(R.string.profile_memories_footer),
+            text = stringResource(if (isOwnProfile) R.string.profile_memories_footer else R.string.profile_memories_footer_other),
             color = Color(0xFF3A3A3C),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,

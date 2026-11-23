@@ -193,9 +193,9 @@ fun ActivePollScreen(
         }
     }
 
-    // Solo programa la notificación local en segundo plano cuando la duda es propia
+    // Solo programa la notificación local en segundo plano cuando la duda es propia y aún sigue activa
     LaunchedEffect(caprice?.timestamp, caprice?.question, isFriendPoll, currentUserId) {
-        if (caprice != null && !isFriendPoll) {
+        if (caprice != null && !isFriendPoll && !PollTiming.isPollExpired(caprice.timestamp)) {
             PollNotificationScheduler.schedulePollExpiration(context, caprice, currentUserId)
         }
     }

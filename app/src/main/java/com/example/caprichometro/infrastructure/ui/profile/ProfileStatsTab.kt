@@ -39,6 +39,7 @@ internal fun ProfileStatsTab(
     ropaCount: Int,
     otrosCount: Int,
     caprices: List<Caprice> = emptyList(),
+    isOwnProfile: Boolean = true,
     onSelectCaprice: (Caprice) -> Unit = {}
 ) {
     var sheetOpen by remember { mutableStateOf(false) }
@@ -52,6 +53,7 @@ internal fun ProfileStatsTab(
         ProfileCategoriesSheet(
             caprices = caprices,
             initialFilter = sheetFilter,
+            isOwnProfile = isOwnProfile,
             onSelectCaprice = { caprice ->
                 sheetOpen = false
                 onSelectCaprice(caprice)
@@ -91,13 +93,17 @@ internal fun ProfileStatsTab(
 
                 Column {
                     Text(
-                        text = stringResource(R.string.profile_stats_listened_title),
+                        text = stringResource(
+                            if (isOwnProfile) R.string.profile_stats_listened_title else R.string.profile_stats_listened_title_other
+                        ),
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = stringResource(R.string.profile_stats_listened_subtitle),
+                        text = stringResource(
+                            if (isOwnProfile) R.string.profile_stats_listened_subtitle else R.string.profile_stats_listened_subtitle_other
+                        ),
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
@@ -126,7 +132,9 @@ internal fun ProfileStatsTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.profile_stats_categories_title),
+                        text = stringResource(
+                            if (isOwnProfile) R.string.profile_stats_categories_title else R.string.profile_stats_categories_title_other
+                        ),
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold

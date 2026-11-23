@@ -138,7 +138,9 @@ class FirestoreUserProfileRepository(
 
     override suspend fun getCachedUserById(userId: String): UserProfile? = withContext(ioDispatcher) {
         if (userId.isBlank()) return@withContext null
-        userProfileCache[userId]?.profile?.let { return@withContext it }
+        userProfileCache[userId]
+            ?.takeIf { (clockMillis() - it.cachedAtMillis) < PROFILE_CACHE_TTL_MS }
+            ?.profile?.let { return@withContext it }
         try {
             val doc = db.collection("users").document(userId).get(Source.CACHE).await()
             doc.toUserProfileOrNull(userId)?.also { profile ->

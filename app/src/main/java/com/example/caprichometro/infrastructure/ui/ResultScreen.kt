@@ -209,9 +209,11 @@ fun ResultScreen(
                 hasDistanceCell = !displayedCaprice?.effectiveDistanceCell(authorLocationCell).isNullOrBlank()
             )
 
+            val isAuthor = displayedCaprice?.userId == currentUserId && currentUserId.isNotBlank()
             val finalDecisionSummary = displayedCaprice?.finalDecision?.let { decision ->
                 val chosenAnswer = if (decision == 1) displayedCaprice.answer1 else displayedCaprice.answer2
-                "${stringResource(R.string.result_decision_author_final)}: $chosenAnswer"
+                val prefix = stringResource(if (isAuthor) R.string.result_decision_your_final else R.string.result_decision_author_final)
+                "$prefix: $chosenAnswer"
             }
 
             if (displayedCaprice?.question?.isNotBlank() == true) {

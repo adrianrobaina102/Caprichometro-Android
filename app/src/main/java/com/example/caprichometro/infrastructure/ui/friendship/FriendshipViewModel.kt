@@ -193,6 +193,10 @@ class FriendshipViewModel(
         searchUser()
     }
 
+    fun clearRequestSentSuccess() {
+        _state.update { it.copy(requestSentSuccess = false) }
+    }
+
     fun clearError() {
         _state.update { it.copy(errorMessage = null) }
     }
@@ -233,7 +237,7 @@ class FriendshipViewModel(
 
     fun sendRequest(currentUserId: String) {
         val targetUser = _state.value.userFound ?: return
-        if (_state.value.isFriendRequestBlocked || targetUser.uid == currentUserId) return
+        if (_state.value.isLoading || _state.value.isFriendRequestBlocked || targetUser.uid == currentUserId) return
 
         _state.update { it.copy(isLoading = true, errorMessage = null) }
 

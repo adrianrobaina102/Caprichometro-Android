@@ -200,7 +200,8 @@ class FirestoreVoteRepository(
             if (!doc.exists()) {
                 Result.success(null)
             } else {
-                val option = doc.getLong("option")?.toInt() ?: 1
+                val option = doc.getLong("option")?.toInt()?.takeIf { it == 1 || it == 2 }
+                    ?: return@withContext Result.success(null)
                 val timestamp = doc.getLong("timestamp") ?: 0L
                 Result.success(
                     Vote(

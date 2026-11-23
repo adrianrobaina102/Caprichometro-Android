@@ -49,6 +49,7 @@ import com.example.caprichometro.infrastructure.ui.home.formatPollStatus
 internal fun ProfileCategoriesSheet(
     caprices: List<Caprice>,
     initialFilter: ProfileCategory?,
+    isOwnProfile: Boolean = true,
     onSelectCaprice: (Caprice) -> Unit,
     onDismiss: () -> Unit,
     nowMillis: Long = System.currentTimeMillis()
@@ -84,7 +85,9 @@ internal fun ProfileCategoriesSheet(
                 .padding(bottom = 24.dp)
         ) {
             Text(
-                text = stringResource(R.string.profile_categories_sheet_title),
+                text = stringResource(
+                    if (isOwnProfile) R.string.profile_categories_sheet_title else R.string.profile_categories_sheet_title_other
+                ),
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold

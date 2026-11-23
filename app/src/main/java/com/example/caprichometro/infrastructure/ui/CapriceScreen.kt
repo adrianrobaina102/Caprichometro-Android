@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,8 +91,8 @@ fun CapriceScreen(
     var answer1 by remember { mutableStateOf(defaultCompraA) }
     var answer2 by remember { mutableStateOf(defaultCompraB) }
     var priceText by remember { mutableStateOf("") }
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var tempCameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var showPhotoSourceSheet by remember { mutableStateOf(false) }
     var showAudienceSheet by remember { mutableStateOf(false) }
     var selectAllFriends by remember { mutableStateOf(true) }

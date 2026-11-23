@@ -350,7 +350,8 @@ class FirestoreFriendshipRepository(
 
     override suspend fun getCachedBlockedUserIds(userId: String): List<String> = withContext(ioDispatcher) {
         if (userId.isBlank()) return@withContext emptyList()
-        blockedIdsCache[userId]?.value?.let { return@withContext it }
+        blockedIdsCache[userId]?.takeIf { (clockMillis() - it.cachedAtMillis) < BLOCK_CACHE_TTL_MS }
+            ?.value?.let { return@withContext it }
         try {
             db.collection("userBlocks")
                 .document(userId)
@@ -368,7 +369,9 @@ class FirestoreFriendshipRepository(
 
     override suspend fun isCachedBlocked(userId: String, otherUserId: String): Boolean = withContext(ioDispatcher) {
         if (userId.isBlank() || otherUserId.isBlank()) return@withContext false
-        blockPairCache[pairCacheKey(userId, otherUserId)]?.value?.let { return@withContext it }
+        blockPairCache[pairCacheKey(userId, otherUserId)]
+            ?.takeIf { (clockMillis() - it.cachedAtMillis) < BLOCK_CACHE_TTL_MS }
+            ?.value?.let { return@withContext it }
         try {
             val outgoing = blockReference(userId, otherUserId).get(Source.CACHE).await().exists()
             val incoming = if (outgoing) false else blockReference(otherUserId, userId).get(Source.CACHE).await().exists()
