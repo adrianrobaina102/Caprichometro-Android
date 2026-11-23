@@ -26,9 +26,9 @@ class GetAcceptedFriendsUseCase(
             if (acceptedFriendships.isEmpty()) return@map emptyList()
 
             // Lectura en lote de bloqueos salientes propios (1 query en lugar de N)
-            val ownBlockedIds = friendshipRepository.getBlockedUserIds(currentUserId)
-                .getOrThrow()
-                .toSet()
+            val ownBlockedIds = runCatching {
+                friendshipRepository.getBlockedUserIds(currentUserId).getOrDefault(emptyList()).toSet()
+            }.getOrDefault(emptySet())
 
             val semaphore = Semaphore(8)
             coroutineScope {
@@ -38,16 +38,10 @@ class GetAcceptedFriendsUseCase(
                         if (friendId in ownBlockedIds) return@async null
 
                         semaphore.withPermit {
-                            val isBlockedResult = friendshipRepository.isBlocked(currentUserId, friendId)
-                            // Fail-closed: si no se puede verificar bloqueo, no exponer al usuario
-                            if (isBlockedResult.getOrNull() != false) return@withPermit null
+                            val isBlocked = friendshipRepository.isBlocked(currentUserId, friendId).getOrThrow()
+                            if (isBlocked) return@withPermit null
 
-                            val profileResult = userProfileRepository.getUserById(friendId)
-                            if (profileResult.isFailure) {
-                                UserProfile(uid = friendId, username = "Usuario")
-                            } else {
-                                profileResult.getOrNull()
-                            }
+                            userProfileRepository.getUserById(friendId).getOrThrow()
                         }
                     }
                 }.awaitAll().filterNotNull().sortedBy { it.username.lowercase() }

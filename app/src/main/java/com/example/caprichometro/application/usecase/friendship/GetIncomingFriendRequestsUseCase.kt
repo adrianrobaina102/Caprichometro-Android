@@ -25,16 +25,11 @@ class GetIncomingFriendRequestsUseCase(
             coroutineScope {
                 pendingRequests.map { friendship ->
                     async {
-                        val isBlockedResult = friendshipRepository.isBlocked(currentUserId, friendship.requestedBy)
-                        // Fail-closed: si falla la comprobación de bloqueo, no mostrar la solicitud
-                        if (isBlockedResult.getOrNull() != false) return@async null
+                        val isBlocked = friendshipRepository.isBlocked(currentUserId, friendship.requestedBy).getOrThrow()
+                        if (isBlocked) return@async null
 
-                        val profileResult = userProfileRepository.getUserById(friendship.requestedBy)
-                        val profile = if (profileResult.isFailure) {
-                            UserProfile(uid = friendship.requestedBy, username = "Usuario")
-                        } else {
-                            profileResult.getOrNull() ?: return@async null
-                        }
+                        val profile = userProfileRepository.getUserById(friendship.requestedBy).getOrThrow()
+                            ?: return@async null
 
                         IncomingFriendRequest(
                             friendshipId = friendship.id,
