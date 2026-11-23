@@ -171,7 +171,17 @@ fun CapriceApp(
     val capriceState by capriceViewModel.state.collectAsState()
     val friendshipState by friendshipViewModel.state.collectAsState()
     val profileState by profileViewModel.state.collectAsState()
-    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val firebaseAuth = remember { FirebaseAuth.getInstance() }
+    var currentUserId by remember { mutableStateOf(firebaseAuth.currentUser?.uid ?: "") }
+    DisposableEffect(firebaseAuth) {
+        val listener = FirebaseAuth.AuthStateListener { auth ->
+            currentUserId = auth.currentUser?.uid ?: ""
+        }
+        firebaseAuth.addAuthStateListener(listener)
+        onDispose {
+            firebaseAuth.removeAuthStateListener(listener)
+        }
+    }
     val ownUserProfile = profileState.profile?.takeIf { it.uid == currentUserId }
         ?: friendshipState.currentUserProfile?.takeIf { it.uid == currentUserId }
 
@@ -344,6 +354,16 @@ fun CapriceApp(
 
     // Escuchamos solicitudes pendientes, amigos, feed y notificaciones de amigos al iniciar sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
+        if (authState.isAuthSuccessful && currentUserId.isBlank() && firebaseAuth.currentUser == null) {
+            sessionNavViewModel.reset()
+            onClearSessionCaches()
+            profileViewModel.reset()
+            friendshipViewModel.stopListening()
+            activePollViewModel.reset()
+            capriceViewModel.reset()
+            authViewModel.clearSessionState()
+            return@LaunchedEffect
+        }
         if (authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             val isNewSessionBootstrap = sessionNavViewModel.bootstrappedUserId != currentUserId
             if (isNewSessionBootstrap) {
@@ -601,7 +621,9 @@ fun CapriceApp(
                                 )
                             }
                             "result" -> {
-                                val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
+                                val capriceToShow = selectedProfileCaprice
+                                    ?: selectedFeedItem?.caprice
+                                    ?: capriceState.latestCaprices.firstOrNull()
                                 val resultAuthor = resolveAuthorForCaprice(capriceToShow, selectedFeedItem)
                                 val canOpenProfile = canOpenAuthorProfileFor(
                                     capriceToShow?.userId,
@@ -726,7 +748,7 @@ fun CapriceApp(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clickable {
+                                .clickable(enabled = !profileState.isDeletingAccount) {
                                     selectedProfileCaprice = null
                                     selectedFeedItem = null
                                     currentScreen = "home"
@@ -746,7 +768,7 @@ fun CapriceApp(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clickable {
+                                .clickable(enabled = !profileState.isDeletingAccount) {
                                     selectedProfileCaprice = null
                                     selectedFeedItem = null
                                     currentScreen = "create"
@@ -761,7 +783,7 @@ fun CapriceApp(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clickable {
+                                .clickable(enabled = !profileState.isDeletingAccount) {
                                     selectedFeedItem = null
                                     viewingProfileUserId = currentUserId
                                     currentScreen = "profile"

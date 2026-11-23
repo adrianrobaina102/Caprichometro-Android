@@ -3,7 +3,10 @@ package com.example.caprichometro.infrastructure.data
 import android.util.Log
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -24,7 +27,20 @@ class FirestoreVoteRepository(
     override suspend fun updateVote(vote: Vote): Result<Unit> =
         castVoteInternal(vote, allowOverwrite = true)
 
+    private fun parseTimestampMillis(doc: DocumentSnapshot): Long {
+        val raw = doc.get("timestamp") ?: return 0L
+        return when (raw) {
+            is Number -> raw.toLong()
+            is Timestamp -> raw.toDate().time
+            is String -> raw.toLongOrNull() ?: 0L
+            else -> 0L
+        }
+    }
+
     private suspend fun castVoteInternal(vote: Vote, allowOverwrite: Boolean): Result<Unit> = withContext(ioDispatcher) {
+        if (vote.option != 1 && vote.option != 2) {
+            return@withContext Result.failure(IllegalArgumentException("Opción de voto inválida"))
+        }
         try {
             val capriceRef = db.collection("caprices").document(vote.capriceId)
             val voteRef = capriceRef.collection("votes").document(vote.voterId)
@@ -108,6 +124,8 @@ class FirestoreVoteRepository(
 
             Log.d("FirestoreVoteRepo", "Voto guardado exitosamente: capriceId=${vote.capriceId}, voter=${vote.voterId}, option=${vote.option}")
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("FirestoreVoteRepo", "Error al emitir voto para capricho ${vote.capriceId}: ${e.message}", e)
             Result.failure(e)
@@ -138,16 +156,19 @@ class FirestoreVoteRepository(
                 }
 
                 val votes = snapshot?.documents?.mapNotNull { doc ->
-                    val option = doc.getLong("option")?.toInt() ?: return@mapNotNull null
-                    val voterId = doc.getString("voterId") ?: doc.id
-                    val timestamp = doc.getLong("timestamp") ?: 0L
+                    runCatching {
+                        val option = doc.getLong("option")?.toInt()?.takeIf { it == 1 || it == 2 }
+                            ?: return@mapNotNull null
+                        val voterId = doc.getString("voterId") ?: doc.id
+                        val timestamp = parseTimestampMillis(doc)
 
-                    Vote(
-                        capriceId = capriceId,
-                        voterId = voterId,
-                        option = option,
-                        timestamp = timestamp
-                    )
+                        Vote(
+                            capriceId = capriceId,
+                            voterId = voterId,
+                            option = option,
+                            timestamp = timestamp
+                        )
+                    }.getOrNull()
                 }.orEmpty()
 
                 Log.d("FirestoreVoteRepo", "observeVotes($capriceId) emitio ${votes.size} votos en tiempo real")
@@ -168,18 +189,23 @@ class FirestoreVoteRepository(
                 .await()
 
             val votes = snapshot.documents.mapNotNull { doc ->
-                val option = doc.getLong("option")?.toInt() ?: return@mapNotNull null
-                val voterId = doc.getString("voterId") ?: doc.id
-                val timestamp = doc.getLong("timestamp") ?: 0L
+                runCatching {
+                    val option = doc.getLong("option")?.toInt()?.takeIf { it == 1 || it == 2 }
+                        ?: return@mapNotNull null
+                    val voterId = doc.getString("voterId") ?: doc.id
+                    val timestamp = parseTimestampMillis(doc)
 
-                Vote(
-                    capriceId = capriceId,
-                    voterId = voterId,
-                    option = option,
-                    timestamp = timestamp
-                )
+                    Vote(
+                        capriceId = capriceId,
+                        voterId = voterId,
+                        option = option,
+                        timestamp = timestamp
+                    )
+                }.getOrNull()
             }
             Result.success(votes)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("FirestoreVoteRepo", "Error al obtener votos de $capriceId: ${e.message}", e)
             Result.failure(e)
@@ -202,7 +228,7 @@ class FirestoreVoteRepository(
             } else {
                 val option = doc.getLong("option")?.toInt()?.takeIf { it == 1 || it == 2 }
                     ?: return@withContext Result.success(null)
-                val timestamp = doc.getLong("timestamp") ?: 0L
+                val timestamp = parseTimestampMillis(doc)
                 Result.success(
                     Vote(
                         capriceId = capriceId,
@@ -212,6 +238,8 @@ class FirestoreVoteRepository(
                     )
                 )
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("FirestoreVoteRepo", "Error al obtener voto de $voterId en $capriceId: ${e.message}", e)
             Result.failure(e)

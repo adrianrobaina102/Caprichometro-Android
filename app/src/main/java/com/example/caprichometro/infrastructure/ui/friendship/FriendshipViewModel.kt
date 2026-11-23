@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.withPermit
 data class FriendshipSearchState(
     val searchQuery: String = "",
     val isLoading: Boolean = false,
+    val respondingRequestIds: Set<String> = emptySet(),
     val userFound: UserProfile? = null,
     val isFriendRequestBlocked: Boolean = false,
     val errorMessage: String? = null,
@@ -112,6 +113,7 @@ class FriendshipViewModel(
             it.copy(
                 searchQuery = "",
                 isLoading = false,
+                respondingRequestIds = emptySet(),
                 errorMessage = null,
                 userFound = null,
                 isFriendRequestBlocked = false,
@@ -340,16 +342,22 @@ class FriendshipViewModel(
     }
 
     private fun respondToRequest(friendshipId: String, accept: Boolean) {
+        if (friendshipId.isBlank() || friendshipId in _state.value.respondingRequestIds) return
+        _state.update { it.copy(respondingRequestIds = it.respondingRequestIds + friendshipId) }
         viewModelScope.launch {
-            val result = respondToFriendRequestUseCase.execute(friendshipId, accept)
-            result.fold(
-                onSuccess = {
-                    // SnapshotListener actualiza la lista automáticamente
-                },
-                onFailure = { error ->
-                    _state.update { it.copy(errorMessage = error.message ?: "Error al responder a la solicitud") }
-                }
-            )
+            try {
+                val result = respondToFriendRequestUseCase.execute(friendshipId, accept)
+                result.fold(
+                    onSuccess = {
+                        // SnapshotListener actualiza la lista automáticamente
+                    },
+                    onFailure = { error ->
+                        _state.update { it.copy(errorMessage = error.message ?: "Error al responder a la solicitud") }
+                    }
+                )
+            } finally {
+                _state.update { it.copy(respondingRequestIds = it.respondingRequestIds - friendshipId) }
+            }
         }
     }
 }

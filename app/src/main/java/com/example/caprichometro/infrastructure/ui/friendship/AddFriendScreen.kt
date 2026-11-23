@@ -428,12 +428,14 @@ fun AddFriendScreen(
                         }
                     }
 
+                    val isResponding = request.friendshipId in state.respondingRequestIds
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Button(
                             onClick = { viewModel.acceptRequest(request.friendshipId) },
+                            enabled = !isResponding,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = LimeGreen,
@@ -451,6 +453,7 @@ fun AddFriendScreen(
 
                         IconButton(
                             onClick = { viewModel.declineRequest(request.friendshipId) },
+                            enabled = !isResponding,
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(

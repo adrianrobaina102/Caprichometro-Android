@@ -62,6 +62,7 @@ data class ProfileState(
     val bioErrorMessage: String? = null,
     val isSavingPhoto: Boolean = false,
     val photoErrorMessage: String? = null,
+    val isDeletingAccount: Boolean = false,
     val errorMessage: String? = null,
     val isSignedOut: Boolean = false
 )
@@ -73,7 +74,8 @@ private data class ProfileLoadResult(
     val blockedUsers: List<UserProfile>,
     val friends: List<UserProfile>,
     val verdicts: Map<String, Boolean?>,
-    val decidedTieIds: Set<String>
+    val decidedTieIds: Set<String>,
+    val errorMessage: String? = null
 )
 
 class ProfileViewModel(
@@ -213,8 +215,8 @@ class ProfileViewModel(
 
             // Fase 1: Cargar datos principales en paralelo (~200ms) sin bloquear por subcolecciones de votos
             val result = coroutineScope {
-                val profileDeferred = async { userProfileRepository.getUserById(targetUserId).getOrNull() }
-                val capricesDeferred = async { getCapricesUseCase.execute(targetUserId, limit = requestedLimit + 1).getOrDefault(emptyList()) }
+                val profileDeferred = async { userProfileRepository.getUserById(targetUserId) }
+                val capricesDeferred = async { getCapricesUseCase.execute(targetUserId, limit = requestedLimit + 1) }
                 val blockedDeferred = async {
                     if (isOwn) {
                         getBlockedUsersUseCase.execute(targetUserId).getOrDefault(emptyList())
@@ -236,7 +238,11 @@ class ProfileViewModel(
                     }
                 }
 
-                val rawCaprices = capricesDeferred.await()
+                val profileResult = profileDeferred.await()
+                val capricesResult = capricesDeferred.await()
+                val rawCaprices = capricesResult.getOrDefault(emptyList())
+                val loadError = profileResult.exceptionOrNull()?.message
+                    ?: capricesResult.exceptionOrNull()?.message
                 val hasMoreCaprices = rawCaprices.size > requestedLimit
                 val pageCaprices = rawCaprices.take(requestedLimit)
                 val loadedCaprices = if (isOwn) {
@@ -256,13 +262,14 @@ class ProfileViewModel(
                     .toSet()
 
                 ProfileLoadResult(
-                    profile = profileDeferred.await(),
+                    profile = profileResult.getOrNull(),
                     caprices = loadedCaprices,
                     hasMoreCaprices = hasMoreCaprices,
                     blockedUsers = blockedDeferred.await(),
                     friends = friendsDeferred.await(),
                     verdicts = cachedVerdicts,
-                    decidedTieIds = cachedTieIds
+                    decidedTieIds = cachedTieIds,
+                    errorMessage = loadError
                 )
             }
 
@@ -277,7 +284,8 @@ class ProfileViewModel(
                     friends = result.friends,
                     blockedUsers = result.blockedUsers,
                     verdicts = result.verdicts,
-                    decidedTieIds = result.decidedTieIds
+                    decidedTieIds = result.decidedTieIds,
+                    errorMessage = result.errorMessage ?: it.errorMessage
                 )
             }
 
@@ -358,7 +366,8 @@ class ProfileViewModel(
                 pendingCaprices.map { caprice ->
                     async {
                         semaphore.withPermit {
-                            val votes = repo.getVotes(caprice.id).getOrDefault(emptyList())
+                            val votes = repo.getVotes(caprice.id).getOrNull()
+                                ?: return@withPermit null
                             val cachedVerdict = computeVerdictStatus(caprice, votes)
                             if (caprice.finalDecision != null) {
                                 verdictCache[caprice.id] = CachedVerdictEntry(caprice.finalDecision, cachedVerdict)
@@ -367,7 +376,7 @@ class ProfileViewModel(
                             Triple(caprice.id, cachedVerdict, votes.size)
                         }
                     }
-                }.awaitAll()
+                }.awaitAll().filterNotNull()
             }
 
             if (requestSession != sessionGeneration) return@launch
@@ -407,7 +416,7 @@ class ProfileViewModel(
         val repo = voteRepository ?: return
         val requestSession = sessionGeneration
         viewModelScope.launch {
-            val votes = repo.getVotes(capriceId).getOrDefault(emptyList())
+            val votes = repo.getVotes(capriceId).getOrNull() ?: return@launch
             if (requestSession != sessionGeneration) return@launch
             val cachedVerdict = computeVerdictStatus(targetCaprice, votes)
             verdictCache[capriceId] = CachedVerdictEntry(targetCaprice.finalDecision, cachedVerdict)
@@ -532,10 +541,10 @@ class ProfileViewModel(
     }
 
     fun deleteAccount(currentUserId: String, username: String) {
-        if (currentUserId.isBlank()) return
+        if (currentUserId.isBlank() || _state.value.isDeletingAccount) return
 
+        _state.update { it.copy(isDeletingAccount = true, isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
             val result = deleteAccountUseCase.execute(currentUserId, username)
             result.fold(
                 onSuccess = {
@@ -547,6 +556,7 @@ class ProfileViewModel(
                 onFailure = { error ->
                     _state.update {
                         it.copy(
+                            isDeletingAccount = false,
                             isLoading = false,
                             errorMessage = error.message ?: "Error al eliminar la cuenta"
                         )

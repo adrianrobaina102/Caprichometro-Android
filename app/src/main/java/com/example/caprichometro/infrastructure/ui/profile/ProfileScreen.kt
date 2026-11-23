@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.util.Base64
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -937,6 +938,36 @@ fun ProfileScreen(
             contentDescription = "Foto de perfil de @$rawUsername",
             onDismiss = { isProfilePhotoExpanded = false }
         )
+    }
+
+    if (state.isDeletingAccount) {
+        BackHandler(enabled = true) {}
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = {},
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(DarkBackground.copy(alpha = 0.88f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = LimeGreen)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Eliminando cuenta...",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 }
 

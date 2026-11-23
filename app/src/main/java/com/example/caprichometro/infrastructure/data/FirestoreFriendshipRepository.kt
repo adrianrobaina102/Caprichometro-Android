@@ -167,6 +167,9 @@ class FirestoreFriendshipRepository(
                 if (!snapshot.exists()) {
                     throw IllegalStateException("La solicitud ya no existe.")
                 }
+                if (snapshot.getString("status") != FriendshipStatus.PENDING.value) {
+                    throw IllegalStateException("La solicitud ya fue respondida.")
+                }
 
                 val rawMembers = snapshot.get("memberIDs") as? List<*>
                 val members = rawMembers?.mapNotNull { it?.toString() } ?: emptyList()
