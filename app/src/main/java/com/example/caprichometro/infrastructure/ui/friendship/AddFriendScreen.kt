@@ -236,6 +236,46 @@ fun AddFriendScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        if (state.usernameSuggestions.isNotEmpty() && state.userFound == null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DarkSurface, RoundedCornerShape(14.dp))
+                    .border(1.dp, Color(0xFF2C2C2E), RoundedCornerShape(14.dp))
+            ) {
+                state.usernameSuggestions.forEachIndexed { index, suggestion ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                focusManager.clearFocus()
+                                viewModel.selectSuggestedUsername(suggestion)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = SubtleGray,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "@$suggestion",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    if (index < state.usernameSuggestions.lastIndex) {
+                        HorizontalDivider(color = Color(0xFF2C2C2E), thickness = 0.5.dp)
+                    }
+                }
+            }
+        }
+
         // Resultado de búsqueda (si hay un usuario encontrado)
         state.userFound?.let { user ->
             val isSelf = user.uid == actualUserId

@@ -94,9 +94,9 @@ internal fun CapriceLocationPill(
     val zoneLabel = when {
         distanceLabel != null && !placeName.isNullOrBlank() -> "$distanceLabel · $placeName"
         distanceLabel != null -> distanceLabel
-        isResolvingPlaceName -> "Resolviendo zona aproximada..."
-        !placeName.isNullOrBlank() -> "Zona aproximada · $placeName"
-        hasDistanceCell -> "Ubicación aproximada"
+        isResolvingPlaceName -> stringResource(R.string.location_resolving_approx_zone)
+        !placeName.isNullOrBlank() -> stringResource(R.string.location_approx_zone_with_place, placeName)
+        hasDistanceCell -> stringResource(R.string.location_approx_generic)
         else -> null
     } ?: return
 

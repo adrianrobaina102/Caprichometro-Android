@@ -38,7 +38,7 @@ class AndroidApproximatePlaceNameRepository(
 
         val name = try {
             withContext(ioDispatcher) {
-                val geocoder = Geocoder(appContext, Locale.forLanguageTag("es-ES"))
+                val geocoder = Geocoder(appContext, Locale.getDefault())
                 val addresses = reverseGeocode(geocoder, center.latitude, center.longitude)
                 extractApproximateName(addresses.firstOrNull())
             }

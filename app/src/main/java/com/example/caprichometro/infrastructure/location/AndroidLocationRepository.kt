@@ -258,7 +258,7 @@ class AndroidLocationRepository(
         if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
         if (hasAccuracy() && accuracy > MAX_ACCEPTABLE_ACCURACY_METERS) return null
         if (checkFreshness) {
-            val ageMs = System.currentTimeMillis() - time
+            val ageMs = clockMillis() - time
             if (ageMs > MAX_CACHED_LOCATION_AGE_MS || ageMs < -MAX_CACHED_LOCATION_AGE_MS) {
                 return null
             }

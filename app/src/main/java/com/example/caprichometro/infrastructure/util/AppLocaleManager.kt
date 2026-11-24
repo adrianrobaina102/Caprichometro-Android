@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.LocaleManager
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
 import androidx.core.content.edit
@@ -62,7 +63,7 @@ object AppLocaleManager {
         }
 
         val targetLocale = if (language.tag.isEmpty()) {
-            Locale.getDefault()
+            Resources.getSystem().configuration.locales.get(0) ?: Locale.getDefault()
         } else {
             Locale.forLanguageTag(language.tag)
         }

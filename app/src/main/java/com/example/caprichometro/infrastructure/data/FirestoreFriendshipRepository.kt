@@ -4,8 +4,10 @@ import com.example.caprichometro.domain.friendship.Friendship
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.domain.model.UsernameRules
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
@@ -105,6 +107,27 @@ class FirestoreFriendshipRepository(
                 photoUrl = photoUrl
             )
             Result.success(profile)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun searchUsernamesByPrefix(prefix: String, limit: Int): Result<List<String>> = withContext(ioDispatcher) {
+        try {
+            val cleanPrefix = UsernameRules.normalize(prefix)
+            if (cleanPrefix.length < 3) {
+                return@withContext Result.success(emptyList())
+            }
+            val snapshot = db.collection("usernames")
+                .orderBy(FieldPath.documentId())
+                .startAt(cleanPrefix)
+                .endAt(cleanPrefix + "\uf8ff")
+                .limit(limit.toLong())
+                .get()
+                .await()
+            Result.success(snapshot.documents.map { it.id })
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

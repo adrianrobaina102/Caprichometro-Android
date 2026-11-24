@@ -333,10 +333,16 @@ fun CapriceApp(
             }
 
             val dataUri = targetIntent.data
-            val isInviteUri = dataUri?.scheme == "caprichometro" ||
+            val isInviteUri = dataUri?.scheme == "caprichometro" && dataUri.host == "invite" ||
                 dataUri?.pathSegments?.contains("invite") == true
+            if (isInviteUri) {
+                previousScreenBeforeAddFriend = currentScreen
+                currentScreen = "add_friend"
+                onClearPendingIntent()
+                return@LaunchedEffect
+            }
             val capriceId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_CAPRICE_ID)
-                ?: if (!isInviteUri) dataUri?.lastPathSegment else null
+                ?: dataUri?.lastPathSegment
             val navigateTo = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_NAVIGATE_TO)
             val extraRecipientUserId = targetIntent.getStringExtra(PollNotificationHelper.EXTRA_RECIPIENT_USER_ID)
                 ?.takeIf { it.isNotBlank() }
@@ -841,18 +847,37 @@ fun CapriceApp(
                     val cleanUsername = author.username.trim().removePrefix("@").ifBlank { "usuario" }
                     val isSelfAuthor = author.uid.isNotBlank() && author.uid == currentUserId
                     val isFriendAuthor = author.uid.isNotBlank() && friendshipState.friends.any { it.uid == author.uid }
+                    val isSendingDirect = author.uid.isNotBlank() && friendshipState.directRequestSendingUid == author.uid
+                    val isDirectSent = author.uid.isNotBlank() && author.uid in friendshipState.directRequestSentUids
                     GeneralAuthorProfileSheet(
                         author = author,
                         cleanUsername = cleanUsername,
                         isSelfOrFriend = isSelfAuthor || isFriendAuthor,
-                        onDismiss = { selectedPublicAuthor = null },
+                        isSendingRequest = isSendingDirect,
+                        isRequestSent = isDirectSent,
+                        requestError = friendshipState.directRequestError,
+                        onDismiss = {
+                            friendshipViewModel.clearDirectRequestError()
+                            selectedPublicAuthor = null
+                        },
                         onOpenFullProfile = {
                             selectedPublicAuthor = null
                             if (author.uid.isNotBlank()) {
                                 openProfile(author.uid, currentScreen)
                             }
                         },
+                        onSendFriendRequest = {
+                            if (author.uid.isNotBlank() && currentUserId.isNotBlank()) {
+                                friendshipViewModel.sendFriendRequestToUser(currentUserId, author.uid)
+                            } else {
+                                selectedPublicAuthor = null
+                                previousScreenBeforeAddFriend = if (currentScreen == "profile") "profile" else "home"
+                                currentScreen = "add_friend"
+                                friendshipViewModel.openInviteForUsername(cleanUsername)
+                            }
+                        },
                         onSearchFriend = {
+                            friendshipViewModel.clearDirectRequestError()
                             selectedPublicAuthor = null
                             previousScreenBeforeAddFriend = if (currentScreen == "profile") "profile" else "home"
                             currentScreen = "add_friend"
@@ -871,8 +896,12 @@ private fun GeneralAuthorProfileSheet(
     author: UserProfile,
     cleanUsername: String,
     isSelfOrFriend: Boolean,
+    isSendingRequest: Boolean,
+    isRequestSent: Boolean,
+    requestError: String?,
     onDismiss: () -> Unit,
     onOpenFullProfile: () -> Unit,
+    onSendFriendRequest: () -> Unit,
     onSearchFriend: () -> Unit
 ) {
     ModalBottomSheet(
@@ -920,24 +949,53 @@ private fun GeneralAuthorProfileSheet(
                 lineHeight = 18.sp
             )
 
+            if (!isSelfOrFriend && !requestError.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = requestError,
+                    color = Color(0xFFFF6B6B),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = if (isSelfOrFriend) onOpenFullProfile else onSearchFriend,
+                onClick = if (isSelfOrFriend) onOpenFullProfile else onSendFriendRequest,
+                enabled = isSelfOrFriend || (!isSendingRequest && !isRequestSent),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ActiveLime,
-                    contentColor = Color.Black
+                    contentColor = Color.Black,
+                    disabledContainerColor = Color(0xFF232329),
+                    disabledContentColor = ActiveLime
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
                 Text(
-                    text = if (isSelfOrFriend) "Ver perfil completo" else "Buscar y añadir a Amigos",
+                    text = when {
+                        isSelfOrFriend -> "Ver perfil completo"
+                        isSendingRequest -> "Enviando solicitud…"
+                        isRequestSent -> "✓ Solicitud enviada"
+                        else -> "Enviar solicitud de amistad"
+                    },
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
+            }
+
+            if (!isSelfOrFriend) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onSearchFriend) {
+                    Text(
+                        text = "Abrir en Tu gente",
+                        color = Color(0xFF9E9EA6),
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

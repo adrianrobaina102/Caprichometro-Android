@@ -687,7 +687,7 @@ fun CapriceScreen(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("Cambiar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.action_change), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         IconButton(
@@ -883,7 +883,7 @@ fun CapriceScreen(
                             onClick = { toggleNearbyDiscovery(true) },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("Reintentar", color = LimeGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.action_retry), color = LimeGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         TextButton(
                             onClick = {
@@ -899,7 +899,7 @@ fun CapriceScreen(
                             },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("Abrir Ajustes", color = Color.White, fontSize = 12.sp)
+                            Text(stringResource(R.string.action_open_app_settings), color = Color.White, fontSize = 12.sp)
                         }
                     }
                 }

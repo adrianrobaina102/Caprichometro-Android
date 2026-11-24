@@ -56,9 +56,12 @@ private val AuthDarkColorScheme = darkColorScheme(
     outline = BorderGray
 )
 
-private val EsLocale = Locale.Builder().setLanguage("es").setRegion("ES").build()
-private val DisplayDateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", EsLocale)
-private val HeadlineDateFormatter = DateTimeFormatter.ofPattern("d 'de' MMM 'de' yyyy", EsLocale)
+private val DisplayDateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private fun formatHeadlineDate(date: LocalDate): String {
+    val locale = Locale.getDefault()
+    val pattern = if (locale.language == "es") "d 'de' MMM 'de' yyyy" else "MMM d, yyyy"
+    return date.format(DateTimeFormatter.ofPattern(pattern, locale))
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -506,7 +509,7 @@ private fun BirthdayPickerDialog(
                     )
                 },
                 headline = {
-                    val headlineText = selectedLocalDate?.format(HeadlineDateFormatter)
+                    val headlineText = selectedLocalDate?.let(::formatHeadlineDate)
                         ?: if (datePickerState.displayMode == DisplayMode.Input) "DD/MM/AAAA" else stringResource(R.string.auth_birthday_headline_empty)
                     Text(
                         text = headlineText,

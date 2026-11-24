@@ -301,4 +301,40 @@ class FriendshipViewModelTest {
         assertThat(viewModel.state.value.errorMessage).isEqualTo("Fallo al borrar")
         viewModel.stopListening()
     }
+
+    @Test
+    fun `updateSearchQuery con 3+ letras carga sugerencias tras debounce y selectSuggestedUsername busca`() = runTest {
+        coEvery { searchUserUseCase.searchSuggestions("ana") } returns Result.success(listOf("ana", "anabel"))
+        coEvery { searchUserUseCase.execute("anabel") } returns Result.success(ana.copy(username = "anabel"))
+
+        viewModel.updateSearchQuery("ana")
+        testDispatcher.scheduler.advanceTimeBy(350)
+        testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.state.value.usernameSuggestions).containsExactly("ana", "anabel")
+
+        viewModel.selectSuggestedUsername("anabel")
+        testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.state.value.usernameSuggestions).isEmpty()
+        assertThat(viewModel.state.value.searchQuery).isEqualTo("anabel")
+        assertThat(viewModel.state.value.userFound?.username).isEqualTo("anabel")
+    }
+
+    @Test
+    fun `sendFriendRequestToUser gestiona exito y error directo desde General`() = runTest {
+        coEvery { sendFriendRequestUseCase.execute(me.uid, ana.uid) } returns Result.failure(RuntimeException("Ya enviada"))
+        viewModel.sendFriendRequestToUser(me.uid, ana.uid)
+        testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.state.value.directRequestError).isEqualTo("Ya enviada")
+        viewModel.clearDirectRequestError()
+        assertThat(viewModel.state.value.directRequestError).isNull()
+
+        coEvery { sendFriendRequestUseCase.execute(me.uid, ana.uid) } returns Result.success(Unit)
+        viewModel.sendFriendRequestToUser(me.uid, ana.uid)
+        testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.state.value.directRequestSentUids).contains(ana.uid)
+    }
 }

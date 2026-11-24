@@ -16,4 +16,12 @@ class SearchUserByUsernameUseCase(
         }
         return friendshipRepository.searchUserByUsername(cleanUsername)
     }
+
+    suspend fun searchSuggestions(prefix: String, limit: Int = 10): Result<List<String>> {
+        val cleanPrefix = UsernameRules.normalize(prefix)
+        if (cleanPrefix.length < 3) {
+            return Result.success(emptyList())
+        }
+        return friendshipRepository.searchUsernamesByPrefix(cleanPrefix, limit)
+    }
 }

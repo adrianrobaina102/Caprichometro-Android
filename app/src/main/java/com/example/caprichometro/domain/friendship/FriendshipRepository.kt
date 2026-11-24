@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface FriendshipRepository {
     suspend fun searchUserByUsername(username: String): Result<UserProfile?>
+    suspend fun searchUsernamesByPrefix(prefix: String, limit: Int = 10): Result<List<String>> = Result.success(emptyList())
     suspend fun sendFriendRequest(friendship: Friendship): Result<Unit>
     suspend fun updateFriendshipStatus(friendshipId: String, status: FriendshipStatus): Result<Unit>
     suspend fun removeFriendship(userId: String, friendId: String): Result<Unit>

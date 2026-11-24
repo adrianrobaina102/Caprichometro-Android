@@ -8,7 +8,9 @@
     <string name="action_accept">Aceptar</string>
     <string name="action_retry">Reintentar</string>
     <string name="action_refresh">Actualizar</string>
+    <string name="action_change">Cambiar</string>
     <string name="action_open_settings">Ajustes</string>
+    <string name="action_open_app_settings">Abrir Ajustes</string>
     <string name="action_done">Listo</string>
     <string name="action_close">Cerrar</string>
     <string name="action_options">Opciones</string>
@@ -26,6 +28,9 @@
     <string name="type_plan">Plan</string>
     <string name="distance_your_zone">En tu zona</string>
     <string name="distance_approx_km">Aprox. %1$d km</string>
+    <string name="location_resolving_approx_zone">Resolviendo zona aproximada…</string>
+    <string name="location_approx_zone_with_place">Zona aproximada · %1$s</string>
+    <string name="location_approx_generic">Ubicación aproximada</string>
 
     <!-- Autenticación -->
     <string name="auth_tab_login">Iniciar sesión</string>
