@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Caprichometro-Android"
 include(":app")
+include(":benchmark")

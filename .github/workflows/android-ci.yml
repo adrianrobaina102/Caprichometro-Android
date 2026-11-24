@@ -4,16 +4,6 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths-ignore:
-      - 'shared-docs/**'
-      - '**.md'
-  pull_request:
-    branches: [ main, develop ]
-    paths-ignore:
-      - 'shared-docs/**'
-      - '**.md'
   workflow_dispatch:
 
 concurrency:
