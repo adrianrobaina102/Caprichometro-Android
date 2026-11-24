@@ -388,7 +388,7 @@ class CapriceViewModel(
             useCase.observeProgressiveFeed(
                 currentUserId = uid,
                 initialBatchSize = INITIAL_FAST_BATCH_SIZE,
-                perFriendLimit = 25,
+                perFriendLimit = 100,
                 totalLimit = FRIENDS_FETCH_LIMIT,
                 includeCache = !isManualRefresh,
                 preloadedFriends = if (isManualRefresh) null else (preloadedFriends ?: sessionFriends)

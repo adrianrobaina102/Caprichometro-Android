@@ -296,7 +296,7 @@ class GetFriendsCapricesUseCase(
                     val batchCapricesDeferred = async {
                         batchRepo.getCapricesForUsers(
                             userIds = candidateFriendIds,
-                            limit = maxOf(pageLimit, perFriendLimit)
+                            limit = pageLimit
                         ).getOrDefault(emptyList())
                     }
                     val batchCaprices = batchCapricesDeferred.await()
