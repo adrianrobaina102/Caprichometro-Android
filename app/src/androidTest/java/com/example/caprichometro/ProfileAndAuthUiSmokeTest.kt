@@ -102,7 +102,7 @@ class ProfileAndAuthUiSmokeTest {
         composeTestRule.onNodeWithText("75%").assertIsDisplayed()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_listened_title)).assertIsDisplayed()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_listened_subtitle)).assertIsDisplayed()
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_listened_detail, 3, 4)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.resources.getQuantityString(R.plurals.profile_stats_listened_detail, 4, 3, 4)).assertIsDisplayed()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.profile_stats_categories_title)).assertIsDisplayed()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.category_compras)).assertIsDisplayed()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.category_planes)).assertIsDisplayed()

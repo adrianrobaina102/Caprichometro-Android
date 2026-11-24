@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -110,7 +111,12 @@ internal fun ProfileStatsTab(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = stringResource(R.string.profile_stats_listened_detail, totalResueltas, totalDudas),
+                        text = pluralStringResource(
+                            R.plurals.profile_stats_listened_detail,
+                            totalDudas,
+                            totalResueltas,
+                            totalDudas
+                        ),
                         color = SubtleGray,
                         fontSize = 13.sp
                     )

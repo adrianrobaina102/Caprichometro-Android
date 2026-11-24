@@ -5,9 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
+import androidx.core.graphics.scale
+import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -42,7 +43,7 @@ object ImageCompressor {
         }
 
         val scaledBitmap = if (targetWidth != width || targetHeight != height) {
-            Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
+            originalBitmap.scale(targetWidth, targetHeight)
         } else {
             originalBitmap
         }

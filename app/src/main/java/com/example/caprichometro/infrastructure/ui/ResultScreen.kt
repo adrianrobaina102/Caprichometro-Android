@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.example.caprichometro.domain.model.CapricePrice
@@ -359,11 +360,12 @@ fun ResultScreen(
             Spacer(modifier = Modifier.height(18.dp))
             val totalVotes = verdict?.totalVotes ?: 0
             Text(
-                text = when (totalVotes) {
-                    0 -> stringResource(if (isPublicNearby) R.string.result_votes_zero_public else R.string.result_votes_zero_friends)
-                    1 -> stringResource(if (isPublicNearby) R.string.result_votes_one_public else R.string.result_votes_one_friend)
-                    else -> stringResource(
-                        if (isPublicNearby) R.string.result_votes_many_public else R.string.result_votes_many_friends,
+                text = if (totalVotes == 0) {
+                    stringResource(if (isPublicNearby) R.string.result_votes_zero_public else R.string.result_votes_zero_friends)
+                } else {
+                    pluralStringResource(
+                        if (isPublicNearby) R.plurals.result_votes_public else R.plurals.result_votes_friends,
+                        totalVotes,
                         totalVotes
                     )
                 },

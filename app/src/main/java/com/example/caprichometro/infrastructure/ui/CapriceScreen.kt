@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -755,7 +756,12 @@ fun CapriceScreen(
                 selectAllFriends || effectiveSelectedFriendIds.size == friends.size ->
                     stringResource(R.string.create_audience_all_friends, friends.size)
                 effectiveSelectedFriendIds.isEmpty() -> stringResource(R.string.create_audience_zero_friends)
-                else -> stringResource(R.string.create_audience_some_friends, effectiveSelectedFriendIds.size, friends.size)
+                else -> pluralStringResource(
+                    R.plurals.create_audience_some_friends,
+                    friends.size,
+                    effectiveSelectedFriendIds.size,
+                    friends.size
+                )
             }
             val audienceSubtitle = stringResource(
                 if (friends.isEmpty()) R.string.create_audience_sub_empty else R.string.create_audience_sub_pick

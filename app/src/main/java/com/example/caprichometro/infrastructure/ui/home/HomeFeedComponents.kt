@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.example.caprichometro.domain.model.CapricePrice
@@ -500,9 +501,9 @@ private fun FeedPaginationFooter(
     ) {
         Text(
             text = if (hasMore) {
-                stringResource(R.string.home_pagination_showing, visibleCount, totalCount)
+                pluralStringResource(R.plurals.home_pagination_showing, totalCount, visibleCount, totalCount)
             } else {
-                stringResource(R.string.home_pagination_all_shown, visibleCount)
+                pluralStringResource(R.plurals.home_pagination_all_shown, visibleCount, visibleCount)
             },
             color = TextSecondary,
             fontSize = 12.sp,
@@ -522,7 +523,7 @@ private fun FeedPaginationFooter(
                 border = BorderStroke(1.dp, LimeAccent)
             ) {
                 Text(
-                    text = stringResource(R.string.home_pagination_load_more, nextBatch),
+                    text = pluralStringResource(R.plurals.home_pagination_load_more, nextBatch, nextBatch),
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )

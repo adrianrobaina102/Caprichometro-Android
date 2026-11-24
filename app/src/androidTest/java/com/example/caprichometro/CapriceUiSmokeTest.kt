@@ -137,7 +137,7 @@ class CapriceUiSmokeTest {
         composeTestRule.onNodeWithText(targetContext.getString(R.string.home_far_section_title)).assertIsDisplayed()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.home_far_section_badge)).assertIsDisplayed()
         composeTestRule.onNodeWithText("¿Viaje a Bilbao?").assertIsDisplayed()
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.home_pagination_load_more, 20)).performClick()
+        composeTestRule.onNodeWithText(targetContext.resources.getQuantityString(R.plurals.home_pagination_load_more, 20, 20)).performClick()
         assertTrue(loadedMore)
     }
 
@@ -169,7 +169,7 @@ class CapriceUiSmokeTest {
         composeTestRule.onNodeWithText("@carlos").performClick()
         composeTestRule.onNodeWithText(targetContext.getString(R.string.action_done)).performClick()
 
-        composeTestRule.onNodeWithText(targetContext.getString(R.string.create_audience_some_friends, 1, 2))
+        composeTestRule.onNodeWithText(targetContext.resources.getQuantityString(R.plurals.create_audience_some_friends, 2, 1, 2))
             .assertIsDisplayed()
 
         composeTestRule.onNodeWithText(targetContext.getString(R.string.create_type_plan_chip))
