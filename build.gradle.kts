@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.google.gms.google.services) apply false
-    id("org.sonarqube") version "5.1.0.4882"
+    id("org.sonarqube") version "7.5.0.8588"
 }
 
 val sonarLocalProps = Properties().apply {
