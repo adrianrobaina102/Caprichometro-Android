@@ -55,6 +55,11 @@ android {
             )
         }
     }
+    sourceSets {
+        getByName("benchmark") {
+            kotlin.directories.add("src/release/java")
+        }
+    }
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
