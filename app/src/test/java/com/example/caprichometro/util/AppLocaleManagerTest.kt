@@ -1,6 +1,11 @@
 package com.example.caprichometro.util
 
+import android.content.Context
+import android.content.SharedPreferences
 import com.example.caprichometro.infrastructure.util.AppLanguage
+import com.example.caprichometro.infrastructure.util.AppLocaleManager
+import io.mockk.every
+import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -15,5 +20,15 @@ class AppLocaleManagerTest {
         assertThat(AppLanguage.fromTag("")).isEqualTo(AppLanguage.SYSTEM)
         assertThat(AppLanguage.fromTag(null)).isEqualTo(AppLanguage.SYSTEM)
         assertThat(AppLanguage.fromTag("fr")).isEqualTo(AppLanguage.SYSTEM)
+    }
+
+    @Test
+    fun `getSelectedLanguage reads from SharedPreferences on pre-Tiramisu`() {
+        val prefs = mockk<SharedPreferences>()
+        val context = mockk<Context>()
+        every { context.getSharedPreferences("app_locale_prefs", Context.MODE_PRIVATE) } returns prefs
+        every { prefs.getString("language_tag", "") } returns "en"
+
+        assertThat(AppLocaleManager.getSelectedLanguage(context)).isEqualTo(AppLanguage.ENGLISH)
     }
 }

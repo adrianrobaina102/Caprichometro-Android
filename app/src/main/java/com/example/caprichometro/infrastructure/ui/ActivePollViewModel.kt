@@ -172,7 +172,11 @@ class ActivePollViewModel(
                     )
                 }
             }
-            if (shouldResolvePlaceName && cell != null && getApproximatePlaceNameUseCase != null) {
+            if (cell != null &&
+                getApproximatePlaceNameUseCase != null &&
+                previousState.approximatePlaceName == null &&
+                placeNameJob?.isActive != true
+            ) {
                 placeNameJob = viewModelScope.launch {
                     val resolved = try {
                         getApproximatePlaceNameUseCase.execute(cell)

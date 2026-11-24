@@ -70,6 +70,11 @@ android {
             it.useJUnitPlatform()
         }
     }
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 dependencies {
