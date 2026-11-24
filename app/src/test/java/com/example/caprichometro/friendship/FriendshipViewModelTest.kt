@@ -60,6 +60,7 @@ class FriendshipViewModelTest {
         Dispatchers.setMain(testDispatcher)
         mockkStatic(Log::class)
         every { Log.e(any(), any(), any()) } returns 0
+        coEvery { searchUserUseCase.searchSuggestions(any(), any()) } returns Result.success(emptyList())
         viewModel = FriendshipViewModel(
             searchUserByUsernameUseCase = searchUserUseCase,
             sendFriendRequestUseCase = sendFriendRequestUseCase,
