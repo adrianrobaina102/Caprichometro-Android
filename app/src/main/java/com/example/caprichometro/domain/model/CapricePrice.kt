@@ -24,7 +24,7 @@ object CapricePrice {
             .replace(',', '.')
 
         val parsed = normalized.toDoubleOrNull()
-        if (parsed == null || !parsed.isFinite() || parsed < 0.0) {
+        if (parsed == null || !parsed.isFinite() || parsed < 0.0 || parsed > 1_000_000.0) {
             return Result.failure(IllegalArgumentException("Precio inválido"))
         }
         return Result.success(parsed)

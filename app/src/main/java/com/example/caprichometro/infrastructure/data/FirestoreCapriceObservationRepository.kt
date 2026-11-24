@@ -51,9 +51,10 @@ class FirestoreCapriceObservationRepository : CapriceObservationRepository {
             return@callbackFlow
         }
 
-        // Filtramos por userId sin forzar índice compuesto para máxima fiabilidad
         val query = db.collection(collectionName)
             .whereEqualTo("userId", friendUserId)
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(10)
 
         val registration = query.addSnapshotListener { snapshot, error ->
             if (error != null) {

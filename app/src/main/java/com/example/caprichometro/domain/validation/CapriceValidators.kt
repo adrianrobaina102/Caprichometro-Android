@@ -21,6 +21,18 @@ class MinLengthValidator(
     }
 }
 
+class MaxLengthValidator(
+    private val fieldName: String,
+    private val maxLength: Int
+) : BaseValidator<String>() {
+    override fun validate(input: String): ValidationResult {
+        if (input.trim().length > maxLength) {
+            return ValidationResult.Error("$fieldName no puede superar los $maxLength caracteres")
+        }
+        return super.validate(input)
+    }
+}
+
 class DifferentOptionsValidator : BaseValidator<Pair<String, String>>() {
     override fun validate(input: Pair<String, String>): ValidationResult {
         val (option1, option2) = input

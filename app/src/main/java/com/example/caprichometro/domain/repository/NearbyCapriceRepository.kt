@@ -28,3 +28,15 @@ interface NearbyCapriceRepository {
         )
     }
 }
+
+/**
+ * Capacidad opcional para consultar primero celdas cercanas mediante `whereIn` + `orderBy(timestamp DESC)`.
+ */
+interface PreferredCellsNearbyCapriceRepository {
+    fun streamDiscoverableCaprices(
+        initialBatchSize: Int = 5,
+        pageSize: Int = 20,
+        includeCache: Boolean = true,
+        preferredCells: List<String> = emptyList()
+    ): Flow<NearbyCapriceBatch>
+}

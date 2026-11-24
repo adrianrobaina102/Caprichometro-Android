@@ -15,3 +15,10 @@ interface CapriceRepository {
         decidedAt: Long
     ): Result<Unit> = Result.success(Unit)
 }
+
+/**
+ * Capacidad opcional para consultar caprichos de múltiples autores en lotes (`whereIn`).
+ */
+interface BatchCapriceRepository {
+    suspend fun getCapricesForUsers(userIds: List<String>, limit: Int): Result<List<Caprice>>
+}

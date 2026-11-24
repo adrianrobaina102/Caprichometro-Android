@@ -3,8 +3,11 @@ package com.example.caprichometro.infrastructure.data
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.repository.NearbyCapriceBatch
 import com.example.caprichometro.domain.repository.NearbyCapriceRepository
+import com.example.caprichometro.domain.repository.PreferredCellsNearbyCapriceRepository
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -19,11 +22,13 @@ import kotlinx.coroutines.withContext
 class FirestoreNearbyCapriceRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-) : NearbyCapriceRepository {
+) : NearbyCapriceRepository, PreferredCellsNearbyCapriceRepository {
 
     companion object {
         const val INITIAL_BATCH_SIZE = 5
         const val PAGE_SIZE = 20
+        private const val MAX_CACHE_DOCS = 50
+        private const val MAX_GLOBAL_DISCOVERABLE_DOCS = 80
         private const val COLLECTION_NAME = "caprices"
     }
 
@@ -46,6 +51,18 @@ class FirestoreNearbyCapriceRepository(
         initialBatchSize: Int,
         pageSize: Int,
         includeCache: Boolean
+    ): Flow<NearbyCapriceBatch> = streamDiscoverableCaprices(
+        initialBatchSize = initialBatchSize,
+        pageSize = pageSize,
+        includeCache = includeCache,
+        preferredCells = emptyList()
+    )
+
+    override fun streamDiscoverableCaprices(
+        initialBatchSize: Int,
+        pageSize: Int,
+        includeCache: Boolean,
+        preferredCells: List<String>
     ): Flow<NearbyCapriceBatch> = flow {
         val baseQuery = db.collection(COLLECTION_NAME)
             .whereNotEqualTo("nearbyCell", "")
@@ -53,7 +70,7 @@ class FirestoreNearbyCapriceRepository(
 
         val cachedList: List<Caprice> = if (includeCache) {
             try {
-                baseQuery.get(Source.CACHE).await().documents.mapNotNull { doc ->
+                baseQuery.limit(MAX_CACHE_DOCS.toLong()).get(Source.CACHE).await().documents.mapNotNull { doc ->
                     doc.toCapriceOrNull("FirestoreNearbyCapriceRepo")
                         ?.takeIf { !it.nearbyCell.isNullOrBlank() }
                 }
@@ -71,15 +88,60 @@ class FirestoreNearbyCapriceRepository(
 
         val collected = mutableListOf<Caprice>()
         val collectedIds = HashSet<String>()
+
+        val safePreferredCells = preferredCells.distinct().filter { it.isNotBlank() }.take(30)
+        if (safePreferredCells.isNotEmpty()) {
+            try {
+                val localSnapshot = db.collection(COLLECTION_NAME)
+                    .whereIn("nearbyCell", safePreferredCells)
+                    .orderBy("timestamp", Query.Direction.DESCENDING)
+                    .limit(pageSize.coerceAtLeast(1).toLong())
+                    .get(Source.SERVER)
+                    .await()
+                for (doc in localSnapshot.documents) {
+                    doc.toCapriceOrNull("FirestoreNearbyCapriceRepo")?.let { caprice ->
+                        if (!caprice.nearbyCell.isNullOrBlank() && collectedIds.add(caprice.id)) {
+                            collected.add(caprice)
+                        }
+                    }
+                }
+                if (collected.isNotEmpty()) {
+                    val localBatch = if (cachedList.isNotEmpty()) {
+                        collected + cachedList.filter { it.id !in collectedIds }
+                    } else {
+                        collected.toList()
+                    }
+                    emit(NearbyCapriceBatch(caprices = localBatch, isFromCache = false, isComplete = false))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FirebaseFirestoreException) {
+                if (e.code != FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+                    if (cachedList.isNotEmpty()) {
+                        emit(NearbyCapriceBatch(caprices = cachedList, isFromCache = true, isComplete = true))
+                        return@flow
+                    }
+                    throw e
+                }
+            } catch (e: Exception) {
+                if (cachedList.isNotEmpty()) {
+                    emit(NearbyCapriceBatch(caprices = cachedList, isFromCache = true, isComplete = true))
+                    return@flow
+                }
+                throw e
+            }
+        }
+
         var lastDocument: DocumentSnapshot? = null
         var isFirstPage = true
+        var globalDocsScanned = 0
 
-        while (true) {
-            val currentLimit = if (isFirstPage) {
-                initialBatchSize.coerceAtLeast(1)
-            } else {
-                pageSize.coerceAtLeast(1)
-            }
+        while (globalDocsScanned < MAX_GLOBAL_DISCOVERABLE_DOCS) {
+            val remainingBudget = MAX_GLOBAL_DISCOVERABLE_DOCS - globalDocsScanned
+            val currentLimit = minOf(
+                remainingBudget,
+                if (isFirstPage) initialBatchSize.coerceAtLeast(1) else pageSize.coerceAtLeast(1)
+            )
             var query = baseQuery.limit(currentLimit.toLong())
             if (lastDocument != null) {
                 query = query.startAfter(lastDocument)
@@ -103,6 +165,7 @@ class FirestoreNearbyCapriceRepository(
                 throw e
             }
             val documents = snapshot.documents
+            globalDocsScanned += documents.size
             for (doc in documents) {
                 doc.toCapriceOrNull("FirestoreNearbyCapriceRepo")?.let { caprice ->
                     if (!caprice.nearbyCell.isNullOrBlank() && collectedIds.add(caprice.id)) {
@@ -111,7 +174,9 @@ class FirestoreNearbyCapriceRepository(
                 }
             }
 
-            val hasMorePages = documents.size >= currentLimit && documents.lastOrNull() != null
+            val hasMorePages = documents.size >= currentLimit &&
+                documents.lastOrNull() != null &&
+                globalDocsScanned < MAX_GLOBAL_DISCOVERABLE_DOCS
             val batchCaprices = if (hasMorePages && cachedList.isNotEmpty()) {
                 // Evita parpadeos conservando los elementos en caché aún no alcanzados en páginas posteriores
                 collected + cachedList.filter { it.id !in collectedIds }

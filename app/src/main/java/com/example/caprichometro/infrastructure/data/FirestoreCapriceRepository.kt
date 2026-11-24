@@ -1,6 +1,7 @@
 package com.example.caprichometro.infrastructure.data
 
 import android.util.Log
+import com.example.caprichometro.domain.model.BatchCapriceRepository
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceRepository
@@ -12,8 +13,13 @@ import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -22,7 +28,7 @@ class FirestoreCapriceRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clockMillis: () -> Long = { System.currentTimeMillis() }
-) : CapriceRepository, CapriceCacheControl {
+) : CapriceRepository, CapriceCacheControl, BatchCapriceRepository {
 
     private data class CachedCapricesEntry(
         val caprices: List<Caprice>,
@@ -251,7 +257,9 @@ class FirestoreCapriceRepository(
         } catch (e: FirebaseFirestoreException) {
             if (e.code != FirebaseFirestoreException.Code.FAILED_PRECONDITION) throw e
             Log.w("FirestoreCapriceRepo", "Índice compuesto (userId, timestamp) aún no disponible; usando ordenación local")
-            val fallbackQuery = db.collection(collectionName).whereEqualTo("userId", userId)
+            val fallbackQuery = db.collection(collectionName)
+                .whereEqualTo("userId", userId)
+                .limit(maxOf(limit, 100).toLong())
             val fallbackSnapshot = if (source != null) {
                 fallbackQuery.get(source).await()
             } else {
@@ -264,4 +272,48 @@ class FirestoreCapriceRepository(
             parsed to fallbackSnapshot.documents.size
         }
     }
+
+    override suspend fun getCapricesForUsers(userIds: List<String>, limit: Int): Result<List<Caprice>> =
+        withContext(ioDispatcher) {
+            val distinctIds = userIds.distinct().filter { it.isNotBlank() }
+            if (distinctIds.isEmpty() || limit <= 0) return@withContext Result.success(emptyList())
+
+            try {
+                val semaphore = Semaphore(4)
+                val merged = coroutineScope {
+                    distinctIds.chunked(30).map { chunk ->
+                        async {
+                            semaphore.withPermit {
+                                try {
+                                    val snapshot = db.collection(collectionName)
+                                        .whereIn("userId", chunk)
+                                        .orderBy("timestamp", Query.Direction.DESCENDING)
+                                        .limit(limit.toLong())
+                                        .get()
+                                        .await()
+                                    snapshot.documents.mapNotNull { doc ->
+                                        doc.toCapriceOrNull("FirestoreCapriceRepo")
+                                    }
+                                } catch (e: FirebaseFirestoreException) {
+                                    if (e.code != FirebaseFirestoreException.Code.FAILED_PRECONDITION) throw e
+                                    chunk.flatMap { uid ->
+                                        fetchSortedCaprices(uid, limit, source = null).first
+                                    }
+                                }
+                            }
+                        }
+                    }.awaitAll().flatten()
+                }
+                Result.success(
+                    merged.distinctBy { it.id }
+                        .sortedByDescending { it.timestamp }
+                        .take(limit)
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("FirestoreCapriceRepo", "Error en consulta por lote de amigos: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
 }

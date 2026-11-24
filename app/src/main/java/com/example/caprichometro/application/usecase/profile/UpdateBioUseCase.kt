@@ -10,6 +10,9 @@ class UpdateBioUseCase(
         if (userId.isBlank()) {
             return Result.failure(IllegalArgumentException("ID de usuario no valido."))
         }
+        if (trimmedBio.length > 160) {
+            return Result.failure(IllegalArgumentException("La biografía no puede superar los 160 caracteres."))
+        }
         return userProfileRepository.updateBio(userId, trimmedBio)
     }
 }

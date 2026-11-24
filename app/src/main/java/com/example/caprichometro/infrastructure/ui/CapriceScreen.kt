@@ -50,6 +50,7 @@ import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.domain.validation.MaxLengthValidator
 import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
 import com.example.caprichometro.domain.validation.ValidationResult
@@ -226,11 +227,14 @@ fun CapriceScreen(
 
     val questionValidatorChain = remember {
         val notBlank = NotBlankValidator("La pregunta")
-        notBlank.setNext(MinLengthValidator("La pregunta", minLength = 6))
+        notBlank
+            .setNext(MinLengthValidator("La pregunta", minLength = 6))
+            .setNext(MaxLengthValidator("La pregunta", maxLength = 200))
         notBlank
     }
 
     val optionsValidator = remember { DifferentOptionsValidator() }
+    val optionLengthValidator = remember { MaxLengthValidator("Cada opción", maxLength = 60) }
 
     val parsedPriceResult = remember(priceText) { CapricePrice.parseOptional(priceText) }
     val isPriceValid = parsedPriceResult.isSuccess
@@ -245,7 +249,11 @@ fun CapriceScreen(
         if (questionResult is ValidationResult.Error) {
             Toast.makeText(context, questionResult.message, Toast.LENGTH_SHORT).show()
         } else {
-            val optionsResult = optionsValidator.validate(Pair(answer1, answer2))
+            val opt1LengthResult = optionLengthValidator.validate(answer1)
+            val opt2LengthResult = optionLengthValidator.validate(answer2)
+            val optionsLengthError = (opt1LengthResult as? ValidationResult.Error)
+                ?: (opt2LengthResult as? ValidationResult.Error)
+            val optionsResult = optionsLengthError ?: optionsValidator.validate(Pair(answer1, answer2))
             if (optionsResult is ValidationResult.Error) {
                 Toast.makeText(context, optionsResult.message, Toast.LENGTH_SHORT).show()
             } else {

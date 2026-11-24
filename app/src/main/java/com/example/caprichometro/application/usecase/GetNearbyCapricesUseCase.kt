@@ -11,6 +11,7 @@ import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.sortedByNearbyFeedOrder
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.NearbyCapriceRepository
+import com.example.caprichometro.domain.repository.PreferredCellsNearbyCapriceRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -122,15 +123,27 @@ class GetNearbyCapricesUseCase(
                 .orEmpty()
         }
         val resolvedAuthors = ConcurrentHashMap<String, UserProfile>()
+        val checkedServerBlocks = ConcurrentHashMap<String, Boolean>()
         val stepSize = initialBatchSize.coerceAtLeast(1)
         val pageLimit = pageSize.coerceAtLeast(stepSize)
+        val initialLocation = locationDeferred.await()
+        val preferredCells = NearbyCellGrid.nearbyCellIds(initialLocation)
 
-        nearbyCapriceRepository.streamDiscoverableCaprices(
-            initialBatchSize = stepSize,
-            pageSize = pageLimit,
-            includeCache = includeCache
-        ).collect { rawBatch ->
-            val location = locationDeferred.await()
+        val discoverableFlow = (nearbyCapriceRepository as? PreferredCellsNearbyCapriceRepository)
+            ?.streamDiscoverableCaprices(
+                initialBatchSize = stepSize,
+                pageSize = pageLimit,
+                includeCache = includeCache,
+                preferredCells = preferredCells
+            )
+            ?: nearbyCapriceRepository.streamDiscoverableCaprices(
+                initialBatchSize = stepSize,
+                pageSize = pageLimit,
+                includeCache = includeCache
+            )
+
+        discoverableFlow.collect { rawBatch ->
+            val location = initialLocation
             val blockedIds = if (rawBatch.isFromCache && cachedBlockedDeferred != null) {
                 cachedBlockedDeferred.await()
             } else {
@@ -145,7 +158,8 @@ class GetNearbyCapricesUseCase(
             val candidates = filterBidirectionalBlocks(
                 currentUserId = currentUserId,
                 candidates = rawCandidates,
-                useCacheOnly = rawBatch.isFromCache
+                useCacheOnly = rawBatch.isFromCache,
+                memoizedServerBlocks = if (rawBatch.isFromCache) null else checkedServerBlocks
             )
             cachedSnapshots[currentUserId] = NearbyPageSnapshot(
                 candidates = candidates,
@@ -266,7 +280,8 @@ class GetNearbyCapricesUseCase(
     private suspend fun filterBidirectionalBlocks(
         currentUserId: String,
         candidates: List<Candidate>,
-        useCacheOnly: Boolean
+        useCacheOnly: Boolean,
+        memoizedServerBlocks: ConcurrentHashMap<String, Boolean>? = null
     ): List<Candidate> {
         val repo = friendshipRepository ?: return candidates
         if (candidates.isEmpty()) return candidates
@@ -275,11 +290,17 @@ class GetNearbyCapricesUseCase(
         val blockedAuthors = coroutineScope {
             authorIds.map { authorId ->
                 async(ioDispatcher) {
+                    if (!useCacheOnly && memoizedServerBlocks != null) {
+                        val cached = memoizedServerBlocks[authorId]
+                        if (cached != null) return@async if (cached) authorId else null
+                    }
                     semaphore.withPermit {
                         val blocked = if (useCacheOnly) {
                             repo.isCachedBlocked(currentUserId, authorId)
                         } else {
-                            repo.isBlocked(currentUserId, authorId).getOrDefault(false)
+                            repo.isBlocked(currentUserId, authorId).getOrDefault(false).also {
+                                memoizedServerBlocks?.put(authorId, it)
+                            }
                         }
                         if (blocked) authorId else null
                     }

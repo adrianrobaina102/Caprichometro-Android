@@ -32,6 +32,30 @@ object NearbyCellGrid {
         return "v1_${latitudeIndex}_${longitudeIndex}"
     }
 
+    /**
+     * Devuelve una cuadrícula de `(2 * radiusCells + 1)^2` celdas alrededor de [location]
+     * (por defecto 5x5 = 25 celdas, dentro del límite de 30 elementos de `whereIn` en Firestore).
+     */
+    fun nearbyCellIds(location: ApproximateLocation, radiusCells: Int = 2): List<String> {
+        val safeRadius = radiusCells.coerceIn(0, 2)
+        val centerLatIdx = min(
+            LATITUDE_CELL_COUNT - 1,
+            max(0, floor((location.latitude + 90.0) / CELL_SIZE_DEGREES).toInt())
+        )
+        val rawLonIdx = floor((location.longitude + 180.0) / CELL_SIZE_DEGREES).toInt()
+        val centerLonIdx = ((rawLonIdx % LONGITUDE_CELL_COUNT) + LONGITUDE_CELL_COUNT) % LONGITUDE_CELL_COUNT
+
+        val cells = LinkedHashSet<String>()
+        for (dLat in -safeRadius..safeRadius) {
+            val latIdx = (centerLatIdx + dLat).coerceIn(0, LATITUDE_CELL_COUNT - 1)
+            for (dLon in -safeRadius..safeRadius) {
+                val lonIdx = ((centerLonIdx + dLon) % LONGITUDE_CELL_COUNT + LONGITUDE_CELL_COUNT) % LONGITUDE_CELL_COUNT
+                cells.add("v1_${latIdx}_${lonIdx}")
+            }
+        }
+        return cells.toList()
+    }
+
     fun centerLocation(cellId: String): ApproximateLocation? {
         val parts = cellId.trim().split('_')
         if (parts.size != 3 || parts[0] != "v1") return null

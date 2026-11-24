@@ -4,6 +4,7 @@ import com.example.caprichometro.application.usecase.friendship.GetAcceptedFrien
 import com.example.caprichometro.domain.friendship.FriendshipRepository
 import com.example.caprichometro.domain.friendship.FriendshipStatus
 import com.example.caprichometro.domain.model.ApproximateLocation
+import com.example.caprichometro.domain.model.BatchCapriceRepository
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.CapriceRepository
@@ -283,29 +284,65 @@ class GetFriendsCapricesUseCase(
                     .filter { it.isNotBlank() && it !in ownBlockedIds }
                 confirmedFriendIds = candidateFriendIds.toSet()
 
-                candidateFriendIds.map { friendId ->
-                    async {
-                        semaphore.withPermit {
-                            val blockedDeferred = async {
+                val batchRepo = capriceRepository as? BatchCapriceRepository
+                if (batchRepo != null && candidateFriendIds.isNotEmpty()) {
+                    val blockedChecksDeferred = candidateFriendIds.associateWith { friendId ->
+                        async {
+                            semaphore.withPermit {
                                 friendshipRepository.isBlocked(currentUserId, friendId).getOrNull() ?: false
-                            }
-                            val capricesDeferred = async {
-                                capriceRepository.getCaprices(friendId, perFriendLimit).getOrDefault(emptyList())
-                            }
-                            if (blockedDeferred.await()) {
-                                mutex.withLock { capricesByFriend.remove(friendId) }
-                                return@withPermit
-                            }
-                            val visible = capricesDeferred.await().filter { it.isVisibleInFriendsTo(currentUserId) }
-                            mutex.withLock {
-                                capricesByFriend[friendId] = visible.map { it to null }
-                            }
-                            if (visible.isNotEmpty() || !emittedCacheBatch) {
-                                maybeEmitPartial()
                             }
                         }
                     }
-                }.awaitAll()
+                    val batchCapricesDeferred = async {
+                        batchRepo.getCapricesForUsers(
+                            userIds = candidateFriendIds,
+                            limit = maxOf(pageLimit, perFriendLimit)
+                        ).getOrDefault(emptyList())
+                    }
+                    val batchCaprices = batchCapricesDeferred.await()
+                    val blockedIds = blockedChecksDeferred.mapNotNull { (friendId, deferred) ->
+                        if (deferred.await()) friendId else null
+                    }.toSet()
+
+                    val byFriend = batchCaprices
+                        .asSequence()
+                        .filter { it.userId !in blockedIds && it.isVisibleInFriendsTo(currentUserId) }
+                        .groupBy { it.userId }
+
+                    mutex.withLock {
+                        blockedIds.forEach { capricesByFriend.remove(it) }
+                        candidateFriendIds
+                            .filterNot { it in blockedIds }
+                            .forEach { friendId ->
+                                capricesByFriend[friendId] = byFriend[friendId].orEmpty().map { it to null }
+                            }
+                    }
+                    maybeEmitPartial(forceIfNonEmpty = true)
+                } else {
+                    candidateFriendIds.map { friendId ->
+                        async {
+                            semaphore.withPermit {
+                                val blockedDeferred = async {
+                                    friendshipRepository.isBlocked(currentUserId, friendId).getOrNull() ?: false
+                                }
+                                val capricesDeferred = async {
+                                    capriceRepository.getCaprices(friendId, perFriendLimit).getOrDefault(emptyList())
+                                }
+                                if (blockedDeferred.await()) {
+                                    mutex.withLock { capricesByFriend.remove(friendId) }
+                                    return@withPermit
+                                }
+                                val visible = capricesDeferred.await().filter { it.isVisibleInFriendsTo(currentUserId) }
+                                mutex.withLock {
+                                    capricesByFriend[friendId] = visible.map { it to null }
+                                }
+                                if (visible.isNotEmpty() || !emittedCacheBatch) {
+                                    maybeEmitPartial()
+                                }
+                            }
+                        }
+                    }.awaitAll()
+                }
             } else {
                 val acceptedFriends = preloadedFriends ?: getAcceptedFriendsUseCase.execute(currentUserId).first()
                 confirmedFriendIds = acceptedFriends.map { it.uid }.toSet()
