@@ -288,7 +288,7 @@ fun ResultScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
+                        .height(320.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFF1C1C1E))
                         .clickable { isImageExpanded = true }

@@ -413,7 +413,11 @@ fun AddFriendScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 5.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1A1A1D))
+                        .border(1.dp, Color(0xFF28282B), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -534,8 +538,12 @@ fun AddFriendScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1A1A1D))
+                        .border(1.dp, Color(0xFF28282B), RoundedCornerShape(16.dp))
                         .clickable { onViewProfile(friend.uid) }
-                        .padding(vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -617,20 +625,26 @@ fun AddFriendScreen(
         }
 
         item(key = "invite_footer") {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.height(28.dp))
-
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 16.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF1A1A1D))
+                    .border(1.dp, Color(0xFF28282B), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
                 // Botón inferior: "Invitar a un amigo"
                 Button(
                     onClick = { showInviteSheet = true },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFF2F2F2),
                         contentColor = Color.Black
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(50.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
@@ -647,13 +661,13 @@ fun AddFriendScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Pie de privacidad: "Sin seguidores públicos. Sin desconocidos."
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 ) {
                     Icon(
                         imageVector = AppIcons.VerifiedUser,
@@ -667,8 +681,6 @@ fun AddFriendScreen(
                         fontSize = 12.sp
                     )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }

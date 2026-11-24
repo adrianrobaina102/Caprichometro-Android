@@ -822,31 +822,23 @@ private fun PollOptionCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(if (isWinner || isSelectedByUser) LimeGreen else OptionCardBorder),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelectedByUser) {
+            if (isSelectedByUser) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(LimeGreen),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Seleccionado",
                         tint = Color.Black,
                         modifier = Modifier.size(16.dp)
                     )
-                } else {
-                    Text(
-                        text = label,
-                        color = if (isWinner) Color.Black else LimeGreen,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
+                Spacer(modifier = Modifier.width(12.dp))
             }
-
-            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(

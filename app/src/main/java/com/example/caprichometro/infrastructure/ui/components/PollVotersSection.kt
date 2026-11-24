@@ -237,19 +237,5 @@ private fun VoterRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(VotersLime.copy(alpha = 0.16f))
-                .border(1.dp, VotersLime.copy(alpha = 0.5f), RoundedCornerShape(50))
-                .padding(horizontal = 10.dp, vertical = 3.dp)
-        ) {
-            Text(
-                text = optionLabel,
-                color = VotersLime,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }

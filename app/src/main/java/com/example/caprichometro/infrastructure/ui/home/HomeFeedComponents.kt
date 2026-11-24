@@ -696,7 +696,8 @@ internal fun CapriceFeedCard(
             lineHeight = 23.sp
         )
 
-        if (caprice.price != null) {
+        val hasFeedImage = effectiveImageUrl.isNotBlank()
+        if (!hasFeedImage && caprice.price != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
@@ -715,12 +716,12 @@ internal fun CapriceFeedCard(
         }
 
         // Foto opcional debajo de la pregunta y antes de las opciones
-        if (effectiveImageUrl.isNotBlank()) {
+        if (hasFeedImage) {
             Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(230.dp)
+                    .height(250.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF121214))
                     .clickable { onImageClick(effectiveImageUrl) }
@@ -731,19 +732,23 @@ internal fun CapriceFeedCard(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                        .padding(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = stringResource(R.string.feed_enlarge_photo_cd),
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
+                if (caprice.price != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(10.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .border(1.dp, LimeAccent.copy(alpha = 0.6f), RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = CapricePrice.formatEuros(caprice.price),
+                            color = LimeAccent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -801,21 +806,13 @@ private fun FeedOptionPill(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(CircleShape)
-                .background(if (isWinner) LimeAccent else CardBorder),
-            contentAlignment = Alignment.Center
-        ) {
+        if (isWinner) {
             Text(
-                text = label,
-                color = if (isWinner) Color.Black else LimeAccent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                text = "🏆",
+                fontSize = 13.sp,
+                modifier = Modifier.padding(end = 8.dp)
             )
         }
-        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = text,
             color = Color.White,
