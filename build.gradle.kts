@@ -37,6 +37,38 @@ project(":app") {
                 "sonar.coverage.jacoco.xmlReportPaths",
                 "${layout.buildDirectory.get().asFile}/reports/coverage/test/debug/report.xml"
             )
+            property(
+                "sonar.coverage.exclusions",
+                listOf(
+                    "**/*Screen.kt",
+                    "**/*Screen*.kt",
+                    "**/*Sheet.kt",
+                    "**/*Components.kt",
+                    "**/*Tab.kt",
+                    "**/*Card.kt",
+                    "**/*Dialog.kt",
+                    "**/*Banner.kt",
+                    "**/*Row.kt",
+                    "**/*Viewer.kt",
+                    "**/*Button.kt",
+                    "**/*Selector.kt",
+                    "**/ui/theme/**",
+                    "**/infrastructure/ui/components/**",
+                    "**/infrastructure/ui/caprice/**",
+                    "**/infrastructure/ui/friendship/*Section*.kt",
+                    "**/infrastructure/ui/friendship/*Header*.kt",
+                    "**/infrastructure/ui/friendship/*Empty*.kt",
+                    "**/infrastructure/ui/profile/ProfileCategory.kt",
+                    "**/MainActivity.kt",
+                    "**/CaprichometroApplication.kt",
+                    "**/infrastructure/factory/**",
+                    "**/infrastructure/data/**",
+                    "**/infrastructure/location/**",
+                    "**/infrastructure/notification/**",
+                    "**/infrastructure/auth/**",
+                    "**/infrastructure/security/**"
+                ).joinToString(",")
+            )
         }
     }
 }

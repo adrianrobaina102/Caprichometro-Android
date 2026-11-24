@@ -161,4 +161,64 @@ class AuthViewModelTest {
         assertThat(viewModel.state.value.isSubmitting).isFalse()
         coVerify(exactly = 1) { deleteAccountUseCase.execute("uid123", "user123") }
     }
+
+    @Test
+    fun `signIn con credenciales validas autentica y limpia contrasena`() = runTest {
+        val user = User(id = "u1", email = "adrian@gmail.com", name = "adrian")
+        coEvery { signInUseCase.execute("adrian@gmail.com", "123456") } returns Result.success(user)
+        viewModel.updateEmail(" adrian@gmail.com ")
+        viewModel.updatePassword("123456")
+
+        viewModel.signIn()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.state.value.isAuthSuccessful).isTrue()
+        assertThat(viewModel.state.value.password).isEmpty()
+        assertThat(viewModel.state.value.email).isEqualTo("adrian@gmail.com")
+    }
+
+    @Test
+    fun `signIn con fallo muestra error y clearError lo limpia`() = runTest {
+        coEvery { signInUseCase.execute("adrian@gmail.com", "123456") } returns Result.failure(IllegalArgumentException("Credenciales invalidas"))
+        viewModel.updateEmail("adrian@gmail.com")
+        viewModel.updatePassword("123456")
+
+        viewModel.signIn()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.state.value.isAuthSuccessful).isFalse()
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("Credenciales invalidas")
+        viewModel.clearError()
+        assertThat(viewModel.state.value.errorMessage).isNull()
+    }
+
+    @Test
+    fun `register valido autentica y clearSessionState reinicia sesion`() = runTest {
+        val user = User(id = "u2", email = "nuevo@gmail.com", name = "nuevo")
+        coEvery { registerUseCase.execute("nuevo@gmail.com", "123456", "nuevo") } returns Result.success(user)
+        viewModel.updateName("nuevo")
+        viewModel.updateEmail("nuevo@gmail.com")
+        viewModel.updatePassword("123456")
+        viewModel.updateBirthday(LocalDate.of(2000, 1, 1))
+
+        viewModel.register()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.state.value.isAuthSuccessful).isTrue()
+        assertThat(viewModel.state.value.password).isEmpty()
+
+        viewModel.clearSessionState()
+        assertThat(viewModel.state.value.isAuthSuccessful).isFalse()
+    }
+
+    @Test
+    fun `deleteAccount con fallo mantiene sesion y muestra error`() = runTest {
+        coEvery { deleteAccountUseCase.execute("uid123", "user123") } returns Result.failure(RuntimeException("Reautenticacion requerida"))
+
+        viewModel.deleteAccount("uid123", "user123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.state.value.isSubmitting).isFalse()
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("Reautenticacion requerida")
+    }
 }
