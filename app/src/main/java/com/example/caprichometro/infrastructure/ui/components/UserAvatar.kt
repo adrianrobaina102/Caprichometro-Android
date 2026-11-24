@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import coil.compose.AsyncImage
-import com.example.caprichometro.infrastructure.util.ImageModelHelper
+import com.example.caprichometro.infrastructure.util.rememberImageModel
 
 @Composable
 fun UserAvatar(
@@ -34,7 +34,7 @@ fun UserAvatar(
 ) {
     val initial = username.removePrefix("@").trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     var loadFailed by remember(photoUrl) { mutableStateOf(false) }
-    val imageModel = remember(photoUrl) { ImageModelHelper.parseImageModel(photoUrl) }
+    val imageModel = rememberImageModel(photoUrl)
 
     Box(
         modifier = modifier

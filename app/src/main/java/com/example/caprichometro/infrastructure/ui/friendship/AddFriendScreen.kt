@@ -10,12 +10,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -83,7 +84,6 @@ fun AddFriendScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    val scrollState = rememberScrollState()
     var showInviteSheet by remember { mutableStateOf(false) }
     var friendToRemove by remember { mutableStateOf<UserProfile?>(null) }
     var friendToBlock by remember { mutableStateOf<UserProfile?>(null) }
@@ -113,13 +113,14 @@ fun AddFriendScreen(
         }
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
-            .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .background(DarkBackground),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
     ) {
+        item(key = "header_and_search") {
+            Column(modifier = Modifier.fillMaxWidth()) {
         // Barra superior: "<   Tu gente"
         Box(
             modifier = Modifier
@@ -392,16 +393,23 @@ fun AddFriendScreen(
         }
 
         Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
 
         if (state.incomingRequests.isEmpty()) {
-            Text(
-                text = "No tienes solicitudes pendientes",
-                color = SubtleGray,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            item(key = "empty_requests") {
+                Text(
+                    text = "No tienes solicitudes pendientes",
+                    color = SubtleGray,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
         } else {
-            state.incomingRequests.forEach { request ->
+            items(
+                items = state.incomingRequests,
+                key = { request -> "req_${request.friendshipId}" }
+            ) { request ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -487,30 +495,39 @@ fun AddFriendScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = DividerDark, thickness = 1.dp)
-        Spacer(modifier = Modifier.height(20.dp))
+        item(key = "friends_header") {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = DividerDark, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(20.dp))
 
-        // SECCIÓN: MIS AMIGOS · N
-        Text(
-            text = "MIS AMIGOS · ${state.friends.size}",
-            color = SubtleGray,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp
-        )
+                // SECCIÓN: MIS AMIGOS · N
+                Text(
+                    text = "MIS AMIGOS · ${state.friends.size}",
+                    color = SubtleGray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                )
 
-        Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
 
         if (state.friends.isEmpty()) {
-            Text(
-                text = "Aún no tienes amigos agregados",
-                color = SubtleGray,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
+            item(key = "empty_friends") {
+                Text(
+                    text = "Aún no tienes amigos agregados",
+                    color = SubtleGray,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            }
         } else {
-            state.friends.forEachIndexed { index, friend ->
+            itemsIndexed(
+                items = state.friends,
+                key = { _, friend -> "friend_${friend.uid}" }
+            ) { index, friend ->
                 var menuExpanded by remember(friend.uid) { mutableStateOf(false) }
                 val avatarColor = PastelAvatarColors[(index + 1) % PastelAvatarColors.size]
 
@@ -599,57 +616,61 @@ fun AddFriendScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        item(key = "invite_footer") {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.height(28.dp))
 
-        // Botón inferior: "Invitar a un amigo"
-        Button(
-            onClick = { showInviteSheet = true },
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFF2F2F2),
-                contentColor = Color.Black
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Share,
-                contentDescription = null,
-                tint = Color.Black,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = stringResource(R.string.friends_invite_button),
-                color = Color.Black,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
+                // Botón inferior: "Invitar a un amigo"
+                Button(
+                    onClick = { showInviteSheet = true },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF2F2F2),
+                        contentColor = Color.Black
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(R.string.friends_invite_button),
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Pie de privacidad: "Sin seguidores públicos. Sin desconocidos."
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = AppIcons.VerifiedUser,
+                        contentDescription = null,
+                        tint = SubtleGray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.friends_privacy_footer),
+                        color = SubtleGray,
+                        fontSize = 12.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Pie de privacidad: "Sin seguidores públicos. Sin desconocidos."
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-        ) {
-            Icon(
-                imageVector = AppIcons.VerifiedUser,
-                contentDescription = null,
-                tint = SubtleGray,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = stringResource(R.string.friends_privacy_footer),
-                color = SubtleGray,
-                fontSize = 12.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 
     friendToRemove?.let { target ->

@@ -147,9 +147,9 @@ fun ActivePollScreen(
     val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
 
     var isImageExpanded by remember { mutableStateOf(false) }
-    val imageModel = remember(caprice?.imageUrl) {
-        ImageModelHelper.parseImageModel(caprice?.imageUrl.orEmpty())
-    }
+    val imageModel = com.example.caprichometro.infrastructure.util.rememberImageModel(
+        caprice?.imageUrl.orEmpty()
+    )
 
     // Inicialización del ViewModel reactivo si está presente
     LaunchedEffect(caprice?.id, currentUserId, approximateDistanceMeters, authorLocationCell) {

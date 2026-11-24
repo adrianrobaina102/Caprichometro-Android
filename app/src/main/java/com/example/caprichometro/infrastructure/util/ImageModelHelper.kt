@@ -1,6 +1,11 @@
 package com.example.caprichometro.infrastructure.util
 
 import android.util.Base64
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Caché LRU acotada estrictamente en bytes para evitar picos de memoria con imágenes Base64 WebP.
@@ -52,6 +57,8 @@ internal class BoundedImageByteCache(
 object ImageModelHelper {
     private val memoryCache = BoundedImageByteCache()
 
+    fun getCachedOrNull(url: String): ByteArray? = memoryCache.get(url)
+
     fun parseImageModel(url: String): Any =
         parseImageModelInternal(url, memoryCache) { base64Data ->
             Base64.decode(base64Data, Base64.DEFAULT)
@@ -83,4 +90,22 @@ object ImageModelHelper {
             url
         }
     }
+}
+
+@Composable
+fun rememberImageModel(url: String): Any? {
+    val cachedOrDirect = remember(url) {
+        when {
+            url.isBlank() || !url.startsWith("data:") -> url
+            else -> ImageModelHelper.getCachedOrNull(url)
+        }
+    }
+    val state = produceState<Any?>(initialValue = cachedOrDirect, key1 = url) {
+        if (cachedOrDirect == null && url.startsWith("data:")) {
+            value = withContext(Dispatchers.Default) {
+                ImageModelHelper.parseImageModel(url)
+            }
+        }
+    }
+    return state.value
 }

@@ -48,9 +48,7 @@ fun FullScreenImageViewer(
 ) {
     if (imageUrl.isBlank()) return
 
-    val imageModel = remember(imageUrl) {
-        ImageModelHelper.parseImageModel(imageUrl)
-    }
+    val imageModel = com.example.caprichometro.infrastructure.util.rememberImageModel(imageUrl)
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }

@@ -572,9 +572,7 @@ internal fun CapriceFeedCard(
     val statusText = remember(caprice.timestamp, nowMillis, context) {
         formatPollStatus(context, caprice.timestamp, nowMillis)
     }
-    val imageModel = remember(effectiveImageUrl) {
-        ImageModelHelper.parseImageModel(effectiveImageUrl)
-    }
+    val imageModel = com.example.caprichometro.infrastructure.util.rememberImageModel(effectiveImageUrl)
     val typeEmoji = if (caprice.type.contains("compra", ignoreCase = true)) "🛍️" else "🎉"
     val typeDisplay = localizedCapriceType(context, caprice.type)
 

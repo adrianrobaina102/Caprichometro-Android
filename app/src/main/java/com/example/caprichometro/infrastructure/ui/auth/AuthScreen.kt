@@ -131,7 +131,7 @@ fun AuthScreen(
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Tus caprichos, tus dudas y tus planes\nen 5 minutos",
+            text = stringResource(R.string.auth_subtitle),
             color = Color.Gray,
             textAlign = TextAlign.Center,
             fontSize = 14.sp,
@@ -307,6 +307,7 @@ fun AuthScreen(
                 text = stringResource(if (isLoginMode) R.string.auth_no_account_prefix else R.string.auth_has_account_prefix),
                 color = Color.Gray
             )
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = stringResource(if (isLoginMode) R.string.auth_tab_register else R.string.auth_tab_login),
                 color = LimeGreen,

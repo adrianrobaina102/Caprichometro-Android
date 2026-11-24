@@ -260,9 +260,7 @@ internal fun ProfileMemoriesTab(
 
 @Composable
 internal fun MemoryCard(item: MemoryItem, modifier: Modifier = Modifier) {
-    val imageModel = remember(item.imageUrl) {
-        ImageModelHelper.parseImageModel(item.imageUrl)
-    }
+    val imageModel = com.example.caprichometro.infrastructure.util.rememberImageModel(item.imageUrl)
 
     Box(
         modifier = modifier

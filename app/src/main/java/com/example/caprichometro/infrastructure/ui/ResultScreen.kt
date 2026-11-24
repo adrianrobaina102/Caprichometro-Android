@@ -71,9 +71,9 @@ fun ResultScreen(
     val displayedCaprice = vmState?.caprice ?: caprice
     val isPublicNearby = !displayedCaprice?.nearbyCell.isNullOrBlank()
 
-    val imageModel = remember(displayedCaprice?.imageUrl) {
-        ImageModelHelper.parseImageModel(displayedCaprice?.imageUrl.orEmpty())
-    }
+    val imageModel = com.example.caprichometro.infrastructure.util.rememberImageModel(
+        displayedCaprice?.imageUrl.orEmpty()
+    )
     val resolvedUsername = authorUsername?.trim()?.removePrefix("@")
         ?.takeIf { it.isNotBlank() }
         ?: vmState?.authorUsername?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }

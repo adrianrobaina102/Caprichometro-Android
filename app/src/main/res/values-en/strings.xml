@@ -50,9 +50,11 @@
     <string name="auth_terms_notice">By continuing you agree to the terms</string>
     <string name="auth_birthday_title">DATE OF BIRTH</string>
     <string name="auth_birthday_headline_empty">Pick your date</string>
+    <string name="auth_subtitle">Your cravings, doubts and plans\nin 5 minutes</string>
 
     <!-- Home & Feeds -->
     <string name="home_tab_friends">Friends</string>
+    <string name="home_loading_friends">Loading your friends\' polls...</string>
     <string name="home_tab_general">General</string>
     <string name="home_subtitle_friends">Your friends\' polls</string>
     <string name="home_subtitle_general">Public nearby polls</string>

@@ -286,7 +286,7 @@ fun HomeScreen(
             if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
                 when {
                     state.isFeedLoading && state.feedItems.isEmpty() -> {
-                        FeedLoadingState(message = "Cargando dudas de tus amigos...")
+                        FeedLoadingState(message = stringResource(R.string.home_loading_friends))
                     }
 
                     state.feedError != null && state.feedItems.isEmpty() -> {

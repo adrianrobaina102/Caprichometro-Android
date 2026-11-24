@@ -50,9 +50,11 @@
     <string name="auth_terms_notice">Al continuar aceptas los términos</string>
     <string name="auth_birthday_title">FECHA DE NACIMIENTO</string>
     <string name="auth_birthday_headline_empty">Elige tu fecha</string>
+    <string name="auth_subtitle">Tus caprichos, tus dudas y tus planes\nen 5 minutos</string>
 
     <!-- Inicio y Feeds -->
     <string name="home_tab_friends">Amigos</string>
+    <string name="home_loading_friends">Cargando dudas de tus amigos...</string>
     <string name="home_tab_general">General</string>
     <string name="home_subtitle_friends">Dudas de tus amigos</string>
     <string name="home_subtitle_general">Dudas públicas por cercanía</string>

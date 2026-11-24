@@ -246,65 +246,75 @@ internal fun ProfileSettingsModalSheet(
                         )
                     }
                 } else {
-                    blockedUsers.forEach { blockedUser ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp)
-                                .background(CardSurface, RoundedCornerShape(14.dp))
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp)
+                    ) {
+                        items(
+                            count = blockedUsers.size,
+                            key = { idx -> blockedUsers[idx].uid }
+                        ) { idx ->
+                            val blockedUser = blockedUsers[idx]
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        Toast.makeText(
-                                            context,
-                                            "@${blockedUser.username} está bloqueado. Pulsa «Desbloquear» si quieres volver a interactuar.",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                    .padding(end = 8.dp)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                                    .background(CardSurface, RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                UserAvatar(
-                                    photoUrl = blockedUser.photoUrl,
-                                    username = blockedUser.username,
-                                    size = 34.dp,
-                                    backgroundColor = avatarColorFor(blockedUser.username),
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = "@${blockedUser.username}",
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            Toast.makeText(
+                                                context,
+                                                "@${blockedUser.username} está bloqueado. Pulsa «Desbloquear» si quieres volver a interactuar.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                        .padding(end = 8.dp)
+                                ) {
+                                    UserAvatar(
+                                        photoUrl = blockedUser.photoUrl,
+                                        username = blockedUser.username,
+                                        size = 34.dp,
+                                        backgroundColor = avatarColorFor(blockedUser.username),
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "@${blockedUser.username}",
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
 
-                            val isUnblocking = blockedUser.uid in unblockingUserIds
-                            OutlinedButton(
-                                onClick = { onUnblockUser(blockedUser.uid) },
-                                enabled = !isUnblocking,
-                                shape = RoundedCornerShape(50),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = AppIcons.LockOpen,
-                                    contentDescription = null,
-                                    tint = LimeGreen,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isUnblocking) "..." else "Desbloquear", fontSize = 12.sp)
+                                val isUnblocking = blockedUser.uid in unblockingUserIds
+                                OutlinedButton(
+                                    onClick = { onUnblockUser(blockedUser.uid) },
+                                    enabled = !isUnblocking,
+                                    shape = RoundedCornerShape(50),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.LockOpen,
+                                        contentDescription = null,
+                                        tint = LimeGreen,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (isUnblocking) "..." else "Desbloquear", fontSize = 12.sp)
+                                }
                             }
                         }
                     }
