@@ -68,6 +68,17 @@ object ImageModelHelper {
         memoryCache.clear()
     }
 
+    fun isAllowedImageUrl(url: String): Boolean {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return false
+        return trimmed.startsWith("data:image/webp;base64,", ignoreCase = true) ||
+            trimmed.startsWith("data:image/jpeg;base64,", ignoreCase = true) ||
+            trimmed.startsWith("data:image/jpg;base64,", ignoreCase = true) ||
+            trimmed.startsWith("data:image/png;base64,", ignoreCase = true) ||
+            trimmed.startsWith("https://firebasestorage.googleapis.com/", ignoreCase = true) ||
+            trimmed.startsWith("https://storage.googleapis.com/", ignoreCase = true)
+    }
+
     internal fun parseImageModelInternal(
         url: String,
         cache: BoundedImageByteCache,
@@ -96,7 +107,8 @@ object ImageModelHelper {
 fun rememberImageModel(url: String): Any? {
     val cachedOrDirect = remember(url) {
         when {
-            url.isBlank() || !url.startsWith("data:") -> url
+            url.isBlank() || !ImageModelHelper.isAllowedImageUrl(url) -> ""
+            !url.startsWith("data:") -> url
             else -> ImageModelHelper.getCachedOrNull(url)
         }
     }

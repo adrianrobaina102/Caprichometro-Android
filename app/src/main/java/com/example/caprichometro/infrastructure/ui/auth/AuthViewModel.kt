@@ -138,6 +138,7 @@ class AuthViewModel(
     }
 
     fun signInWithGoogle(context: Context) {
+        if (_state.value.isSubmitting) return
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, errorMessage = null) }
 

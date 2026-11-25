@@ -27,8 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import com.example.caprichometro.infrastructure.ui.home.localizedCapriceType
 import androidx.compose.ui.text.font.FontWeight
 import com.example.caprichometro.domain.model.CapricePrice
 import androidx.compose.ui.text.style.TextAlign
@@ -230,7 +232,8 @@ fun ResultScreen(
                 )
             }
 
-            val hasImage = !caprice?.imageUrl.isNullOrBlank()
+            val context = LocalContext.current
+            val hasImage = !displayedCaprice?.imageUrl.isNullOrBlank()
             if (!hasImage && finalDecisionSummary != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Box(
@@ -260,7 +263,7 @@ fun ResultScreen(
                         .padding(horizontal = 12.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = caprice?.type ?: "Duda",
+                        text = localizedCapriceType(context, displayedCaprice?.type ?: stringResource(R.string.poll_fallback_type)),
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -325,7 +328,7 @@ fun ResultScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Ampliar foto",
+                            contentDescription = stringResource(R.string.poll_enlarge_photo_cd),
                             tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
@@ -344,13 +347,13 @@ fun ResultScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 ResultBar(
-                    answerText = caprice?.answer1 ?: "Opción A",
+                    answerText = displayedCaprice?.answer1 ?: stringResource(R.string.result_option_a_fallback),
                     percentage = opt1Pct,
                     isWinner = winner == 1,
                     modifier = Modifier.weight(1f)
                 )
                 ResultBar(
-                    answerText = caprice?.answer2 ?: "Opción B",
+                    answerText = displayedCaprice?.answer2 ?: stringResource(R.string.result_option_b_fallback),
                     percentage = opt2Pct,
                     isWinner = winner == 2,
                     modifier = Modifier.weight(1f)
@@ -419,10 +422,10 @@ fun ResultScreen(
         }
     }
 
-    if (isImageExpanded && !caprice?.imageUrl.isNullOrBlank()) {
+    if (isImageExpanded && !displayedCaprice?.imageUrl.isNullOrBlank()) {
         FullScreenImageViewer(
-            imageUrl = caprice!!.imageUrl,
-            contentDescription = caprice?.question.orEmpty(),
+            imageUrl = displayedCaprice.imageUrl,
+            contentDescription = displayedCaprice.question,
             onDismiss = { isImageExpanded = false }
         )
     }

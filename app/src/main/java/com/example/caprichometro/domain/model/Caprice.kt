@@ -97,20 +97,25 @@ data class Caprice(
             this.locationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
         }
         fun setPrice(price: Double?) = apply {
-            this.price = price?.takeIf { it.isFinite() && it >= 0.0 }
+            this.price = price?.takeIf { it.isFinite() && it in 0.0..1_000_000.0 }
         }
         fun setHasImage(hasImage: Boolean) = apply { this.hasImage = hasImage }
 
         fun build(): Caprice {
-            check(question.isNotBlank()) { "La pregunta es obligatoria" }
-            check(answer1.isNotBlank() && answer2.isNotBlank()) { "Ambas opciones son obligatorias" }
+            val cleanQuestion = question.trim()
+            val cleanAns1 = answer1.trim()
+            val cleanAns2 = answer2.trim()
+            check(cleanQuestion.isNotEmpty()) { "La pregunta es obligatoria" }
+            check(cleanQuestion.length <= 200) { "La pregunta supera el máximo de 200 caracteres" }
+            check(cleanAns1.isNotEmpty() && cleanAns2.isNotEmpty()) { "Ambas opciones son obligatorias" }
+            check(cleanAns1.length <= 60 && cleanAns2.length <= 60) { "Las opciones superan el máximo de 60 caracteres" }
             return Caprice(
                 id = id,
                 userId = userId,
                 type = type,
-                question = question,
-                answer1 = answer1,
-                answer2 = answer2,
+                question = cleanQuestion,
+                answer1 = cleanAns1,
+                answer2 = cleanAns2,
                 imageUrl = imageUrl,
                 timestamp = timestamp,
                 visibleToUserIds = visibleToUserIds,

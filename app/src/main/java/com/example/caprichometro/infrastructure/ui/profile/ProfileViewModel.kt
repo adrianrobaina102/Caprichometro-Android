@@ -109,6 +109,8 @@ class ProfileViewModel(
     private val verdictCache = ConcurrentHashMap<String, CachedVerdictEntry>()
     private val voteCountCache = ConcurrentHashMap<String, Int>()
     private val requestedImageIds = ConcurrentHashMap.newKeySet<String>()
+    private val imageLoadJobs = ConcurrentHashMap<String, Job>()
+    private val imageLoadSemaphore = Semaphore(4)
     private var sessionGeneration = 0L
     private var loadedTargetUserId: String = ""
     private var loadedCurrentUserId: String = ""
@@ -132,6 +134,8 @@ class ProfileViewModel(
         verdictCache.clear()
         voteCountCache.clear()
         requestedImageIds.clear()
+        imageLoadJobs.values.forEach { it.cancel() }
+        imageLoadJobs.clear()
     }
 
     fun loadCapriceImageIfNeeded(caprice: Caprice) {
@@ -140,25 +144,43 @@ class ProfileViewModel(
         if (_state.value.capriceImages.containsKey(caprice.id)) return
         if (!requestedImageIds.add(caprice.id)) return
 
-        viewModelScope.launch(Dispatchers.IO) {
-            repo.getCapriceImageUrl(caprice.id)
-                .onSuccess { url ->
-                    if (!url.isNullOrBlank()) {
-                        _state.update { current ->
-                            current.copy(capriceImages = current.capriceImages + (caprice.id to url))
+        val requestSession = sessionGeneration
+        val job = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                imageLoadSemaphore.withPermit {
+                    if (requestSession != sessionGeneration) return@withPermit
+                    repo.getCapriceImageUrl(caprice.id)
+                        .onSuccess { url ->
+                            if (requestSession != sessionGeneration) return@onSuccess
+                            if (!url.isNullOrBlank()) {
+                                _state.update { current ->
+                                    val updated = LinkedHashMap(current.capriceImages)
+                                    updated[caprice.id] = url
+                                    while (updated.size > 54) {
+                                        val eldestKey = updated.entries.firstOrNull()?.key ?: break
+                                        updated.remove(eldestKey)
+                                        requestedImageIds.remove(eldestKey)
+                                    }
+                                    current.copy(capriceImages = updated)
+                                }
+                            }
                         }
-                    }
+                        .onFailure {
+                            requestedImageIds.remove(caprice.id)
+                        }
                 }
-                .onFailure {
-                    requestedImageIds.remove(caprice.id)
-                }
+            } finally {
+                imageLoadJobs.remove(caprice.id)
+            }
         }
+        imageLoadJobs[caprice.id] = job
     }
 
     private fun computeVerdictStatus(caprice: Caprice, votes: List<com.example.caprichometro.domain.model.Vote>): CachedVerdict {
         val decision = caprice.finalDecision ?: return CachedVerdict.NONE
-        val opt1Votes = votes.count { it.option == 1 }
-        val opt2Votes = votes.count { it.option == 2 }
+        val uniqueVotes = votes.distinctBy { vote -> vote.voterId.ifBlank { "anon:${System.identityHashCode(vote)}" } }
+        val opt1Votes = uniqueVotes.count { it.option == 1 }
+        val opt2Votes = uniqueVotes.count { it.option == 2 }
         val winningOption = when {
             opt1Votes > opt2Votes -> 1
             opt2Votes > opt1Votes -> 2

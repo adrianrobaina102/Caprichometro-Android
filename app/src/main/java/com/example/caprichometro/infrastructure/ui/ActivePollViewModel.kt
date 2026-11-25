@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 
 data class PendingVoteAction(
@@ -93,15 +95,18 @@ class ActivePollViewModel(
         if (missingIds.isEmpty()) return
 
         viewModelScope.launch {
+            val semaphore = Semaphore(6)
             val fetched = coroutineScope {
                 missingIds.map { uid ->
                     async {
-                        val profile = runCatching { repo.getUserById(uid).getOrNull() }.getOrNull()
-                        if (profile == null) {
-                            requestedVoterIds.remove(uid)
-                            null
-                        } else {
-                            uid to profile
+                        semaphore.withPermit {
+                            val profile = runCatching { repo.getUserById(uid).getOrNull() }.getOrNull()
+                            if (profile == null) {
+                                requestedVoterIds.remove(uid)
+                                null
+                            } else {
+                                uid to profile
+                            }
                         }
                     }
                 }.awaitAll().filterNotNull().toMap()
@@ -202,9 +207,7 @@ class ActivePollViewModel(
         userVoteJob?.cancel()
         tickerJob?.cancel()
         placeNameJob?.cancel()
-        if (!isSameUserAndCaprice) {
-            requestedVoterIds.clear()
-        }
+        requestedVoterIds.clear()
         hasLoadedVotesForCurrentPoll = false
 
         val cell = caprice.effectiveDistanceCell(authorLocationCell)
@@ -403,7 +406,9 @@ class ActivePollViewModel(
                             errorMessage = null
                         )
                     }
-                    onUpdated?.invoke(updatedCaprice)
+                    if (_state.value.caprice?.id == caprice.id) {
+                        onUpdated?.invoke(updatedCaprice)
+                    }
                 },
                 onFailure = { error ->
                     _state.update { current ->

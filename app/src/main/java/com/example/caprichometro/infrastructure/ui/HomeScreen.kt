@@ -371,19 +371,19 @@ fun HomeScreen(
             } else {
                 when {
                     state.isNearbyFeedLoading && state.nearbyFeedItems.isEmpty() -> {
-                        FeedLoadingState(message = "Buscando dudas cercanas en General...")
+                        FeedLoadingState(message = stringResource(R.string.home_general_loading))
                     }
 
                     state.nearbyNeedsLocationPermission && state.nearbyFeedItems.isEmpty() -> {
                         FeedActionState(
                             emoji = "📍",
-                            title = "Ubicación aproximada necesaria",
-                            message = "Para ordenar las dudas públicas por cercanía necesitamos permiso de ubicación aproximada.",
-                            primaryLabel = "Permitir ubicación",
+                            title = stringResource(R.string.home_general_perm_title),
+                            message = stringResource(R.string.home_general_perm_body),
+                            primaryLabel = stringResource(R.string.home_general_perm_allow),
                             onPrimaryClick = {
                                 coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                             },
-                            secondaryLabel = "Abrir Ajustes",
+                            secondaryLabel = stringResource(R.string.action_open_app_settings),
                             onSecondaryClick = openAppSettings
                         )
                     }
@@ -391,14 +391,14 @@ fun HomeScreen(
                     state.nearbyNeedsLocationServices && state.nearbyFeedItems.isEmpty() -> {
                         FeedActionState(
                             emoji = "🧭",
-                            title = "Ubicación del dispositivo desactivada",
-                            message = state.nearbyFeedError ?: "Activa los servicios de ubicación del sistema para cargar General.",
-                            primaryLabel = "Reintentar",
+                            title = stringResource(R.string.home_general_gps_title),
+                            message = state.nearbyFeedError ?: stringResource(R.string.home_general_gps_body),
+                            primaryLabel = stringResource(R.string.action_retry),
                             onPrimaryClick = {
                                 nowMillis = System.currentTimeMillis()
                                 viewModel.loadNearbyFeed(isManualRefresh = true)
                             },
-                            secondaryLabel = "Ajustes de ubicación",
+                            secondaryLabel = stringResource(R.string.home_general_gps_settings),
                             onSecondaryClick = {
                                 context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                             }
@@ -407,8 +407,8 @@ fun HomeScreen(
 
                     state.nearbyFeedError != null && state.nearbyFeedItems.isEmpty() -> {
                         FeedErrorState(
-                            title = "No se pudo cargar General",
-                            message = state.nearbyFeedError ?: "Error desconocido",
+                            title = stringResource(R.string.home_general_error_title),
+                            message = state.nearbyFeedError ?: stringResource(R.string.home_unknown_error),
                             onRetry = {
                                 nowMillis = System.currentTimeMillis()
                                 if (hasCoarseLocationPermission(context)) {
@@ -423,9 +423,9 @@ fun HomeScreen(
                     state.nearbyFeedItems.isEmpty() -> {
                         FeedActionState(
                             emoji = "🌍",
-                            title = "Nada en General todavía",
-                            message = "Cuando otros usuarios publiquen dudas con General activado, aparecerán aquí ordenadas por cercanía.",
-                            primaryLabel = "Actualizar",
+                            title = stringResource(R.string.home_general_empty_title),
+                            message = stringResource(R.string.home_general_empty_body),
+                            primaryLabel = stringResource(R.string.action_refresh),
                             primaryEnabled = !state.isNearbyFeedLoading,
                             onPrimaryClick = {
                                 nowMillis = System.currentTimeMillis()

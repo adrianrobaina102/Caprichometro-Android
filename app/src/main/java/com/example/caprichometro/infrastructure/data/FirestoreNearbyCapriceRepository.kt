@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class FirestoreNearbyCapriceRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
@@ -29,6 +30,7 @@ class FirestoreNearbyCapriceRepository(
         const val PAGE_SIZE = 20
         private const val MAX_CACHE_DOCS = 50
         private const val MAX_GLOBAL_DISCOVERABLE_DOCS = 80
+        private const val SERVER_QUERY_TIMEOUT_MS = 10_000L
         private const val COLLECTION_NAME = "caprices"
     }
 
@@ -92,12 +94,14 @@ class FirestoreNearbyCapriceRepository(
         val safePreferredCells = preferredCells.distinct().filter { it.isNotBlank() }.take(30)
         if (safePreferredCells.isNotEmpty()) {
             try {
-                val localSnapshot = db.collection(COLLECTION_NAME)
-                    .whereIn("nearbyCell", safePreferredCells)
-                    .orderBy("timestamp", Query.Direction.DESCENDING)
-                    .limit(pageSize.coerceAtLeast(1).toLong())
-                    .get(Source.SERVER)
-                    .await()
+                val localSnapshot = withTimeout(SERVER_QUERY_TIMEOUT_MS) {
+                    db.collection(COLLECTION_NAME)
+                        .whereIn("nearbyCell", safePreferredCells)
+                        .orderBy("timestamp", Query.Direction.DESCENDING)
+                        .limit(pageSize.coerceAtLeast(1).toLong())
+                        .get(Source.SERVER)
+                        .await()
+                }
                 for (doc in localSnapshot.documents) {
                     doc.toCapriceOrNull("FirestoreNearbyCapriceRepo")?.let { caprice ->
                         if (!caprice.nearbyCell.isNullOrBlank() && collectedIds.add(caprice.id)) {
@@ -132,6 +136,17 @@ class FirestoreNearbyCapriceRepository(
             }
         }
 
+        if (collected.size >= pageSize.coerceAtLeast(1)) {
+            emit(
+                NearbyCapriceBatch(
+                    caprices = collected.toList(),
+                    isFromCache = false,
+                    isComplete = true
+                )
+            )
+            return@flow
+        }
+
         var lastDocument: DocumentSnapshot? = null
         var isFirstPage = true
         var globalDocsScanned = 0
@@ -148,7 +163,9 @@ class FirestoreNearbyCapriceRepository(
             }
 
             val snapshot = try {
-                query.get(Source.SERVER).await()
+                withTimeout(SERVER_QUERY_TIMEOUT_MS) {
+                    query.get(Source.SERVER).await()
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

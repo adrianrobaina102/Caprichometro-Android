@@ -83,8 +83,10 @@ class AndroidApproximatePlaceNameRepository(
                 }
             }.orEmpty()
         } else {
-            @Suppress("DEPRECATION")
-            geocoder.getFromLocation(latitude, longitude, 1).orEmpty()
+            withTimeoutOrNull(GEOCODE_TIMEOUT_MS) {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(latitude, longitude, 1).orEmpty()
+            }.orEmpty()
         }
     }
 

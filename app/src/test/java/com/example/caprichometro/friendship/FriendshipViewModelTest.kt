@@ -328,9 +328,9 @@ class FriendshipViewModelTest {
         viewModel.sendFriendRequestToUser(me.uid, ana.uid)
         testDispatcher.scheduler.runCurrent()
 
-        assertThat(viewModel.state.value.directRequestError).isEqualTo("Ya enviada")
-        viewModel.clearDirectRequestError()
-        assertThat(viewModel.state.value.directRequestError).isNull()
+        assertThat(viewModel.state.value.directRequestErrors[ana.uid]).isEqualTo("Ya enviada")
+        viewModel.clearDirectRequestError(ana.uid)
+        assertThat(viewModel.state.value.directRequestErrors[ana.uid]).isNull()
 
         coEvery { sendFriendRequestUseCase.execute(me.uid, ana.uid) } returns Result.success(Unit)
         viewModel.sendFriendRequestToUser(me.uid, ana.uid)

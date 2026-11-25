@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.PollTiming
@@ -26,6 +27,10 @@ import org.junit.Rule
 import org.junit.Test
 
 class CapriceUiSmokeTest {
+
+    @get:Rule
+    val locationPermissionRule: GrantPermissionRule =
+        GrantPermissionRule.grant(android.Manifest.permission.ACCESS_COARSE_LOCATION)
 
     @get:Rule
     val composeTestRule = createComposeRule()

@@ -101,16 +101,19 @@ class CapriceViewModel(
     }
 
     private class PagedFeedController {
-        var loadedItems: List<CapriceFeedItem> = emptyList()
-        var totalAvailableCount: Int = 0
-        var visiblePageLimit: Int = FEED_PAGE_SIZE
-        var revealedCount: Int = 0
-        var isSourceComplete: Boolean = false
-        var loadedWithLocationPermission: Boolean = false
+        @Volatile var loadedItems: List<CapriceFeedItem> = emptyList()
+        @Volatile var totalAvailableCount: Int = 0
+        @Volatile var visiblePageLimit: Int = FEED_PAGE_SIZE
+        @Volatile var revealedCount: Int = 0
+        @Volatile var isSourceComplete: Boolean = false
+        @Volatile var loadedWithLocationPermission: Boolean = false
+        @Volatile var generation: Long = 0L
         var revealJob: Job? = null
         var loadMoreJob: Job? = null
 
+        @Synchronized
         fun reset() {
+            generation++
             revealJob?.cancel()
             revealJob = null
             loadMoreJob?.cancel()
@@ -745,19 +748,22 @@ class CapriceViewModel(
             return
         }
 
-        val activeInitialJob = if (publishState === ::publishFriendsState) feedLoadJob else nearbyFeedLoadJob
+        val isFriendsFeed = controller === friendsController
+        val activeInitialJob = if (isFriendsFeed) feedLoadJob else nearbyFeedLoadJob
         if (controller.loadMoreJob?.isActive == true || activeInitialJob?.isActive == true) return
+        val expectedGeneration = controller.generation
         controller.isSourceComplete = false
         publishControllerSnapshot(controller, publishState)
         controller.loadMoreJob = viewModelScope.launch(ioDispatcher) {
             nextPageFlowProvider(controller.loadedItems.size)
                 .catch { e ->
                     if (e is CancellationException) throw e
+                    if (controller.generation != expectedGeneration) return@catch
                     controller.visiblePageLimit = previousVisibleLimit
                     controller.isSourceComplete = true
                     publishControllerSnapshot(controller, publishState)
                     _state.update { current ->
-                        if (publishState === ::publishFriendsState) {
+                        if (isFriendsFeed) {
                             current.copy(feedError = e.message ?: "No se pudieron cargar más caprichos")
                         } else {
                             current.copy(nearbyFeedError = e.message ?: "No se pudieron cargar más caprichos")
@@ -765,7 +771,7 @@ class CapriceViewModel(
                     }
                 }
                 .collect { batch ->
-                    if (currentUserId != uid) return@collect
+                    if (currentUserId != uid || controller.generation != expectedGeneration) return@collect
                     applyProgressiveBatch(controller, batch, uid, publishState)
                 }
         }
@@ -778,6 +784,7 @@ class CapriceViewModel(
     ) {
         controller.revealJob?.cancel()
         controller.revealJob = null
+        val expectedGeneration = controller.generation
         publishControllerSnapshot(controller, publishState)
 
         val targetInWindow = minOf(controller.visiblePageLimit, controller.loadedItems.size)
@@ -785,7 +792,7 @@ class CapriceViewModel(
             controller.revealJob = viewModelScope.launch(ioDispatcher) {
                 while (controller.revealedCount < minOf(controller.visiblePageLimit, controller.loadedItems.size)) {
                     delay(FEED_REVEAL_STEP_DELAY_MS)
-                    if (currentUserId != uid) return@launch
+                    if (currentUserId != uid || controller.generation != expectedGeneration) return@launch
                     val cap = minOf(controller.visiblePageLimit, controller.loadedItems.size)
                     controller.revealedCount = (controller.revealedCount + INITIAL_FAST_BATCH_SIZE).coerceAtMost(cap)
                     publishControllerSnapshot(controller, publishState)

@@ -6,6 +6,7 @@ import com.example.caprichometro.domain.repository.CapriceObservationRepository
 import com.example.caprichometro.domain.repository.FriendCapriceUpdate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -61,19 +62,21 @@ class ObserveFriendCapricesUseCase(
                 channelFlow {
                     friends.forEach { friend ->
                         launch {
-                            streamProvider(friend.uid).collect { update ->
-                                if (update.caprice.isVisibleInFriendsTo(currentUserId)) {
-                                    send(
-                                        ObservedFriendUpdate(
-                                            feedItem = CapriceFeedItem(
-                                                caprice = update.caprice,
-                                                author = friend
-                                            ),
-                                            isFinalDecision = update.isFinalDecision
+                            streamProvider(friend.uid)
+                                .catch { /* Aísla fallos de un amigo concreto para no matar el flujo del resto */ }
+                                .collect { update ->
+                                    if (update.caprice.isVisibleInFriendsTo(currentUserId)) {
+                                        send(
+                                            ObservedFriendUpdate(
+                                                feedItem = CapriceFeedItem(
+                                                    caprice = update.caprice,
+                                                    author = friend
+                                                ),
+                                                isFinalDecision = update.isFinalDecision
+                                            )
                                         )
-                                    )
+                                    }
                                 }
-                            }
                         }
                     }
                 }

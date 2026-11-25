@@ -18,6 +18,16 @@
 # Firebase Auth / Firestore / App Check
 -keep class com.google.firebase.auth.** { *; }
 -keep class com.google.firebase.firestore.** { *; }
+-keep class com.google.firebase.appcheck.** { *; }
+-dontwarn com.google.android.play.core.integrity.**
 -dontwarn com.google.firebase.ktx.Firebase
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**
+
+# Eliminar trazas de depuración en builds minificadas (release / benchmark)
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

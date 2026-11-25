@@ -95,6 +95,7 @@ class SessionNavigationViewModel : ViewModel() {
         selectedProfileCaprice = null
         selectedPublicAuthor = null
     }
+    var pendingIntent: Intent? = null
 }
 
 class MainActivity : ComponentActivity() {
@@ -124,6 +125,12 @@ class MainActivity : ComponentActivity() {
         val profileViewModel = ViewModelProvider(this, viewModelFactory)[ProfileViewModel::class.java]
         val activePollViewModel = ViewModelProvider(this, viewModelFactory)[ActivePollViewModel::class.java]
         val sessionNavViewModel = ViewModelProvider(this)[SessionNavigationViewModel::class.java]
+        if (savedInstanceState == null) {
+            sessionNavViewModel.pendingIntent = intent
+            pendingIntentState.value = intent
+        } else if (pendingIntentState.value == null && sessionNavViewModel.pendingIntent != null) {
+            pendingIntentState.value = sessionNavViewModel.pendingIntent
+        }
         val observeFriendCapricesUseCase = viewModelFactory.createObserveFriendCapricesUseCase()
         val notifyFriendCapriceUseCase = viewModelFactory.createNotifyFriendCapriceUseCase()
         val getNotificationCapriceUseCase = viewModelFactory.createGetNotificationCapriceUseCase()
@@ -325,9 +332,12 @@ fun CapriceApp(
         if (targetIntent != null && authState.isAuthSuccessful && currentUserId.isNotBlank()) {
             val invitedUsername = InviteDeepLink.extractUsername(targetIntent.dataString)
             if (invitedUsername != null) {
-                previousScreenBeforeAddFriend = currentScreen
+                if (currentScreen != "add_friend") {
+                    previousScreenBeforeAddFriend = currentScreen
+                }
                 currentScreen = "add_friend"
                 friendshipViewModel.openInviteForUsername(invitedUsername)
+                sessionNavViewModel.pendingIntent = null
                 onClearPendingIntent()
                 return@LaunchedEffect
             }
@@ -336,8 +346,12 @@ fun CapriceApp(
             val isInviteUri = dataUri?.scheme == "caprichometro" && dataUri.host == "invite" ||
                 dataUri?.pathSegments?.contains("invite") == true
             if (isInviteUri) {
-                previousScreenBeforeAddFriend = currentScreen
+                if (currentScreen != "add_friend") {
+                    previousScreenBeforeAddFriend = currentScreen
+                }
+                friendshipViewModel.clearSearchState()
                 currentScreen = "add_friend"
+                sessionNavViewModel.pendingIntent = null
                 onClearPendingIntent()
                 return@LaunchedEffect
             }
@@ -380,13 +394,24 @@ fun CapriceApp(
             } else if (navigateTo == "active") {
                 currentScreen = "active"
             }
+            sessionNavViewModel.pendingIntent = null
             onClearPendingIntent()
+        }
+    }
+
+    LaunchedEffect(currentScreen) {
+        if (currentScreen !in setOf("friend_poll", "active", "result")) {
+            activePollViewModel.reset()
         }
     }
 
     // Escuchamos solicitudes pendientes, amigos, feed y notificaciones de amigos al iniciar sesión
     LaunchedEffect(authState.isAuthSuccessful, currentUserId) {
         if (authState.isAuthSuccessful && currentUserId.isBlank() && firebaseAuth.currentUser == null) {
+            androidx.core.app.NotificationManagerCompat.from(context).cancelAll()
+            capriceState.latestCaprices.forEach { caprice ->
+                PollNotificationScheduler.cancelPollExpiration(context, caprice)
+            }
             sessionNavViewModel.reset()
             onClearSessionCaches()
             profileViewModel.reset()
@@ -847,7 +872,7 @@ fun CapriceApp(
                     val cleanUsername = author.username.trim().removePrefix("@").ifBlank { "usuario" }
                     val isSelfAuthor = author.uid.isNotBlank() && author.uid == currentUserId
                     val isFriendAuthor = author.uid.isNotBlank() && friendshipState.friends.any { it.uid == author.uid }
-                    val isSendingDirect = author.uid.isNotBlank() && friendshipState.directRequestSendingUid == author.uid
+                    val isSendingDirect = author.uid.isNotBlank() && author.uid in friendshipState.directRequestSendingUids
                     val isDirectSent = author.uid.isNotBlank() && author.uid in friendshipState.directRequestSentUids
                     GeneralAuthorProfileSheet(
                         author = author,
@@ -855,9 +880,9 @@ fun CapriceApp(
                         isSelfOrFriend = isSelfAuthor || isFriendAuthor,
                         isSendingRequest = isSendingDirect,
                         isRequestSent = isDirectSent,
-                        requestError = friendshipState.directRequestError,
+                        requestError = friendshipState.directRequestErrors[author.uid],
                         onDismiss = {
-                            friendshipViewModel.clearDirectRequestError()
+                            friendshipViewModel.clearDirectRequestError(author.uid)
                             selectedPublicAuthor = null
                         },
                         onOpenFullProfile = {
@@ -938,11 +963,13 @@ private fun GeneralAuthorProfileSheet(
 
             Text(
                 text = author.bio.takeIf { it.isNotBlank() }
-                    ?: if (isSelfOrFriend) {
-                        "Publicó este capricho cerca de ti."
-                    } else {
-                        "Publicó este capricho en General cerca de ti. Los perfiles completos solo se abren entre amigos."
-                    },
+                    ?: stringResource(
+                        if (isSelfOrFriend) {
+                            R.string.general_author_bio_friend_fallback
+                        } else {
+                            R.string.general_author_bio_public_fallback
+                        }
+                    ),
                 color = Color(0xFF9E9EA6),
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
@@ -976,12 +1003,14 @@ private fun GeneralAuthorProfileSheet(
                     .height(50.dp)
             ) {
                 Text(
-                    text = when {
-                        isSelfOrFriend -> "Ver perfil completo"
-                        isSendingRequest -> "Enviando solicitud…"
-                        isRequestSent -> "✓ Solicitud enviada"
-                        else -> "Enviar solicitud de amistad"
-                    },
+                    text = stringResource(
+                        when {
+                            isSelfOrFriend -> R.string.general_author_view_full_profile
+                            isSendingRequest -> R.string.general_author_sending_request
+                            isRequestSent -> R.string.general_author_request_sent
+                            else -> R.string.general_author_send_request
+                        }
+                    ),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
@@ -991,7 +1020,7 @@ private fun GeneralAuthorProfileSheet(
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = onSearchFriend) {
                     Text(
-                        text = "Abrir en Tu gente",
+                        text = stringResource(R.string.general_author_open_in_friends),
                         color = Color(0xFF9E9EA6),
                         fontSize = 13.sp
                     )

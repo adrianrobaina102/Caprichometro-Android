@@ -15,40 +15,26 @@ import java.io.ByteArrayOutputStream
 
 object ImageCompressor {
 
+    const val DEFAULT_MAX_OUTPUT_BYTES = 550_000
+
     suspend fun compressUriToWebP(
         context: Context,
         imageUri: Uri,
         maxDimension: Int = 800,
-        quality: Int = 75
+        quality: Int = 75,
+        maxOutputBytes: Int = DEFAULT_MAX_OUTPUT_BYTES
     ): ByteArray = withContext(Dispatchers.IO) {
         val originalBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val source = ImageDecoder.createSource(context.contentResolver, imageUri)
-            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val (targetW, targetH) = computeTargetSize(info.size.width, info.size.height, maxDimension)
+                decoder.setTargetSize(targetW, targetH)
             }
         } else {
             decodeSampledAndRotatedBitmap(context, imageUri, maxDimension)
         }
 
-        val width = originalBitmap.width
-        val height = originalBitmap.height
-        val ratio = width.toFloat() / height.toFloat()
-
-        val (targetWidth, targetHeight) = if (width > height) {
-            val w = minOf(width, maxDimension)
-            Pair(w, (w / ratio).toInt().coerceAtLeast(1))
-        } else {
-            val h = minOf(height, maxDimension)
-            Pair((h * ratio).toInt().coerceAtLeast(1), h)
-        }
-
-        val scaledBitmap = if (targetWidth != width || targetHeight != height) {
-            originalBitmap.scale(targetWidth, targetHeight)
-        } else {
-            originalBitmap
-        }
-
-        val outputStream = ByteArrayOutputStream()
         val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Bitmap.CompressFormat.WEBP_LOSSY
         } else {
@@ -56,14 +42,57 @@ object ImageCompressor {
             Bitmap.CompressFormat.WEBP
         }
 
-        scaledBitmap.compress(format, quality, outputStream)
+        var workingBitmap = originalBitmap
+        try {
+            val (targetWidth, targetHeight) = computeTargetSize(workingBitmap.width, workingBitmap.height, maxDimension)
+            if (targetWidth != workingBitmap.width || targetHeight != workingBitmap.height) {
+                val scaled = workingBitmap.scale(targetWidth, targetHeight)
+                if (scaled !== workingBitmap) {
+                    workingBitmap.recycle()
+                    workingBitmap = scaled
+                }
+            }
 
-        if (scaledBitmap != originalBitmap) {
-            scaledBitmap.recycle()
+            val outputStream = ByteArrayOutputStream()
+            val candidateQualities = listOf(quality, 55, 40, 25).distinct()
+            for (q in candidateQualities) {
+                outputStream.reset()
+                workingBitmap.compress(format, q, outputStream)
+                if (outputStream.size() <= maxOutputBytes) {
+                    return@withContext outputStream.toByteArray()
+                }
+            }
+
+            // Si aun a calidad mínima supera el límite Firestore, reescala un nivel adicional
+            val reducedDim = (maxDimension / 2).coerceAtLeast(256)
+            val (smallW, smallH) = computeTargetSize(workingBitmap.width, workingBitmap.height, reducedDim)
+            if (smallW != workingBitmap.width || smallH != workingBitmap.height) {
+                val smaller = workingBitmap.scale(smallW, smallH)
+                if (smaller !== workingBitmap) {
+                    workingBitmap.recycle()
+                    workingBitmap = smaller
+                }
+                outputStream.reset()
+                workingBitmap.compress(format, 40, outputStream)
+            }
+            outputStream.toByteArray()
+        } finally {
+            if (!workingBitmap.isRecycled) {
+                workingBitmap.recycle()
+            }
         }
-        originalBitmap.recycle()
+    }
 
-        outputStream.toByteArray()
+    private fun computeTargetSize(width: Int, height: Int, maxDimension: Int): Pair<Int, Int> {
+        if (width <= 0 || height <= 0) return Pair(maxDimension, maxDimension)
+        val ratio = width.toFloat() / height.toFloat()
+        return if (width > height) {
+            val w = minOf(width, maxDimension)
+            Pair(w, (w / ratio).toInt().coerceAtLeast(1))
+        } else {
+            val h = minOf(height, maxDimension)
+            Pair((h * ratio).toInt().coerceAtLeast(1), h)
+        }
     }
 
     private fun decodeSampledAndRotatedBitmap(
@@ -80,7 +109,7 @@ object ImageCompressor {
         if (boundsOptions.outHeight > maxDimension || boundsOptions.outWidth > maxDimension) {
             val halfHeight = boundsOptions.outHeight / 2
             val halfWidth = boundsOptions.outWidth / 2
-            while ((halfHeight / inSampleSize) >= maxDimension && (halfWidth / inSampleSize) >= maxDimension) {
+            while ((halfHeight / inSampleSize) >= maxDimension || (halfWidth / inSampleSize) >= maxDimension) {
                 inSampleSize *= 2
             }
         }
@@ -117,7 +146,12 @@ object ImageCompressor {
             else -> return decoded
         }
 
-        val rotated = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+        val rotated = try {
+            Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+        } catch (t: Throwable) {
+            if (!decoded.isRecycled) decoded.recycle()
+            throw t
+        }
         if (rotated != decoded) {
             decoded.recycle()
         }

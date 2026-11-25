@@ -24,7 +24,7 @@ class NetworkConnectivityMonitor(context: Context) {
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            _isOnline.value = true
+            _isOnline.value = checkIsOnlineNow()
         }
 
         override fun onLost(network: Network) {

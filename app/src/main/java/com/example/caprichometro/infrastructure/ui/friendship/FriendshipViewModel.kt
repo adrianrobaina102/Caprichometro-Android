@@ -29,14 +29,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
+import java.util.concurrent.ConcurrentHashMap
+
 data class FriendshipSearchState(
     val searchQuery: String = "",
     val usernameSuggestions: List<String> = emptyList(),
     val isLoading: Boolean = false,
     val isSendingRequest: Boolean = false,
-    val directRequestSendingUid: String? = null,
+    val directRequestSendingUids: Set<String> = emptySet(),
     val directRequestSentUids: Set<String> = emptySet(),
-    val directRequestError: String? = null,
+    val directRequestErrors: Map<String, String> = emptyMap(),
     val respondingRequestIds: Set<String> = emptySet(),
     val userFound: UserProfile? = null,
     val isFriendRequestBlocked: Boolean = false,
@@ -68,14 +70,19 @@ class FriendshipViewModel(
     private var searchJob: Job? = null
     private var suggestionsJob: Job? = null
     private var sendRequestJob: Job? = null
+    private val directRequestJobs = ConcurrentHashMap<String, Job>()
+    private val respondJobs = ConcurrentHashMap<String, Job>()
+    @Volatile
+    private var hasHealthyStreams: Boolean = false
     private var listeningUserId: String? = null
 
     fun listenToIncomingRequests(currentUserId: String) {
         if (currentUserId.isBlank()) return
-        if (listeningUserId == currentUserId && listenRequestsJob?.isActive == true) return
+        if (listeningUserId == currentUserId && listenRequestsJob?.isActive == true && hasHealthyStreams) return
 
         listenRequestsJob?.cancel()
         listeningUserId = currentUserId
+        hasHealthyStreams = true
         listenRequestsJob = viewModelScope.launch {
             launch {
                 userProfileRepository?.getUserById(currentUserId)?.onSuccess { profile ->
@@ -88,6 +95,7 @@ class FriendshipViewModel(
             launch {
                 getIncomingFriendRequestsUseCase.execute(currentUserId)
                     .catch { e ->
+                        hasHealthyStreams = false
                         android.util.Log.e("FriendshipViewModel", "Error al escuchar solicitudes: ${e.message}", e)
                         _state.update { it.copy(errorMessage = "Error al recibir solicitudes: ${e.message}") }
                     }
@@ -99,6 +107,7 @@ class FriendshipViewModel(
             launch {
                 getAcceptedFriendsUseCase.execute(currentUserId)
                     .catch { e ->
+                        hasHealthyStreams = false
                         android.util.Log.e("FriendshipViewModel", "Error al escuchar amigos: ${e.message}", e)
                         _state.update { it.copy(errorMessage = "Error al recibir amigos: ${e.message}") }
                     }
@@ -120,6 +129,11 @@ class FriendshipViewModel(
         suggestionsJob = null
         sendRequestJob?.cancel()
         sendRequestJob = null
+        directRequestJobs.values.forEach { it.cancel() }
+        directRequestJobs.clear()
+        respondJobs.values.forEach { it.cancel() }
+        respondJobs.clear()
+        hasHealthyStreams = false
         listeningUserId = null
         _state.update {
             it.copy(
@@ -127,9 +141,9 @@ class FriendshipViewModel(
                 usernameSuggestions = emptyList(),
                 isLoading = false,
                 isSendingRequest = false,
-                directRequestSendingUid = null,
+                directRequestSendingUids = emptySet(),
                 directRequestSentUids = emptySet(),
-                directRequestError = null,
+                directRequestErrors = emptyMap(),
                 respondingRequestIds = emptySet(),
                 errorMessage = null,
                 userFound = null,
@@ -184,12 +198,18 @@ class FriendshipViewModel(
                 }.awaitAll()
             }
             if (targetUserId.isNotBlank() && listeningUserId != targetUserId) return@launch
+            val refreshedFriendsByUid = updatedFriends.associateBy { it.uid }
+            val refreshedRequestsByUid = updatedRequests.associateBy { it.sender.uid }
             _state.update {
                 it.copy(
                     currentUsername = refreshedOwn?.username ?: it.currentUsername,
                     currentUserProfile = refreshedOwn ?: it.currentUserProfile,
-                    friends = updatedFriends,
-                    incomingRequests = updatedRequests
+                    friends = it.friends.map { friend -> refreshedFriendsByUid[friend.uid] ?: friend },
+                    incomingRequests = it.incomingRequests.map { req ->
+                        refreshedRequestsByUid[req.sender.uid]?.let { updatedReq ->
+                            req.copy(sender = updatedReq.sender)
+                        } ?: req
+                    }
                 )
             }
         }
@@ -248,9 +268,12 @@ class FriendshipViewModel(
         val clean = InviteDeepLink.extractUsername(rawInviteOrUsername)
             ?: UsernameRules.normalize(rawInviteOrUsername)
         if (clean.isBlank()) return
+        suggestionsJob?.cancel()
+        suggestionsJob = null
         _state.update {
             it.copy(
                 searchQuery = clean,
+                usernameSuggestions = emptyList(),
                 errorMessage = null,
                 userFound = null,
                 isFriendRequestBlocked = false,
@@ -258,6 +281,24 @@ class FriendshipViewModel(
             )
         }
         searchUser()
+    }
+
+    fun clearSearchState() {
+        searchJob?.cancel()
+        searchJob = null
+        suggestionsJob?.cancel()
+        suggestionsJob = null
+        _state.update {
+            it.copy(
+                searchQuery = "",
+                usernameSuggestions = emptyList(),
+                isLoading = false,
+                errorMessage = null,
+                userFound = null,
+                isFriendRequestBlocked = false,
+                requestSentSuccess = false
+            )
+        }
     }
 
     fun clearRequestSentSuccess() {
@@ -272,6 +313,8 @@ class FriendshipViewModel(
         val rawQuery = _state.value.searchQuery
         if (rawQuery.isBlank()) return
         val query = InviteDeepLink.extractUsername(rawQuery) ?: rawQuery
+        suggestionsJob?.cancel()
+        suggestionsJob = null
 
         _state.update {
             it.copy(
@@ -345,38 +388,54 @@ class FriendshipViewModel(
 
     fun sendFriendRequestToUser(currentUserId: String, targetUserId: String) {
         if (currentUserId.isBlank() || targetUserId.isBlank() || targetUserId == currentUserId) return
-        if (_state.value.directRequestSendingUid == targetUserId || targetUserId in _state.value.directRequestSentUids) return
+        val currentState = _state.value
+        if (targetUserId in currentState.directRequestSendingUids || targetUserId in currentState.directRequestSentUids) return
 
-        _state.update { it.copy(directRequestSendingUid = targetUserId, directRequestError = null) }
-        viewModelScope.launch {
-            val result = sendFriendRequestUseCase.execute(
-                currentUserId = currentUserId,
-                targetUserId = targetUserId
+        val expectedSessionUserId = listeningUserId
+        _state.update {
+            it.copy(
+                directRequestSendingUids = it.directRequestSendingUids + targetUserId,
+                directRequestErrors = it.directRequestErrors - targetUserId
             )
-            result.fold(
-                onSuccess = {
-                    _state.update { state ->
-                        state.copy(
-                            directRequestSendingUid = null,
-                            directRequestSentUids = state.directRequestSentUids + targetUserId,
-                            directRequestError = null
-                        )
+        }
+        directRequestJobs[targetUserId]?.cancel()
+        directRequestJobs[targetUserId] = viewModelScope.launch {
+            try {
+                val result = sendFriendRequestUseCase.execute(
+                    currentUserId = currentUserId,
+                    targetUserId = targetUserId
+                )
+                if (expectedSessionUserId != null && listeningUserId != expectedSessionUserId) return@launch
+                result.fold(
+                    onSuccess = {
+                        _state.update { state ->
+                            state.copy(
+                                directRequestSendingUids = state.directRequestSendingUids - targetUserId,
+                                directRequestSentUids = state.directRequestSentUids + targetUserId,
+                                directRequestErrors = state.directRequestErrors - targetUserId
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        _state.update { state ->
+                            state.copy(
+                                directRequestSendingUids = state.directRequestSendingUids - targetUserId,
+                                directRequestErrors = state.directRequestErrors + (targetUserId to (error.message ?: "No se pudo enviar la solicitud."))
+                            )
+                        }
                     }
-                },
-                onFailure = { error ->
-                    _state.update {
-                        it.copy(
-                            directRequestSendingUid = null,
-                            directRequestError = error.message ?: "No se pudo enviar la solicitud."
-                        )
-                    }
-                }
-            )
+                )
+            } finally {
+                directRequestJobs.remove(targetUserId)
+            }
         }
     }
 
-    fun clearDirectRequestError() {
-        _state.update { it.copy(directRequestError = null) }
+    fun clearDirectRequestError(targetUserId: String? = null) {
+        _state.update { state ->
+            val updatedErrors = if (targetUserId == null) emptyMap() else state.directRequestErrors - targetUserId
+            state.copy(directRequestErrors = updatedErrors)
+        }
     }
 
     fun acceptRequest(friendshipId: String) {
@@ -433,19 +492,25 @@ class FriendshipViewModel(
 
     private fun respondToRequest(friendshipId: String, accept: Boolean) {
         if (friendshipId.isBlank() || friendshipId in _state.value.respondingRequestIds) return
+        val expectedUserId = listeningUserId
         _state.update { it.copy(respondingRequestIds = it.respondingRequestIds + friendshipId) }
-        viewModelScope.launch {
+        respondJobs[friendshipId]?.cancel()
+        respondJobs[friendshipId] = viewModelScope.launch {
             try {
                 val result = respondToFriendRequestUseCase.execute(friendshipId, accept)
+                if (expectedUserId != null && listeningUserId != expectedUserId) return@launch
                 result.fold(
                     onSuccess = {
-                        // SnapshotListener actualiza la lista automáticamente
+                        _state.update { state ->
+                            state.copy(incomingRequests = state.incomingRequests.filterNot { it.friendshipId == friendshipId })
+                        }
                     },
                     onFailure = { error ->
                         _state.update { it.copy(errorMessage = error.message ?: "Error al responder a la solicitud") }
                     }
                 )
             } finally {
+                respondJobs.remove(friendshipId)
                 _state.update { it.copy(respondingRequestIds = it.respondingRequestIds - friendshipId) }
             }
         }

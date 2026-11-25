@@ -15,11 +15,17 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class FirestoreVoteRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : VoteRepository {
+
+    companion object {
+        private const val MAX_VOTES_PER_POLL = 500L
+        private const val QUERY_TIMEOUT_MS = 10_000L
+    }
 
     override suspend fun castVote(vote: Vote): Result<Unit> =
         castVoteInternal(vote, allowOverwrite = false)
@@ -142,6 +148,7 @@ class FirestoreVoteRepository(
         val listener = db.collection("caprices")
             .document(capriceId)
             .collection("votes")
+            .limit(MAX_VOTES_PER_POLL)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     val isLoggedOut = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
@@ -182,11 +189,14 @@ class FirestoreVoteRepository(
         if (capriceId.isBlank()) return@withContext Result.success(emptyList())
 
         try {
-            val snapshot = db.collection("caprices")
-                .document(capriceId)
-                .collection("votes")
-                .get()
-                .await()
+            val snapshot = withTimeout(QUERY_TIMEOUT_MS) {
+                db.collection("caprices")
+                    .document(capriceId)
+                    .collection("votes")
+                    .limit(MAX_VOTES_PER_POLL)
+                    .get()
+                    .await()
+            }
 
             val votes = snapshot.documents.mapNotNull { doc ->
                 runCatching {
@@ -202,7 +212,7 @@ class FirestoreVoteRepository(
                         timestamp = timestamp
                     )
                 }.getOrNull()
-            }
+            }.distinctBy { it.voterId }
             Result.success(votes)
         } catch (e: CancellationException) {
             throw e

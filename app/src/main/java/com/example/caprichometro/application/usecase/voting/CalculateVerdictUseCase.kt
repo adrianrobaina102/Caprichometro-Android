@@ -10,8 +10,11 @@ class CalculateVerdictUseCase(
     private val strategy: VerdictStrategy = StandardVerdictStrategy()
 ) {
     fun execute(caprice: Caprice, votes: List<Vote>): VerdictResult {
-        val option1Votes = votes.count { it.option == 1 }
-        val option2Votes = votes.count { it.option == 2 }
+        val uniqueVotes = votes.distinctBy { vote ->
+            vote.voterId.ifBlank { "anon:${System.identityHashCode(vote)}" }
+        }
+        val option1Votes = uniqueVotes.count { it.option == 1 }
+        val option2Votes = uniqueVotes.count { it.option == 2 }
         return strategy.calculate(
             option1Votes = option1Votes,
             option2Votes = option2Votes,

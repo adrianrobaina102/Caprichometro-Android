@@ -289,14 +289,14 @@ class GetFriendsCapricesUseCase(
                     val blockedChecksDeferred = candidateFriendIds.associateWith { friendId ->
                         async {
                             semaphore.withPermit {
-                                friendshipRepository.isBlocked(currentUserId, friendId).getOrNull() ?: false
+                                friendshipRepository.isBlocked(currentUserId, friendId).getOrDefault(true)
                             }
                         }
                     }
                     val batchCapricesDeferred = async {
                         batchRepo.getCapricesForUsers(
                             userIds = candidateFriendIds,
-                            limit = pageLimit
+                            limit = totalLimit.coerceAtLeast(pageLimit)
                         ).getOrDefault(emptyList())
                     }
                     val batchCaprices = batchCapricesDeferred.await()
@@ -323,7 +323,7 @@ class GetFriendsCapricesUseCase(
                         async {
                             semaphore.withPermit {
                                 val blockedDeferred = async {
-                                    friendshipRepository.isBlocked(currentUserId, friendId).getOrNull() ?: false
+                                    friendshipRepository.isBlocked(currentUserId, friendId).getOrDefault(true)
                                 }
                                 val capricesDeferred = async {
                                     capriceRepository.getCaprices(friendId, perFriendLimit).getOrDefault(emptyList())

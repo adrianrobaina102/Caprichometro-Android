@@ -298,7 +298,7 @@ class GetNearbyCapricesUseCase(
                         val blocked = if (useCacheOnly) {
                             repo.isCachedBlocked(currentUserId, authorId)
                         } else {
-                            repo.isBlocked(currentUserId, authorId).getOrDefault(false).also {
+                            repo.isBlocked(currentUserId, authorId).getOrDefault(true).also {
                                 memoizedServerBlocks?.put(authorId, it)
                             }
                         }

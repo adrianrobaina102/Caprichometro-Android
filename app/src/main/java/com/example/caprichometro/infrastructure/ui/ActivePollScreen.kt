@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.Caprice
-import com.example.caprichometro.domain.model.NearbyCellGrid
+import com.example.caprichometro.infrastructure.ui.home.formatLocalizedDistanceMeters
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.infrastructure.notification.PollNotificationHelper
@@ -90,7 +90,8 @@ internal fun CapriceLocationPill(
     isResolvingPlaceName: Boolean,
     hasDistanceCell: Boolean
 ) {
-    val distanceLabel = distanceMeters?.let { NearbyCellGrid.formatApproximateDistanceMeters(it) }
+    val context = LocalContext.current
+    val distanceLabel = distanceMeters?.let { formatLocalizedDistanceMeters(context, it) }
     val zoneLabel = when {
         distanceLabel != null && !placeName.isNullOrBlank() -> "$distanceLabel · $placeName"
         distanceLabel != null -> distanceLabel

@@ -123,6 +123,9 @@ fun ProfileScreen(
     var showBlockFriendDialog by remember { mutableStateOf(false) }
     var isProfilePhotoExpanded by remember { mutableStateOf(false) }
 
+    val photoUpdatedMessage = stringResource(R.string.profile_photo_updated_toast)
+    val photoErrorMessage = stringResource(R.string.profile_photo_error_toast)
+
     val handleSelectedAvatarUri: (Uri) -> Unit = { uri ->
         coroutineScope.launch {
             try {
@@ -135,10 +138,12 @@ fun ProfileScreen(
                 val base64 = Base64.encodeToString(compressedBytes, Base64.NO_WRAP)
                 val dataUri = "data:image/webp;base64,$base64"
                 viewModel.updateProfilePhoto(currentUserId, dataUri) {
-                    Toast.makeText(context, "Foto de perfil actualizada", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, photoUpdatedMessage, Toast.LENGTH_SHORT).show()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo procesar la imagen", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, photoErrorMessage, Toast.LENGTH_SHORT).show()
             }
         }
     }
