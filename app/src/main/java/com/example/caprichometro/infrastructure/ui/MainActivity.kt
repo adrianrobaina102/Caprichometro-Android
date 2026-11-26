@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui
 
 import android.content.Context
 import android.content.Intent
@@ -53,9 +53,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.example.caprichometro.R
-import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
-import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
-import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
+import com.example.caprichometro.application.usecase.notification.GetNotificationCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.NotifyFriendCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.ObserveFriendCapricesUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.InviteDeepLink

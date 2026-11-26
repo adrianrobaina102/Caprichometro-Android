@@ -1,8 +1,8 @@
 package com.example.caprichometro.notification
 
-import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
-import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
-import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
+import com.example.caprichometro.application.usecase.notification.GetNotificationCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.NotifyFriendCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.ObserveFriendCapricesUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.repository.CapriceRepository

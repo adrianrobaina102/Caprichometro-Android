@@ -1,9 +1,9 @@
 package com.example.caprichometro
 
 import android.content.Context
-import com.example.caprichometro.application.usecase.GetCapricesUseCase
-import com.example.caprichometro.application.usecase.SaveCapriceUseCase
-import com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase
+import com.example.caprichometro.application.usecase.caprice.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.caprice.UpdateFinalDecisionUseCase
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
 import com.example.caprichometro.application.usecase.auth.GetCurrentUserUseCase
 import com.example.caprichometro.application.usecase.auth.RegisterUseCase

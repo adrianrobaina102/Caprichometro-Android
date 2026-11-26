@@ -1,6 +1,6 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
+import com.example.caprichometro.application.usecase.caprice.UploadCapriceImageUseCase
 import com.example.caprichometro.domain.repository.ImageStorageRepository
 import io.mockk.coEvery
 import io.mockk.coVerify

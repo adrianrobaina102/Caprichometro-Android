@@ -1,7 +1,7 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
-import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
+import com.example.caprichometro.application.usecase.notification.NotifyFriendCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.ObserveFriendCapricesUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.repository.CapriceRepository

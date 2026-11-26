@@ -1,6 +1,6 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
+import com.example.caprichometro.application.usecase.caprice.GetApproximatePlaceNameUseCase
 import com.example.caprichometro.domain.repository.ApproximatePlaceNameRepository
 import io.mockk.coEvery
 import io.mockk.coVerify

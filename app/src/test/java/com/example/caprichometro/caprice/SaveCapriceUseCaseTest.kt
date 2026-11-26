@@ -1,7 +1,7 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.GetCapricesUseCase
-import com.example.caprichometro.application.usecase.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.caprice.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.SaveCapriceUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.repository.CapriceRepository
 import io.mockk.coEvery

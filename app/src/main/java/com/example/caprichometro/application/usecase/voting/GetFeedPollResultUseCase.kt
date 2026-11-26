@@ -1,4 +1,4 @@
-package com.example.caprichometro.application.usecase
+package com.example.caprichometro.application.usecase.voting
 
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.UserProfileRepository

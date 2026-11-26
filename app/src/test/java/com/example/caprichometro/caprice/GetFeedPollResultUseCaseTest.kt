@@ -1,6 +1,6 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.GetFeedPollResultUseCase
+import com.example.caprichometro.application.usecase.voting.GetFeedPollResultUseCase
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.Vote

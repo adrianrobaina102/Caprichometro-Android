@@ -1,11 +1,11 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
-import com.example.caprichometro.application.usecase.GetCapricesUseCase
-import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
-import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
-import com.example.caprichometro.application.usecase.SaveCapriceUseCase
-import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
+import com.example.caprichometro.application.usecase.caprice.GetApproximatePlaceNameUseCase
+import com.example.caprichometro.application.usecase.caprice.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.GetFriendsCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.GetNearbyCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.caprice.UploadCapriceImageUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase

@@ -1,6 +1,6 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase
+import com.example.caprichometro.application.usecase.caprice.UpdateFinalDecisionUseCase
 import com.example.caprichometro.application.usecase.voting.CalculateVerdictUseCase
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
 import com.example.caprichometro.application.usecase.voting.ObserveVotesUseCase

@@ -1,4 +1,4 @@
-package com.example.caprichometro.application.usecase
+package com.example.caprichometro.application.usecase.caprice
 
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.repository.CapriceRepository

@@ -1,6 +1,6 @@
 package com.example.caprichometro.caprice
 
-import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.GetNearbyCapricesUseCase
 import com.example.caprichometro.domain.repository.FriendshipRepository
 import com.example.caprichometro.domain.model.ApproximateLocation
 import com.example.caprichometro.domain.model.Caprice

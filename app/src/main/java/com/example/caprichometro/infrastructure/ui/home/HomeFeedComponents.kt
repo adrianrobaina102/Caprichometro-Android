@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.caprichometro.R
-import com.example.caprichometro.application.usecase.FeedPollResult
+import com.example.caprichometro.application.usecase.voting.FeedPollResult
 import kotlin.math.roundToInt
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.NearbyCellGrid

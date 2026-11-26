@@ -1,6 +1,6 @@
 package com.example.caprichometro.profile
 
-import com.example.caprichometro.application.usecase.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
 import com.example.caprichometro.application.usecase.auth.GetCurrentUserUseCase
 import com.example.caprichometro.application.usecase.auth.SignOutUseCase

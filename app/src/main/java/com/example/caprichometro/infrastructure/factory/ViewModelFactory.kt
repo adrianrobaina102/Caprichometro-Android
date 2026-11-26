@@ -1,18 +1,18 @@
-﻿package com.example.caprichometro.infrastructure.factory
+package com.example.caprichometro.infrastructure.factory
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.caprichometro.application.usecase.GetApproximatePlaceNameUseCase
-import com.example.caprichometro.application.usecase.GetCapricesUseCase
-import com.example.caprichometro.application.usecase.GetFeedPollResultUseCase
-import com.example.caprichometro.application.usecase.GetFriendsCapricesUseCase
-import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
-import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
-import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
-import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
-import com.example.caprichometro.application.usecase.SaveCapriceUseCase
-import com.example.caprichometro.application.usecase.UploadCapriceImageUseCase
+import com.example.caprichometro.application.usecase.caprice.GetApproximatePlaceNameUseCase
+import com.example.caprichometro.application.usecase.caprice.GetCapricesUseCase
+import com.example.caprichometro.application.usecase.voting.GetFeedPollResultUseCase
+import com.example.caprichometro.application.usecase.caprice.GetFriendsCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.GetNearbyCapricesUseCase
+import com.example.caprichometro.application.usecase.notification.GetNotificationCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.NotifyFriendCapriceUseCase
+import com.example.caprichometro.application.usecase.notification.ObserveFriendCapricesUseCase
+import com.example.caprichometro.application.usecase.caprice.SaveCapriceUseCase
+import com.example.caprichometro.application.usecase.caprice.UploadCapriceImageUseCase
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
 import com.example.caprichometro.application.usecase.auth.GetCurrentUserUseCase
 import com.example.caprichometro.application.usecase.auth.RegisterUseCase
@@ -196,7 +196,7 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
             observeVotesUseCase = ObserveVotesUseCase(voteRepository),
             calculateVerdictUseCase = CalculateVerdictUseCase(),
             voteRepository = voteRepository,
-            updateFinalDecisionUseCase = com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase(capriceRepository),
+            updateFinalDecisionUseCase = com.example.caprichometro.application.usecase.caprice.UpdateFinalDecisionUseCase(capriceRepository),
             getApproximatePlaceNameUseCase = placeNameUseCase,
             userProfileRepository = userProfileRepository,
             capriceDetailsRepository = capriceDetailsRepository

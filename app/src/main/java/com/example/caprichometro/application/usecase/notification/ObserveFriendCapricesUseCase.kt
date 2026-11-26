@@ -1,4 +1,4 @@
-package com.example.caprichometro.application.usecase
+package com.example.caprichometro.application.usecase.notification
 
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.domain.model.CapriceFeedItem
