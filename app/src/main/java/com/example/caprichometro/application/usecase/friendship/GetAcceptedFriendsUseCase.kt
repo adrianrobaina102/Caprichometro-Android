@@ -1,9 +1,10 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipReadRepository
+import com.example.caprichometro.domain.repository.UserBlockRepository
 import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileReadRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -16,18 +17,19 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 class GetAcceptedFriendsUseCase(
-    private val friendshipRepository: FriendshipRepository,
-    private val userProfileRepository: UserProfileRepository,
+    private val friendshipReadRepository: FriendshipReadRepository,
+    private val userBlockRepository: UserBlockRepository,
+    private val userProfileReadRepository: UserProfileReadRepository,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     fun execute(currentUserId: String): Flow<List<UserProfile>> {
-        return friendshipRepository.getFriendships(currentUserId).map { friendships ->
+        return friendshipReadRepository.getFriendships(currentUserId).map { friendships ->
             val acceptedFriendships = friendships.filter { it.status == FriendshipStatus.ACCEPTED }
             if (acceptedFriendships.isEmpty()) return@map emptyList()
 
             // Lectura en lote de bloqueos salientes propios (1 query en lugar de N)
             val ownBlockedIds = runCatching {
-                friendshipRepository.getBlockedUserIds(currentUserId).getOrDefault(emptyList()).toSet()
+                userBlockRepository.getBlockedUserIds(currentUserId).getOrDefault(emptyList()).toSet()
             }.getOrDefault(emptySet())
 
             val semaphore = Semaphore(8)
@@ -38,10 +40,10 @@ class GetAcceptedFriendsUseCase(
                         if (friendId in ownBlockedIds) return@async null
 
                         semaphore.withPermit {
-                            val isBlocked = friendshipRepository.isBlocked(currentUserId, friendId).getOrThrow()
+                            val isBlocked = userBlockRepository.isBlocked(currentUserId, friendId).getOrThrow()
                             if (isBlocked) return@withPermit null
 
-                            userProfileRepository.getUserById(friendId).getOrThrow()
+                            userProfileReadRepository.getUserById(friendId).getOrThrow()
                         }
                     }
                 }.awaitAll().filterNotNull().sortedBy { it.username.lowercase() }

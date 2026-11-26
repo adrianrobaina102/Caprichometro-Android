@@ -4,14 +4,14 @@ import com.example.caprichometro.application.usecase.friendship.GetAcceptedFrien
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileReadRepository
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
 class GetNotificationCapriceUseCase(
     private val capriceDetailsRepository: CapriceDetailsRepository,
-    private val userProfileRepository: UserProfileRepository,
+    private val userProfileReadRepository: UserProfileReadRepository,
     private val getAcceptedFriendsUseCase: GetAcceptedFriendsUseCase
 ) {
     /**
@@ -27,11 +27,11 @@ class GetNotificationCapriceUseCase(
             val caprice = capriceDetailsRepository.getCapriceById(capriceId).getOrThrow()
                 ?: return Result.success(null)
 
-            (userProfileRepository as? ProfileCacheControl)?.invalidateUser(caprice.userId)
+            (userProfileReadRepository as? ProfileCacheControl)?.invalidateUser(caprice.userId)
 
             // 1. Capricho propio
             if (caprice.userId == recipientUserId) {
-                val ownProfile = userProfileRepository.getUserById(recipientUserId).getOrNull()
+                val ownProfile = userProfileReadRepository.getUserById(recipientUserId).getOrNull()
                 return Result.success(
                     CapriceFeedItem(
                         caprice = caprice,

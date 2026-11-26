@@ -114,7 +114,7 @@ class FriendshipUseCasesTest {
 
     @Nested
     inner class IncomingRequestsTests {
-        private val useCase = GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository)
+        private val useCase = GetIncomingFriendRequestsUseCase(friendshipRepository, friendshipRepository, userProfileRepository)
 
         @Test
         fun `filtra y emite solo solicitudes pendientes donde el usuario es el receptor`() = runTest {
@@ -247,7 +247,7 @@ class FriendshipUseCasesTest {
 
     @Nested
     inner class AcceptedFriendsTests {
-        private val useCase = GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+        private val useCase = GetAcceptedFriendsUseCase(friendshipRepository, friendshipRepository, userProfileRepository)
 
         @Test
         fun `emite la lista de amigos aceptados con sus perfiles de usuario`() = runTest {

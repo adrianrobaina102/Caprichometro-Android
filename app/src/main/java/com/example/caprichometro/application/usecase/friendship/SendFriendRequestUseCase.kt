@@ -1,11 +1,11 @@
 package com.example.caprichometro.application.usecase.friendship
 
 import com.example.caprichometro.domain.model.Friendship
-import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipMutationRepository
 import com.example.caprichometro.domain.model.FriendshipStatus
 
 class SendFriendRequestUseCase (
-    private val friendshipRepository: FriendshipRepository
+    private val friendshipMutationRepository: FriendshipMutationRepository
 ) {
     suspend fun execute(currentUserId: String, targetUserId: String): Result<Unit>
     {
@@ -24,6 +24,6 @@ class SendFriendRequestUseCase (
             requestedBy = currentUserId,
             status = FriendshipStatus.PENDING
         )
-        return friendshipRepository.sendFriendRequest(friendship)
+        return friendshipMutationRepository.sendFriendRequest(friendship)
     }
 }

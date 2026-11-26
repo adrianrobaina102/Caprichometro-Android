@@ -1,12 +1,12 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipReadRepository
 import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UsernameRules
 
 class SearchUserByUsernameUseCase(
-    private val friendshipRepository: FriendshipRepository
+    private val friendshipReadRepository: FriendshipReadRepository
 ) {
     suspend fun execute(username: String): Result<UserProfile?> {
         val cleanUsername = InviteDeepLink.extractUsername(username)
@@ -14,7 +14,7 @@ class SearchUserByUsernameUseCase(
         if (!UsernameRules.isValid(cleanUsername)) {
             return Result.failure(IllegalArgumentException("Usa de 3 a 20 letras, números o guiones bajos."))
         }
-        return friendshipRepository.searchUserByUsername(cleanUsername)
+        return friendshipReadRepository.searchUserByUsername(cleanUsername)
     }
 
     suspend fun searchSuggestions(prefix: String, limit: Int = 10): Result<List<String>> {
@@ -22,6 +22,6 @@ class SearchUserByUsernameUseCase(
         if (cleanPrefix.length < 3) {
             return Result.success(emptyList())
         }
-        return friendshipRepository.searchUsernamesByPrefix(cleanPrefix, limit)
+        return friendshipReadRepository.searchUsernamesByPrefix(cleanPrefix, limit)
     }
 }

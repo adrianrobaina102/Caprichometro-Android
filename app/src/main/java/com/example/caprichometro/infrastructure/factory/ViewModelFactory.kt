@@ -77,7 +77,7 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
     }
 
     private val acceptedFriendsUseCase by lazy {
-        GetAcceptedFriendsUseCase(friendshipRepository, userProfileRepository)
+        GetAcceptedFriendsUseCase(friendshipRepository, friendshipRepository, userProfileRepository)
     }
 
     fun createCapriceViewModel(): CapriceViewModel {
@@ -129,7 +129,7 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
         return FriendshipViewModel(
             SearchUserByUsernameUseCase(friendshipRepository),
             SendFriendRequestUseCase(friendshipRepository),
-            GetIncomingFriendRequestsUseCase(friendshipRepository, userProfileRepository),
+            GetIncomingFriendRequestsUseCase(friendshipRepository, friendshipRepository, userProfileRepository),
             RespondToFriendRequestUseCase(friendshipRepository),
             acceptedFriendsUseCase,
             RemoveFriendUseCase(friendshipRepository),

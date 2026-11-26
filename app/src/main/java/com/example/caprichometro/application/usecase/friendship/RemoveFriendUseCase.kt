@@ -1,9 +1,9 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipMutationRepository
 
 class RemoveFriendUseCase(
-    private val friendshipRepository: FriendshipRepository
+    private val friendshipMutationRepository: FriendshipMutationRepository
 ) {
     suspend fun execute(userId: String, friendId: String): Result<Unit> {
         if (userId.isBlank() || friendId.isBlank()) {
@@ -12,6 +12,6 @@ class RemoveFriendUseCase(
         if (userId == friendId) {
             return Result.failure(IllegalArgumentException("No puedes eliminarte a ti mismo"))
         }
-        return friendshipRepository.removeFriendship(userId, friendId)
+        return friendshipMutationRepository.removeFriendship(userId, friendId)
     }
 }

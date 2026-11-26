@@ -1,21 +1,21 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.repository.UserBlockRepository
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileReadRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 class GetBlockedUsersUseCase(
-    private val friendshipRepository: FriendshipRepository,
-    private val userProfileRepository: UserProfileRepository
+    private val userBlockRepository: UserBlockRepository,
+    private val userProfileReadRepository: UserProfileReadRepository
 ) {
     suspend fun execute(userId: String): Result<List<UserProfile>> {
         if (userId.isBlank()) {
             return Result.success(emptyList())
         }
-        val blockedIdsResult = friendshipRepository.getBlockedUserIds(userId)
+        val blockedIdsResult = userBlockRepository.getBlockedUserIds(userId)
         if (blockedIdsResult.isFailure) {
             return Result.failure(blockedIdsResult.exceptionOrNull() ?: Exception("Error al cargar usuarios bloqueados"))
         }
@@ -23,7 +23,7 @@ class GetBlockedUsersUseCase(
         val profiles = coroutineScope {
             blockedIds.map { blockedId ->
                 async {
-                    userProfileRepository.getUserById(blockedId).getOrNull()
+                    userProfileReadRepository.getUserById(blockedId).getOrNull()
                 }
             }.awaitAll().filterNotNull().sortedBy { it.username.lowercase() }
         }

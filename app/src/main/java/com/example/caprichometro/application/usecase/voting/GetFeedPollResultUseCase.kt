@@ -1,7 +1,7 @@
 package com.example.caprichometro.application.usecase.voting
 
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileReadRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -29,7 +29,7 @@ data class FeedPollResult(
  */
 class GetFeedPollResultUseCase(
     private val voteRepository: VoteRepository,
-    private val userProfileRepository: UserProfileRepository,
+    private val userProfileReadRepository: UserProfileReadRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
@@ -83,7 +83,7 @@ class GetFeedPollResultUseCase(
                 coroutineScope {
                     missingIds.map { uid ->
                         async {
-                            val profile = runCatching { userProfileRepository.getUserById(uid).getOrNull() }
+                            val profile = runCatching { userProfileReadRepository.getUserById(uid).getOrNull() }
                                 .getOrNull()
                             uid to (profile ?: UserProfile(uid = uid, username = "?"))
                         }

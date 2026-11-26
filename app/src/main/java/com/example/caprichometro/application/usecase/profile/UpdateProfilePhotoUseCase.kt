@@ -1,12 +1,12 @@
 package com.example.caprichometro.application.usecase.profile
 
-import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileWriteRepository
 
 /**
  * Actualiza o elimina la foto de perfil del usuario (URL o Data URI WebP comprimido).
  */
 class UpdateProfilePhotoUseCase(
-    private val userProfileRepository: UserProfileRepository
+    private val userProfileWriteRepository: UserProfileWriteRepository
 ) {
     suspend fun execute(userId: String, photoUrl: String): Result<Unit> {
         val trimmedUrl = photoUrl.trim()
@@ -22,6 +22,6 @@ class UpdateProfilePhotoUseCase(
                 return Result.failure(IllegalArgumentException("Formato o tamaño de foto no válido."))
             }
         }
-        return userProfileRepository.updatePhotoUrl(userId, trimmedUrl)
+        return userProfileWriteRepository.updatePhotoUrl(userId, trimmedUrl)
     }
 }

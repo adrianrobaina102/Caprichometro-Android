@@ -250,7 +250,7 @@ internal object UiSmokeTestFactories {
         signOutUseCase = SignOutUseCase(authRepo),
         deleteAccountUseCase = DeleteAccountUseCase(authRepo, profileRepo, friendshipRepo, capriceRepo),
         getCapricesUseCase = GetCapricesUseCase(capriceRepo),
-        getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepo, profileRepo),
+        getAcceptedFriendsUseCase = GetAcceptedFriendsUseCase(friendshipRepo, friendshipRepo, profileRepo),
         voteRepository = voteRepo,
         updateBioUseCase = UpdateBioUseCase(profileRepo),
         removeFriendUseCase = RemoveFriendUseCase(friendshipRepo),

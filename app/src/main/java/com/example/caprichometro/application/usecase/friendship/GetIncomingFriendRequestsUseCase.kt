@@ -1,10 +1,11 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipReadRepository
+import com.example.caprichometro.domain.repository.UserBlockRepository
 import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.IncomingFriendRequest
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileReadRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -12,11 +13,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class GetIncomingFriendRequestsUseCase(
-    private val friendshipRepository: FriendshipRepository,
-    private val userProfileRepository: UserProfileRepository
+    private val friendshipReadRepository: FriendshipReadRepository,
+    private val userBlockRepository: UserBlockRepository,
+    private val userProfileReadRepository: UserProfileReadRepository
 ) {
     fun execute(currentUserId: String): Flow<List<IncomingFriendRequest>> {
-        return friendshipRepository.getFriendships(currentUserId).map { friendships ->
+        return friendshipReadRepository.getFriendships(currentUserId).map { friendships ->
 
             val pendingRequests = friendships.filter { friendship ->
                 friendship.status == FriendshipStatus.PENDING && friendship.requestedBy != currentUserId
@@ -25,10 +27,10 @@ class GetIncomingFriendRequestsUseCase(
             coroutineScope {
                 pendingRequests.map { friendship ->
                     async {
-                        val isBlocked = friendshipRepository.isBlocked(currentUserId, friendship.requestedBy).getOrThrow()
+                        val isBlocked = userBlockRepository.isBlocked(currentUserId, friendship.requestedBy).getOrThrow()
                         if (isBlocked) return@async null
 
-                        val profile = userProfileRepository.getUserById(friendship.requestedBy).getOrThrow()
+                        val profile = userProfileReadRepository.getUserById(friendship.requestedBy).getOrThrow()
                             ?: return@async null
 
                         IncomingFriendRequest(
