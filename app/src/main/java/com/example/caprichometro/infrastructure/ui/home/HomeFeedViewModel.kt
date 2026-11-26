@@ -1,15 +1,13 @@
-package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui.home
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.caprichometro.application.usecase.voting.FeedPollResult
 import com.example.caprichometro.application.usecase.caprice.GetCapricesUseCase
-import com.example.caprichometro.application.usecase.voting.GetFeedPollResultUseCase
 import com.example.caprichometro.application.usecase.caprice.GetFriendsCapricesUseCase
 import com.example.caprichometro.application.usecase.caprice.GetNearbyCapricesUseCase
-import com.example.caprichometro.application.usecase.caprice.SaveCapriceUseCase
-import com.example.caprichometro.application.usecase.caprice.UploadCapriceImageUseCase
+import com.example.caprichometro.application.usecase.voting.FeedPollResult
+import com.example.caprichometro.application.usecase.voting.GetFeedPollResultUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.CapriceFeedItem
@@ -18,9 +16,10 @@ import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceMediaRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
+import com.example.caprichometro.infrastructure.location.UserLocationCellSyncHelper
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -34,7 +33,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 enum class HomeFeedTab {
@@ -42,7 +40,7 @@ enum class HomeFeedTab {
     GENERAL
 }
 
-data class CapriceState(
+data class HomeFeedState(
     val isLoading: Boolean = false,
     val latestCaprices: List<Caprice> = emptyList(),
     val error: String? = null,
@@ -65,20 +63,13 @@ data class CapriceState(
     val hasLoadedNearbyFeed: Boolean = false,
     val isLocationPermissionGranted: Boolean = false,
     val hasAutoPromptedLocation: Boolean = false,
-    val isNearbyDiscoveryEnabled: Boolean = false,
-    val isPreparingNearbyLocation: Boolean = false,
-    val preparedNearbyCell: String? = null,
     val preparedLocationCell: String? = null,
-    val nearbyCreationError: String? = null,
-    val nearbyCreationNeedsLocationServices: Boolean = false,
     val closedPollResults: Map<String, FeedPollResult> = emptyMap(),
     val capriceImages: Map<String, String> = emptyMap()
 )
 
-class CapriceViewModel(
-    private val saveCapriceUseCase: SaveCapriceUseCase,
+class HomeFeedViewModel(
     private val getCapricesUseCase: GetCapricesUseCase,
-    private val uploadCapriceImageUseCase: UploadCapriceImageUseCase? = null,
     private val getFriendsCapricesUseCase: GetFriendsCapricesUseCase? = null,
     private val profileCacheControl: ProfileCacheControl? = null,
     private val getNearbyCapricesUseCase: GetNearbyCapricesUseCase? = null,
@@ -129,13 +120,12 @@ class CapriceViewModel(
         }
     }
 
-    private val _state = MutableStateFlow(CapriceState())
-    val state: StateFlow<CapriceState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(HomeFeedState())
+    val state: StateFlow<HomeFeedState> = _state.asStateFlow()
 
     private var feedLoadJob: Job? = null
     private var distanceRefreshJob: Job? = null
     private var nearbyFeedLoadJob: Job? = null
-    private var nearbyCreationJob: Job? = null
     private var privateLocationJob: Job? = null
     private var lastNearbyLoadedAtMillis: Long? = null
     private var lastNearbyLoadedUserId: String? = null
@@ -154,22 +144,19 @@ class CapriceViewModel(
         sessionFriends = friends
     }
 
-    fun selectType(
-        previousIsCompra: Boolean,
-        nextIsCompra: Boolean,
-        currentAnswer1: String,
-        currentAnswer2: String,
-        compraDefaults: Pair<String, String>,
-        planDefaults: Pair<String, String>
-    ): Pair<String, String> {
-        if (previousIsCompra == nextIsCompra) return currentAnswer1 to currentAnswer2
-        val prevDefaults = if (previousIsCompra) compraDefaults else planDefaults
-        val nextDefaults = if (nextIsCompra) compraDefaults else planDefaults
-        return if (currentAnswer1 == prevDefaults.first && currentAnswer2 == prevDefaults.second) {
-            nextDefaults
-        } else {
-            currentAnswer1 to currentAnswer2
+    fun onCapriceCreated(savedCaprice: Caprice) {
+        _state.update {
+            it.copy(
+                latestCaprices = listOf(savedCaprice) + it.latestCaprices.filterNot { existing -> existing.id == savedCaprice.id }
+            )
         }
+    }
+
+    fun onLocationCellResolved(cellId: String) {
+        if (cellId.isBlank()) return
+        _state.update { it.copy(isLocationPermissionGranted = true, preparedLocationCell = cellId) }
+        syncUserLocationCellInBackground(currentUserId, cellId)
+        refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = friendsController.loadedWithLocationPermission)
     }
 
     fun loadClosedPollResultIfNeeded(capriceId: String) {
@@ -220,8 +207,6 @@ class CapriceViewModel(
         distanceRefreshJob = null
         nearbyFeedLoadJob?.cancel()
         nearbyFeedLoadJob = null
-        nearbyCreationJob?.cancel()
-        nearbyCreationJob = null
         privateLocationJob?.cancel()
         privateLocationJob = null
         lastNearbyLoadedAtMillis = null
@@ -232,99 +217,7 @@ class CapriceViewModel(
         requestedImageIds.clear()
         friendsController.reset()
         nearbyController.reset()
-        _state.value = CapriceState()
-    }
-
-    suspend fun saveCaprice(
-        type: String,
-        questionText: String,
-        answer1: String,
-        answer2: String,
-        imageBytes: ByteArray? = null,
-        visibleToUserIds: List<String>? = null,
-        nearbyCell: String? = null,
-        locationCell: String? = null,
-        price: Double? = null
-    ): Result<Caprice> {
-        val uid = currentUserId
-        if (uid.isBlank()) return Result.failure(IllegalStateException("No hay sesión activa"))
-
-        val capriceBuilder = Caprice.Builder()
-            .setUserId(uid)
-            .setType(type)
-            .setQuestion(questionText)
-            .setOptions(answer1, answer2)
-            .setPrice(price)
-
-        if (visibleToUserIds != null) {
-            capriceBuilder.setVisibleToUserIds(listOf(uid) + visibleToUserIds)
-        }
-        val normalizedCell = nearbyCell?.trim()?.takeIf { it.isNotEmpty() }
-        var normalizedLocationCell = locationCell?.trim()?.takeIf { it.isNotEmpty() }
-            ?: normalizedCell
-        val hasPermNow = _state.value.isLocationPermissionGranted ||
-            (locationRepository?.hasLocationPermission() == true)
-        if (normalizedLocationCell == null && hasPermNow && locationRepository != null) {
-            val resolvedLoc = withTimeoutOrNull(1_500L) {
-                locationRepository.currentApproximateLocation().getOrNull()
-            }
-            if (resolvedLoc != null) {
-                normalizedLocationCell = NearbyCellGrid.cellId(resolvedLoc)
-            }
-        }
-        normalizedLocationCell?.let { syncUserLocationCellInBackground(uid, it) }
-        capriceBuilder.setNearbyCell(normalizedCell)
-        capriceBuilder.setLocationCell(normalizedLocationCell)
-
-        val preliminaryCaprice = capriceBuilder.build()
-        _state.update { it.copy(isLoading = true, error = null) }
-
-        return try {
-            var finalImageUrl = ""
-            if (imageBytes != null && uploadCapriceImageUseCase != null) {
-                val uploadResult = uploadCapriceImageUseCase.execute(imageBytes, preliminaryCaprice.id)
-                val uploadError = uploadResult.exceptionOrNull()
-                if (uploadError != null) {
-                    runCatching { Log.e("CapriceViewModel", "Error procesando imagen", uploadError) }
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            error = uploadError.message ?: "No se pudo subir la imagen del capricho"
-                        )
-                    }
-                    return Result.failure(uploadError)
-                }
-                finalImageUrl = uploadResult.getOrThrow()
-            }
-
-            val capriceToSave = capriceBuilder.setImageUrl(finalImageUrl).build()
-            val result = saveCapriceUseCase.execute(capriceToSave)
-            result.fold(
-                onSuccess = { docId ->
-                    val savedCaprice = capriceToSave.copy(id = docId)
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            latestCaprices = listOf(savedCaprice) + it.latestCaprices.filterNot { existing -> existing.id == savedCaprice.id },
-                            isNearbyDiscoveryEnabled = false,
-                            isPreparingNearbyLocation = false,
-                            preparedNearbyCell = null,
-                            preparedLocationCell = null,
-                            nearbyCreationError = null
-                        )
-                    }
-                    Result.success(savedCaprice)
-                },
-                onFailure = { e ->
-                    _state.update { it.copy(isLoading = false, error = e.message) }
-                    Result.failure(e)
-                }
-            )
-        } finally {
-            _state.update { current ->
-                if (current.isLoading) current.copy(isLoading = false) else current
-            }
-        }
+        _state.value = HomeFeedState()
     }
 
     fun fetchUserCaprices(limit: Int = 1) {
@@ -400,7 +293,7 @@ class CapriceViewModel(
             ).catch { e ->
                 if (e is CancellationException) throw e
                 if (currentUserId != uid) return@catch
-                Log.e("CapriceViewModel", "Error en loadFriendsFeed: ${e.message}", e)
+                Log.e("HomeFeedViewModel", "Error en loadFriendsFeed: ${e.message}", e)
                 _state.update {
                     it.copy(
                         isFeedLoading = false,
@@ -909,124 +802,13 @@ class CapriceViewModel(
     }
 
     private fun syncUserLocationCellInBackground(uid: String, cellId: String) {
-        if (uid.isBlank() || cellId.isBlank()) return
-        if (syncedLocationCells[uid] == cellId) return
-        val repo = userProfileRepository ?: return
-
         viewModelScope.launch(ioDispatcher) {
-            val cachedCell = runCatching { repo.getCachedUserById(uid)?.locationCell }.getOrNull()
-            if (cachedCell == cellId) {
-                syncedLocationCells[uid] = cellId
-                return@launch
-            }
-            repo.updateLocationCell(uid, cellId).onSuccess {
-                syncedLocationCells[uid] = cellId
-            }
-        }
-    }
-
-    fun setNearbyDiscoveryEnabled(enabled: Boolean) {
-        nearbyCreationJob?.cancel()
-        nearbyCreationJob = null
-        if (!enabled) {
-            _state.update {
-                it.copy(
-                    isNearbyDiscoveryEnabled = false,
-                    isPreparingNearbyLocation = false,
-                    preparedNearbyCell = null,
-                    nearbyCreationError = null,
-                    nearbyCreationNeedsLocationServices = false
-                )
-            }
-            return
-        }
-
-        val locRepo = locationRepository
-        if (locRepo == null) {
-            _state.update {
-                it.copy(
-                    isNearbyDiscoveryEnabled = false,
-                    isPreparingNearbyLocation = false,
-                    preparedNearbyCell = null,
-                    nearbyCreationError = "Ubicación no disponible en este dispositivo.",
-                    nearbyCreationNeedsLocationServices = false
-                )
-            }
-            return
-        }
-
-        _state.update {
-            it.copy(
-                isNearbyDiscoveryEnabled = true,
-                isPreparingNearbyLocation = true,
-                preparedNearbyCell = null,
-                nearbyCreationError = null,
-                nearbyCreationNeedsLocationServices = false
-            )
-        }
-
-        nearbyCreationJob = viewModelScope.launch {
-            val result = locRepo.currentApproximateLocation()
-            result.fold(
-                onSuccess = { location ->
-                    val cellId = NearbyCellGrid.cellId(location)
-                    _state.update {
-                        it.copy(
-                            isLocationPermissionGranted = true,
-                            isNearbyDiscoveryEnabled = true,
-                            isPreparingNearbyLocation = false,
-                            preparedNearbyCell = cellId,
-                            preparedLocationCell = cellId,
-                            nearbyCreationError = null
-                        )
-                    }
-                    syncUserLocationCellInBackground(currentUserId, cellId)
-                    refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = friendsController.loadedWithLocationPermission)
-                },
-                onFailure = { e ->
-                    if (e is CancellationException) return@fold
-                    _state.update {
-                        it.copy(
-                            isNearbyDiscoveryEnabled = false,
-                            isPreparingNearbyLocation = false,
-                            preparedNearbyCell = null,
-                            nearbyCreationError = e.message ?: "No se pudo obtener tu ubicación aproximada.",
-                            nearbyCreationNeedsLocationServices = e is DeviceLocationException.LocationServicesDisabled
-                        )
-                    }
-                }
-            )
-        }
-    }
-
-    fun onNearbyCreationPermissionDenied() {
-        nearbyCreationJob?.cancel()
-        nearbyCreationJob = null
-        _state.update {
-            it.copy(
-                isNearbyDiscoveryEnabled = false,
-                isPreparingNearbyLocation = false,
-                preparedNearbyCell = null,
-                nearbyCreationError = "Necesitas permitir la ubicación aproximada para publicar también en General.",
-                nearbyCreationNeedsLocationServices = false
-            )
-        }
-    }
-
-    fun clearNearbyCreationError() {
-        _state.update { it.copy(nearbyCreationError = null, nearbyCreationNeedsLocationServices = false) }
-    }
-
-    fun resetNearbyCreationState() {
-        nearbyCreationJob?.cancel()
-        nearbyCreationJob = null
-        _state.update {
-            it.copy(
-                isNearbyDiscoveryEnabled = false,
-                isPreparingNearbyLocation = false,
-                preparedNearbyCell = null,
-                nearbyCreationError = null,
-                nearbyCreationNeedsLocationServices = false
+            UserLocationCellSyncHelper.syncIfChanged(
+                userProfileReadRepository = userProfileRepository,
+                userProfileWriteRepository = userProfileRepository,
+                syncedLocationCells = syncedLocationCells,
+                uid = uid,
+                cellId = cellId
             )
         }
     }

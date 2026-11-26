@@ -48,8 +48,6 @@ import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.splitByDistanceRadius
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
-import com.example.caprichometro.infrastructure.ui.HomeFeedTab
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 
@@ -74,7 +72,7 @@ internal fun FeedItemsList(
 ) {
     val sections = remember(items) { splitByDistanceRadius(items) }
     val showPaginationFooter = !isBackgroundSyncing &&
-        (hasMore || totalCount > CapriceViewModel.FEED_PAGE_SIZE)
+        (hasMore || totalCount > HomeFeedViewModel.FEED_PAGE_SIZE)
     var selectedCommentItem by remember { mutableStateOf<CapriceFeedItem?>(null) }
 
     LazyColumn(
@@ -200,7 +198,7 @@ private fun FeedPaginationFooter(
 ) {
     val remaining = (totalCount - visibleCount).coerceAtLeast(0)
     val hasKnownRemaining = remaining > 0
-    val nextBatch = remaining.coerceAtMost(CapriceViewModel.FEED_PAGE_SIZE)
+    val nextBatch = remaining.coerceAtMost(HomeFeedViewModel.FEED_PAGE_SIZE)
 
     Column(
         modifier = Modifier

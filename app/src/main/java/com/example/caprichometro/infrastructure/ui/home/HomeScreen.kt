@@ -1,7 +1,7 @@
 package com.example.caprichometro.infrastructure.ui.home
 
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
-import com.example.caprichometro.infrastructure.ui.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedViewModel
 
 import android.Manifest
 import android.app.Activity
@@ -78,7 +78,7 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: CapriceViewModel,
+    viewModel: HomeFeedViewModel,
     onSelectFeedItem: (CapriceFeedItem) -> Unit,
     onNavigateToFriends: () -> Unit = {},
     onNavigateToUserProfile: (String) -> Unit = {},

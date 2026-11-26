@@ -34,7 +34,8 @@ import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
+import com.example.caprichometro.infrastructure.ui.caprice.CreateCapriceViewModel
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -210,14 +211,27 @@ internal class FakeUiLocationRepository(
 }
 
 internal object UiSmokeTestFactories {
-    fun createCapriceViewModel(
+    fun createCreateCapriceViewModel(
         capriceRepo: CapriceRepository = FakeUiCapriceRepository(),
         locationRepo: DeviceLocationRepository = FakeUiLocationRepository(),
         profileRepo: UserProfileRepository = FakeUiUserProfileRepository(),
         currentUserId: String = "user_1",
         ioDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
-    ): CapriceViewModel = CapriceViewModel(
+    ): CreateCapriceViewModel = CreateCapriceViewModel(
         saveCapriceUseCase = SaveCapriceUseCase(capriceRepo),
+        locationRepository = locationRepo,
+        currentUserIdProvider = { currentUserId },
+        ioDispatcher = ioDispatcher,
+        userProfileRepository = profileRepo
+    )
+
+    fun createHomeFeedViewModel(
+        capriceRepo: CapriceRepository = FakeUiCapriceRepository(),
+        locationRepo: DeviceLocationRepository = FakeUiLocationRepository(),
+        profileRepo: UserProfileRepository = FakeUiUserProfileRepository(),
+        currentUserId: String = "user_1",
+        ioDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
+    ): HomeFeedViewModel = HomeFeedViewModel(
         getCapricesUseCase = GetCapricesUseCase(capriceRepo),
         locationRepository = locationRepo,
         currentUserIdProvider = { currentUserId },

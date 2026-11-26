@@ -48,7 +48,8 @@ import com.example.caprichometro.infrastructure.data.SharedPreferencesCapriceNot
 import com.example.caprichometro.infrastructure.location.AndroidApproximatePlaceNameRepository
 import com.example.caprichometro.infrastructure.location.AndroidLocationRepository
 import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
+import com.example.caprichometro.infrastructure.ui.caprice.CreateCapriceViewModel
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
@@ -80,10 +81,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
         GetAcceptedFriendsUseCase(friendshipRepository, friendshipRepository, userProfileRepository)
     }
 
-    fun createCapriceViewModel(): CapriceViewModel {
-        val saveUseCase = SaveCapriceUseCase(capriceRepository)
+    fun createHomeFeedViewModel(): HomeFeedViewModel {
         val getUseCase = GetCapricesUseCase(capriceRepository)
-        val uploadImageUseCase = UploadCapriceImageUseCase(imageStorageRepository)
         val getFriendsCapricesUseCase = GetFriendsCapricesUseCase(
             getAcceptedFriendsUseCase = acceptedFriendsUseCase,
             capriceRepository = capriceRepository,
@@ -99,10 +98,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
                 friendshipRepository = friendshipRepository
             )
         }
-        return CapriceViewModel(
-            saveCapriceUseCase = saveUseCase,
+        return HomeFeedViewModel(
             getCapricesUseCase = getUseCase,
-            uploadCapriceImageUseCase = uploadImageUseCase,
             getFriendsCapricesUseCase = getFriendsCapricesUseCase,
             profileCacheControl = userProfileRepository,
             capriceCacheControl = capriceRepository,
@@ -111,6 +108,15 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
             userProfileRepository = userProfileRepository,
             getFeedPollResultUseCase = GetFeedPollResultUseCase(voteRepository, userProfileRepository),
             capriceMediaRepository = capriceMediaRepository
+        )
+    }
+
+    fun createCreateCapriceViewModel(): CreateCapriceViewModel {
+        return CreateCapriceViewModel(
+            saveCapriceUseCase = SaveCapriceUseCase(capriceRepository),
+            uploadCapriceImageUseCase = UploadCapriceImageUseCase(imageStorageRepository),
+            locationRepository = locationRepository,
+            userProfileRepository = userProfileRepository
         )
     }
 
@@ -160,7 +166,8 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
-            modelClass.isAssignableFrom(CapriceViewModel::class.java) -> createCapriceViewModel() as T
+            modelClass.isAssignableFrom(HomeFeedViewModel::class.java) -> createHomeFeedViewModel() as T
+            modelClass.isAssignableFrom(CreateCapriceViewModel::class.java) -> createCreateCapriceViewModel() as T
             modelClass.isAssignableFrom(AuthViewModel::class.java) -> createAuthViewModel() as T
             modelClass.isAssignableFrom(FriendshipViewModel::class.java) -> createFriendshipViewModel() as T
             modelClass.isAssignableFrom(ProfileViewModel::class.java) -> createProfileViewModel() as T

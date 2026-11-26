@@ -1,9 +1,10 @@
 package com.example.caprichometro.infrastructure.ui.app
 
-import com.example.caprichometro.infrastructure.ui.CapriceState
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
-import com.example.caprichometro.infrastructure.ui.HomeFeedTab
 import com.example.caprichometro.infrastructure.ui.caprice.CapriceScreen
+import com.example.caprichometro.infrastructure.ui.caprice.CreateCapriceViewModel
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedState
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedViewModel
 import com.example.caprichometro.infrastructure.ui.home.HomeScreen
 import com.example.caprichometro.infrastructure.ui.voting.ActivePollScreen
 import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
@@ -131,7 +132,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val viewModelFactory = ViewModelFactory.getInstance(applicationContext)
-        val capriceViewModel = ViewModelProvider(this, viewModelFactory)[CapriceViewModel::class.java]
+        val homeFeedViewModel = ViewModelProvider(this, viewModelFactory)[HomeFeedViewModel::class.java]
+        val createCapriceViewModel = ViewModelProvider(this, viewModelFactory)[CreateCapriceViewModel::class.java]
         val authViewModel = ViewModelProvider(this, viewModelFactory)[AuthViewModel::class.java]
         val friendshipViewModel = ViewModelProvider(this, viewModelFactory)[FriendshipViewModel::class.java]
         val profileViewModel = ViewModelProvider(this, viewModelFactory)[ProfileViewModel::class.java]
@@ -150,7 +152,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             CapriceApp(
                 authViewModel = authViewModel,
-                capriceViewModel = capriceViewModel,
+                homeFeedViewModel = homeFeedViewModel,
+                createCapriceViewModel = createCapriceViewModel,
                 friendshipViewModel = friendshipViewModel,
                 profileViewModel = profileViewModel,
                 activePollViewModel = activePollViewModel,
@@ -175,7 +178,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CapriceApp(
     authViewModel: AuthViewModel,
-    capriceViewModel: CapriceViewModel,
+    homeFeedViewModel: HomeFeedViewModel,
+    createCapriceViewModel: CreateCapriceViewModel,
     friendshipViewModel: FriendshipViewModel,
     profileViewModel: ProfileViewModel,
     activePollViewModel: ActivePollViewModel,
@@ -188,7 +192,7 @@ fun CapriceApp(
     onClearPendingIntent: () -> Unit = {}
 ) {
     val authState by authViewModel.state.collectAsState()
-    val capriceState by capriceViewModel.state.collectAsState()
+    val capriceState by homeFeedViewModel.state.collectAsState()
     val friendshipState by friendshipViewModel.state.collectAsState()
     val profileState by profileViewModel.state.collectAsState()
     val firebaseAuth = remember { FirebaseAuth.getInstance() }
@@ -206,7 +210,7 @@ fun CapriceApp(
         ?: friendshipState.currentUserProfile?.takeIf { it.uid == currentUserId }
 
     LaunchedEffect(currentUserId, friendshipState.hasLoadedFriends, friendshipState.friends) {
-        capriceViewModel.updateSessionFriends(
+        homeFeedViewModel.updateSessionFriends(
             if (currentUserId.isNotBlank() && friendshipState.hasLoadedFriends) {
                 friendshipState.friends
             } else {
@@ -448,7 +452,8 @@ fun CapriceApp(
             profileViewModel.reset()
             friendshipViewModel.stopListening()
             activePollViewModel.reset()
-            capriceViewModel.reset()
+            homeFeedViewModel.reset()
+            createCapriceViewModel.reset()
             authViewModel.clearSessionState()
             return@LaunchedEffect
         }
@@ -466,17 +471,18 @@ fun CapriceApp(
                 context,
                 android.Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
-            capriceViewModel.onLocationPermissionChanged(hasLocationPermission)
+            homeFeedViewModel.onLocationPermissionChanged(hasLocationPermission)
+            createCapriceViewModel.onLocationPermissionChanged(hasLocationPermission)
             if (isNewSessionBootstrap) {
-                capriceViewModel.loadFriendsFeed()
+                homeFeedViewModel.loadFriendsFeed()
             } else {
-                capriceViewModel.loadFriendsFeedIfNeeded()
+                homeFeedViewModel.loadFriendsFeedIfNeeded()
             }
 
             // 2. Diferimos escuchas secundarias, notificaciones y perfil hasta que el feed inicial haya respondido
             launch {
                 withTimeoutOrNull(4_000L) {
-                    capriceViewModel.state.first { it.hasLoadedFeed || it.feedError != null }
+                    homeFeedViewModel.state.first { it.hasLoadedFeed || it.feedError != null }
                 }
                 android.util.Log.d(
                     "FeedPerf",
@@ -485,7 +491,7 @@ fun CapriceApp(
 
                 friendshipViewModel.listenToIncomingRequests(currentUserId)
                 if (isNewSessionBootstrap) {
-                    capriceViewModel.fetchUserCaprices(limit = 50)
+                    homeFeedViewModel.fetchUserCaprices(limit = 50)
 
                     // Recuperación al volver a la app: último capricho no notificado y decisiones finales pendientes
                     launch {
@@ -547,7 +553,7 @@ fun CapriceApp(
                                 )
                             }
                             // Recargamos el feed social invalidando caché para reflejar el nuevo capricho o decisión final
-                            capriceViewModel.loadFriendsFeed(isManualRefresh = true)
+                            homeFeedViewModel.loadFriendsFeed(isManualRefresh = true)
                         }
                 }
             }
@@ -557,7 +563,8 @@ fun CapriceApp(
             profileViewModel.reset()
             friendshipViewModel.stopListening()
             activePollViewModel.reset()
-            capriceViewModel.reset()
+            homeFeedViewModel.reset()
+            createCapriceViewModel.reset()
             selectedFeedItem = null
             selectedProfileCaprice = null
             selectedPublicAuthor = null
@@ -582,9 +589,9 @@ fun CapriceApp(
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     val triggerReconnectSync: () -> Unit = {
-                        capriceViewModel.loadFriendsFeed(isManualRefresh = true)
+                        homeFeedViewModel.loadFriendsFeed(isManualRefresh = true)
                         if (capriceState.selectedHomeTab == HomeFeedTab.GENERAL || capriceState.nearbyFeedItems.isNotEmpty()) {
-                            capriceViewModel.loadNearbyFeed(isManualRefresh = true)
+                            homeFeedViewModel.loadNearbyFeed(isManualRefresh = true)
                         }
                         if (currentScreen == "profile" && currentUserId.isNotBlank()) {
                             val profileTarget = viewingProfileUserId.ifBlank { currentUserId }
@@ -614,7 +621,7 @@ fun CapriceApp(
                         when (currentScreen) {
                             "home" -> {
                                 HomeScreen(
-                                    viewModel = capriceViewModel,
+                                    viewModel = homeFeedViewModel,
                                     onSelectFeedItem = { item ->
                                         selectedFeedItem = item
                                         currentScreen = "friend_poll"
@@ -685,7 +692,11 @@ fun CapriceApp(
                             }
                             "create" -> {
                                 CapriceScreen(
-                                    viewModel = capriceViewModel,
+                                    viewModel = createCapriceViewModel,
+                                    onCapriceCreated = { saved ->
+                                        homeFeedViewModel.onCapriceCreated(saved)
+                                        saved.locationCell?.let { cell -> homeFeedViewModel.onLocationCellResolved(cell) }
+                                    },
                                     friends = friendshipState.friends,
                                     onNavigateToActivePoll = {
                                         selectedProfileCaprice = null
@@ -761,7 +772,7 @@ fun CapriceApp(
                                         val decidedAt = updated.finalDecisionAt
                                         if (decision != null && decidedAt != null) {
                                             profileViewModel.markFinalDecision(updated.id, decision, decidedAt)
-                                            capriceViewModel.markFinalDecision(updated.id, decision, decidedAt)
+                                            homeFeedViewModel.markFinalDecision(updated.id, decision, decidedAt)
                                         }
                                     },
                                     onGoHome = {
@@ -841,7 +852,8 @@ fun CapriceApp(
                                         profileViewModel.reset()
                                         friendshipViewModel.stopListening()
                                         activePollViewModel.reset()
-                                        capriceViewModel.reset()
+                                        homeFeedViewModel.reset()
+            createCapriceViewModel.reset()
                                         authViewModel.clearSessionState()
                                         viewingProfileUserId = ""
                                         previousScreenBeforeProfile = "home"

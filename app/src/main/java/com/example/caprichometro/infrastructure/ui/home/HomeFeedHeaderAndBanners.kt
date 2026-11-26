@@ -48,8 +48,6 @@ import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.splitByDistanceRadius
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
-import com.example.caprichometro.infrastructure.ui.HomeFeedTab
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 

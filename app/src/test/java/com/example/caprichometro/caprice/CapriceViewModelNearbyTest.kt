@@ -23,8 +23,9 @@ import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
-import com.example.caprichometro.infrastructure.ui.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.caprice.CreateCapriceViewModel
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedViewModel
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -78,9 +79,8 @@ class CapriceViewModelNearbyTest {
 
     private fun createViewModel(
         userProfileRepository: UserProfileRepository? = null
-    ): CapriceViewModel {
-        return CapriceViewModel(
-            saveCapriceUseCase = saveCapriceUseCase,
+    ): HomeFeedViewModel {
+        return HomeFeedViewModel(
             getCapricesUseCase = getCapricesUseCase,
             getFriendsCapricesUseCase = getFriendsCapricesUseCase,
             profileCacheControl = profileCacheControl,
@@ -91,6 +91,20 @@ class CapriceViewModelNearbyTest {
             clockMillis = { currentClock },
             currentUserIdProvider = { currentUid },
             ioDispatcher = testDispatcher
+        )
+    }
+
+    private fun createCreateViewModel(
+        uploadCapriceImageUseCase: UploadCapriceImageUseCase? = null,
+        userProfileRepository: UserProfileRepository? = null
+    ): CreateCapriceViewModel {
+        return CreateCapriceViewModel(
+            saveCapriceUseCase = saveCapriceUseCase,
+            uploadCapriceImageUseCase = uploadCapriceImageUseCase,
+            locationRepository = locationRepository,
+            currentUserIdProvider = { currentUid },
+            ioDispatcher = testDispatcher,
+            userProfileRepository = userProfileRepository
         )
     }
 
@@ -182,7 +196,7 @@ class CapriceViewModelNearbyTest {
         )
         coEvery { saveCapriceUseCase.execute(any()) } returns Result.success("doc_public_1")
 
-        val vm = createViewModel()
+        val vm = createCreateViewModel()
         vm.setNearbyDiscoveryEnabled(true)
         advanceUntilIdle()
 
@@ -208,7 +222,7 @@ class CapriceViewModelNearbyTest {
             DeviceLocationException.LocationServicesDisabled()
         )
 
-        val vm = createViewModel()
+        val vm = createCreateViewModel()
         vm.setNearbyDiscoveryEnabled(true)
         advanceUntilIdle()
 
@@ -371,7 +385,7 @@ class CapriceViewModelNearbyTest {
         )
         coEvery { saveCapriceUseCase.execute(any()) } returns Result.success("doc_priv_loc_1")
 
-        val vm = createViewModel()
+        val vm = createCreateViewModel()
         vm.preparePrivateLocationCellIfPermitted()
         advanceUntilIdle()
 
@@ -529,7 +543,7 @@ class CapriceViewModelNearbyTest {
         )
         coEvery { saveCapriceUseCase.execute(any()) } returns Result.success("doc_auto_loc")
 
-        val vm = createViewModel()
+        val vm = createCreateViewModel()
         vm.onLocationPermissionChanged(true)
 
         val saved = vm.saveCaprice(
@@ -709,19 +723,7 @@ class CapriceViewModelNearbyTest {
     @Test
     fun `saveCaprice falla y no publica si falla la subida de imagen`() = runTest(testDispatcher) {
         val uploadUseCase = mockk<UploadCapriceImageUseCase>()
-        val vm = CapriceViewModel(
-            saveCapriceUseCase = saveCapriceUseCase,
-            getCapricesUseCase = getCapricesUseCase,
-            uploadCapriceImageUseCase = uploadUseCase,
-            getFriendsCapricesUseCase = getFriendsCapricesUseCase,
-            profileCacheControl = profileCacheControl,
-            capriceCacheControl = capriceCacheControl,
-            getNearbyCapricesUseCase = getNearbyCapricesUseCase,
-            locationRepository = locationRepository,
-            clockMillis = { currentClock },
-            currentUserIdProvider = { currentUid },
-            ioDispatcher = testDispatcher
-        )
+        val vm = createCreateViewModel(uploadCapriceImageUseCase = uploadUseCase)
         every { locationRepository.hasLocationPermission() } returns false
         coEvery { uploadUseCase.execute(any(), any()) } returns Result.failure(IllegalStateException("Image too large"))
 

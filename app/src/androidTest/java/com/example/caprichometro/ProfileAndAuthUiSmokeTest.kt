@@ -21,7 +21,7 @@ import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.Vote
-import com.example.caprichometro.infrastructure.ui.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.home.HomeFeedTab
 import com.example.caprichometro.infrastructure.ui.auth.AuthScreen
 import com.example.caprichometro.infrastructure.ui.home.FriendsLocationPermissionBanner
 import com.example.caprichometro.infrastructure.ui.home.HomeFeedTabBar

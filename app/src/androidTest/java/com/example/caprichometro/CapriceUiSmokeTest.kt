@@ -153,7 +153,7 @@ class CapriceUiSmokeTest {
     @Test
     fun capriceScreen_selectsTypeFiltersAudienceAndSubmitsCaprice() {
         val capriceRepo = FakeUiCapriceRepository()
-        val viewModel = UiSmokeTestFactories.createCapriceViewModel(capriceRepo = capriceRepo)
+        val viewModel = UiSmokeTestFactories.createCreateCapriceViewModel(capriceRepo = capriceRepo)
         val friends = listOf(
             UserProfile(uid = "f1", username = "ana"),
             UserProfile(uid = "f2", username = "carlos")
@@ -207,7 +207,7 @@ class CapriceUiSmokeTest {
     @Test
     fun capriceScreen_whenNearbyEnabledPublishesWithNearbyCell() {
         val capriceRepo = FakeUiCapriceRepository()
-        val viewModel = UiSmokeTestFactories.createCapriceViewModel(capriceRepo = capriceRepo)
+        val viewModel = UiSmokeTestFactories.createCreateCapriceViewModel(capriceRepo = capriceRepo)
         viewModel.onLocationPermissionChanged(true)
         viewModel.setNearbyDiscoveryEnabled(true)
         var navigatedToPoll = false

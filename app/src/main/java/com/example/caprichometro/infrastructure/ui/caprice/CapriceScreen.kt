@@ -1,6 +1,6 @@
 package com.example.caprichometro.infrastructure.ui.caprice
 
-import com.example.caprichometro.infrastructure.ui.CapriceViewModel
+import com.example.caprichometro.domain.model.Caprice
 
 import android.content.Context
 import android.content.Intent
@@ -75,8 +75,9 @@ private val TextGray = Color(0xFFAAAAAA)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CapriceScreen(
-    viewModel: CapriceViewModel,
+    viewModel: CreateCapriceViewModel,
     friends: List<UserProfile> = emptyList(),
+    onCapriceCreated: (Caprice) -> Unit = {},
     onNavigateToActivePoll: () -> Unit
 ) {
     val context = LocalContext.current
@@ -304,6 +305,7 @@ fun CapriceScreen(
                         isSubmitting = false
                         if (saveResult.isSuccess) {
                             val createdCaprice = saveResult.getOrNull()
+                            createdCaprice?.let(onCapriceCreated)
                             isCompraType = true
                             selectAllFriends = true
                             customSelectedFriendIds = emptySet()
