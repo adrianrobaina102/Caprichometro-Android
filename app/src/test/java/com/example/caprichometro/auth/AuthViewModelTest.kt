@@ -114,6 +114,20 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun `register rechaza usuarios menores de la edad minima sin guardar en Firestore`() = runTest {
+        viewModel.updateName("adrian_dev")
+        viewModel.updateEmail("adrian@gmail.com")
+        viewModel.updatePassword("123456")
+        viewModel.updateBirthday(LocalDate.now().minusYears(AuthViewModel.MIN_REGISTRATION_AGE_YEARS - 1))
+
+        viewModel.register()
+
+        assertThat(viewModel.state.value.errorMessage)
+            .isEqualTo("Debes tener al menos ${AuthViewModel.MIN_REGISTRATION_AGE_YEARS} años para registrarte")
+        coVerify(exactly = 0) { registerUseCase.execute(any(), any(), any()) }
+    }
+
+    @Test
     fun `signInWithGoogle actualiza el estado a éxito cuando Google devuelve un usuario valido`() = runTest {
         val expectedUser = User(id = "123", email = "test@gmail.com", name = "Test User")
         coEvery { signInWithGoogleUseCase.execute(any()) } returns Result.success(expectedUser)

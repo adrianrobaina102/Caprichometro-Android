@@ -35,6 +35,10 @@ class AuthViewModel(
     private val getCurrentUserUseCase: GetCurrentUserUseCase
 ) : ViewModel() {
 
+    companion object {
+        internal const val MIN_REGISTRATION_AGE_YEARS = 13L
+    }
+
     private val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
     private val _state = MutableStateFlow(
@@ -100,6 +104,13 @@ class AuthViewModel(
 
         if (currentState.birthday.isAfter(LocalDate.now())) {
             _state.update { it.copy(errorMessage = "La fecha de nacimiento no puede ser en el futuro") }
+            return
+        }
+
+        if (currentState.birthday.isAfter(LocalDate.now().minusYears(MIN_REGISTRATION_AGE_YEARS))) {
+            _state.update {
+                it.copy(errorMessage = "Debes tener al menos $MIN_REGISTRATION_AGE_YEARS años para registrarte")
+            }
             return
         }
 
