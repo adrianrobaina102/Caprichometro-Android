@@ -89,6 +89,7 @@ fun ResultScreen(
         if (caprice != null && viewModel != null) {
             viewModel.clearError()
             viewModel.initialize(caprice, effectiveUserId, resolvedUsername, approximateDistanceMeters, authorLocationCell)
+            viewModel.refreshFinalDecision()
         }
     }
 

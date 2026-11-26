@@ -245,4 +245,39 @@ class ActivePollViewModelTest {
         assertThat(vm.state.value.pendingVoteRetry).isNull()
         assertThat(vm.state.value.userVote?.option).isEqualTo(1)
     }
+
+    @Test
+    fun `refreshFinalDecision actualiza finalDecision desde servidor si coincide el capricho`() = runTest {
+        val voteRepo = mockk<VoteRepository>()
+        val detailsRepo = mockk<com.example.caprichometro.domain.repository.CapriceDetailsRepository>()
+        val closedCaprice = Caprice(
+            id = "cap_closed",
+            userId = "author_1",
+            question = "¿Vamos?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = System.currentTimeMillis() - 400_000L
+        )
+        val serverCaprice = closedCaprice.copy(finalDecision = 2, finalDecisionAt = 123_456L)
+        coEvery { voteRepo.getUserVote("cap_closed", "voter_1") } returns Result.success(null)
+        coEvery { detailsRepo.getCapriceById("cap_closed") } returns Result.success(serverCaprice)
+
+        val vm = ActivePollViewModel(
+            castVoteUseCase = mockk(relaxed = true),
+            observeVotesUseCase = mockk {
+                every { execute("cap_closed") } returns flowOf(emptyList())
+            },
+            calculateVerdictUseCase = CalculateVerdictUseCase(),
+            voteRepository = voteRepo,
+            capriceDetailsRepository = detailsRepo
+        )
+        vm.initialize(closedCaprice, currentUserId = "voter_1")
+        testScheduler.runCurrent()
+
+        vm.refreshFinalDecision()
+        testScheduler.runCurrent()
+
+        assertThat(vm.state.value.caprice?.finalDecision).isEqualTo(2)
+        assertThat(vm.state.value.caprice?.finalDecisionAt).isEqualTo(123_456L)
+    }
 }

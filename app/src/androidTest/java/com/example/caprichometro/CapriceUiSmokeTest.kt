@@ -19,6 +19,7 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.infrastructure.ui.ActivePollScreen
 import com.example.caprichometro.infrastructure.ui.CapriceScreen
+import com.example.caprichometro.infrastructure.ui.HomeFriendsHeaderButton
 import com.example.caprichometro.infrastructure.ui.OwnHomeAvatarButton
 import com.example.caprichometro.infrastructure.ui.ResultScreen
 import com.example.caprichometro.infrastructure.ui.home.FeedItemsList
@@ -378,6 +379,24 @@ class CapriceUiSmokeTest {
         composeTestRule.runOnIdle {
             assertTrue(clickedActive)
             assertTrue(clickedProfile)
+        }
+    }
+
+    @Test
+    fun homeFriendsHeaderButton_showsPendingBadgeAndNavigates() {
+        var clickedFriends = false
+        composeTestRule.setContent {
+            HomeFriendsHeaderButton(
+                pendingRequestsCount = 3,
+                onClick = { clickedFriends = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("3").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.home_friends_button_cd))
+            .performClick()
+        composeTestRule.runOnIdle {
+            assertTrue(clickedFriends)
         }
     }
 }

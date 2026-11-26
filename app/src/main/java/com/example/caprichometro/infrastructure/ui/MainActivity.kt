@@ -622,6 +622,7 @@ fun CapriceApp(
                                         selectedPublicAuthor = author
                                     },
                                     ownUserProfile = ownUserProfile,
+                                    pendingFriendRequestsCount = friendshipState.incomingRequests.size,
                                     onOwnAvatarClick = {
                                         val activeOwnCaprice = capriceState.latestCaprices.firstOrNull {
                                             !PollTiming.isPollExpired(it.timestamp)
@@ -634,6 +635,9 @@ fun CapriceApp(
                                         } else {
                                             openProfile(currentUserId, "home")
                                         }
+                                    },
+                                    onOwnAvatarLongClick = {
+                                        openProfile(currentUserId, "home")
                                     }
                                 )
                             }

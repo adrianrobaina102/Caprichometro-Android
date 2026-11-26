@@ -11,9 +11,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -53,6 +55,7 @@ import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
+import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.ui.home.CardBg
@@ -78,7 +81,9 @@ fun HomeScreen(
     onOpenNonFriendProfile: (UserProfile) -> Unit = {},
     deferLocationAutoPrompt: Boolean = false,
     ownUserProfile: UserProfile? = null,
-    onOwnAvatarClick: () -> Unit = {}
+    pendingFriendRequestsCount: Int = 0,
+    onOwnAvatarClick: () -> Unit = {},
+    onOwnAvatarLongClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -239,7 +244,8 @@ fun HomeScreen(
                         OwnHomeAvatarButton(
                             userProfile = ownUserProfile,
                             remainingMillis = ownPollRemainingMillis,
-                            onClick = onOwnAvatarClick
+                            onClick = onOwnAvatarClick,
+                            onLongClick = onOwnAvatarLongClick
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                     }
@@ -267,38 +273,48 @@ fun HomeScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = {
-                            nowMillis = System.currentTimeMillis()
-                            if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
-                                viewModel.loadFriendsFeed(isManualRefresh = true)
-                            } else if (hasCoarseLocationPermission(context)) {
-                                viewModel.loadNearbyFeed(isManualRefresh = true)
-                            } else {
-                                coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                            }
-                        },
-                        enabled = !isCurrentTabLoading,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(CardBg)
-                            .border(1.dp, CardBorder, CircleShape)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isCurrentTabLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = LimeAccent,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Actualizar feed",
-                                tint = LimeAccent,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        IconButton(
+                            onClick = {
+                                nowMillis = System.currentTimeMillis()
+                                if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                                    viewModel.loadFriendsFeed(isManualRefresh = true)
+                                } else if (hasCoarseLocationPermission(context)) {
+                                    viewModel.loadNearbyFeed(isManualRefresh = true)
+                                } else {
+                                    coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                }
+                            },
+                            enabled = !isCurrentTabLoading,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(CardBg)
+                                .border(1.dp, CardBorder, CircleShape)
+                        ) {
+                            if (isCurrentTabLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = LimeAccent,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Actualizar feed",
+                                    tint = LimeAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
+
+                        HomeFriendsHeaderButton(
+                            pendingRequestsCount = pendingFriendRequestsCount,
+                            onClick = onNavigateToFriends
+                        )
                     }
                 }
 
@@ -539,11 +555,13 @@ private fun hasCoarseLocationPermission(context: Context): Boolean {
     ) == PackageManager.PERMISSION_GRANTED
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun OwnHomeAvatarButton(
     userProfile: UserProfile,
     remainingMillis: Long,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     val isActive = remainingMillis > 0L
     val progress = (remainingMillis.toFloat() / PollTiming.POLL_DURATION_MILLIS.toFloat()).coerceIn(0f, 1f)
@@ -555,7 +573,10 @@ internal fun OwnHomeAvatarButton(
         modifier = Modifier
             .size(46.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .semantics { contentDescription = cdText },
         contentAlignment = Alignment.Center
     ) {
@@ -588,5 +609,51 @@ internal fun OwnHomeAvatarButton(
             backgroundColor = LimeAccent,
             fontSize = 15.sp
         )
+    }
+}
+
+@Composable
+internal fun HomeFriendsHeaderButton(
+    pendingRequestsCount: Int,
+    onClick: () -> Unit
+) {
+    val cdText = stringResource(R.string.home_friends_button_cd)
+    Box(
+        modifier = Modifier.size(44.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(CardBg)
+                .border(1.dp, CardBorder, CircleShape)
+        ) {
+            Icon(
+                imageVector = AppIcons.Group,
+                contentDescription = cdText,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        if (pendingRequestsCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFFE53935))
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = pendingRequestsCount.toString(),
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }

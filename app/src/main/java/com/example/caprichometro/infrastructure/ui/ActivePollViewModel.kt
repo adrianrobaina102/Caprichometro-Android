@@ -14,6 +14,7 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.VerdictResult
 import com.example.caprichometro.domain.model.Vote
+import com.example.caprichometro.domain.repository.CapriceDetailsRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -61,7 +62,8 @@ class ActivePollViewModel(
     private val voteRepository: VoteRepository,
     private val updateFinalDecisionUseCase: UpdateFinalDecisionUseCase? = null,
     private val getApproximatePlaceNameUseCase: GetApproximatePlaceNameUseCase? = null,
-    private val userProfileRepository: UserProfileRepository? = null
+    private val userProfileRepository: UserProfileRepository? = null,
+    private val capriceDetailsRepository: CapriceDetailsRepository? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivePollUiState())
@@ -420,6 +422,45 @@ class ActivePollViewModel(
                     }
                 }
             )
+        }
+    }
+
+    fun refreshFinalDecision() {
+        val repo = capriceDetailsRepository ?: return
+        val targetCaprice = _state.value.caprice ?: return
+        val targetUserId = _state.value.currentUserId
+        if (targetCaprice.id.isBlank() || targetUserId.isBlank()) return
+
+        viewModelScope.launch {
+            val latest = try {
+                repo.getCapriceById(targetCaprice.id).getOrNull()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            } ?: return@launch
+
+            if (latest.id != targetCaprice.id || latest.userId != targetCaprice.userId) return@launch
+            val validDecision = latest.finalDecision?.takeIf { it == 1 || it == 2 }
+            val validDecidedAt = if (validDecision != null) latest.finalDecisionAt else null
+
+            _state.update { current ->
+                if (current.caprice?.id != targetCaprice.id || current.currentUserId != targetUserId) {
+                    return@update current
+                }
+                val currentCaprice = current.caprice
+                if (currentCaprice.finalDecision == validDecision &&
+                    currentCaprice.finalDecisionAt == validDecidedAt
+                ) {
+                    return@update current
+                }
+                current.copy(
+                    caprice = currentCaprice.copy(
+                        finalDecision = validDecision,
+                        finalDecisionAt = validDecidedAt
+                    )
+                )
+            }
         }
     }
 
