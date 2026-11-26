@@ -11,7 +11,7 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
-import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
+import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every

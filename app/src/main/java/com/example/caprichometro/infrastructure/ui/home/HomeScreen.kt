@@ -1,4 +1,7 @@
-package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui.home
+
+import com.example.caprichometro.infrastructure.ui.CapriceViewModel
+import com.example.caprichometro.infrastructure.ui.HomeFeedTab
 
 import android.Manifest
 import android.app.Activity

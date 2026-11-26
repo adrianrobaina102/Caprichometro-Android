@@ -1,4 +1,13 @@
-package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui.app
+
+import com.example.caprichometro.infrastructure.ui.CapriceState
+import com.example.caprichometro.infrastructure.ui.CapriceViewModel
+import com.example.caprichometro.infrastructure.ui.HomeFeedTab
+import com.example.caprichometro.infrastructure.ui.caprice.CapriceScreen
+import com.example.caprichometro.infrastructure.ui.home.HomeScreen
+import com.example.caprichometro.infrastructure.ui.voting.ActivePollScreen
+import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
+import com.example.caprichometro.infrastructure.ui.voting.ResultScreen
 
 import android.content.Context
 import android.content.Intent

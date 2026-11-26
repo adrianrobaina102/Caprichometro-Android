@@ -10,7 +10,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.Caprice
-import com.example.caprichometro.infrastructure.ui.MainActivity
+import com.example.caprichometro.infrastructure.ui.app.MainActivity
 
 object PollNotificationHelper {
     const val CHANNEL_ID = "caprice_poll_channel"

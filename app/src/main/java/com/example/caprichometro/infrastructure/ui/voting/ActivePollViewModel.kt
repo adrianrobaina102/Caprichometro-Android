@@ -1,4 +1,4 @@
-package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui.voting
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

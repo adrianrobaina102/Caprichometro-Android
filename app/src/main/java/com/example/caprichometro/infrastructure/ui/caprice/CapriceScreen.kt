@@ -1,4 +1,6 @@
-package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui.caprice
+
+import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 
 import android.content.Context
 import android.content.Intent

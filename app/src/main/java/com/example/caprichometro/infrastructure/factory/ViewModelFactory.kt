@@ -47,7 +47,7 @@ import com.example.caprichometro.infrastructure.data.FirestoreVoteRepository
 import com.example.caprichometro.infrastructure.data.SharedPreferencesCapriceNotificationHistoryRepository
 import com.example.caprichometro.infrastructure.location.AndroidApproximatePlaceNameRepository
 import com.example.caprichometro.infrastructure.location.AndroidLocationRepository
-import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
+import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel

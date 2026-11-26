@@ -25,7 +25,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Caprichometro">
         <activity
-            android:name=".infrastructure.ui.MainActivity"
+            android:name=".infrastructure.ui.app.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.Caprichometro"

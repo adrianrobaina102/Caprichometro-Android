@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.infrastructure.ui
+package com.example.caprichometro.infrastructure.ui.voting
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.animateFloatAsState

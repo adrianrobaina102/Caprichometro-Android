@@ -17,11 +17,11 @@ import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.Vote
-import com.example.caprichometro.infrastructure.ui.ActivePollScreen
-import com.example.caprichometro.infrastructure.ui.CapriceScreen
-import com.example.caprichometro.infrastructure.ui.HomeFriendsHeaderButton
-import com.example.caprichometro.infrastructure.ui.OwnHomeAvatarButton
-import com.example.caprichometro.infrastructure.ui.ResultScreen
+import com.example.caprichometro.infrastructure.ui.voting.ActivePollScreen
+import com.example.caprichometro.infrastructure.ui.caprice.CapriceScreen
+import com.example.caprichometro.infrastructure.ui.home.HomeFriendsHeaderButton
+import com.example.caprichometro.infrastructure.ui.home.OwnHomeAvatarButton
+import com.example.caprichometro.infrastructure.ui.voting.ResultScreen
 import com.example.caprichometro.infrastructure.ui.home.FeedItemsList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

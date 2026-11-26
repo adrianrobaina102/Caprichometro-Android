@@ -33,7 +33,7 @@ import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.VoteRepository
-import com.example.caprichometro.infrastructure.ui.ActivePollViewModel
+import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
 import com.example.caprichometro.infrastructure.ui.CapriceViewModel
 import com.example.caprichometro.infrastructure.ui.auth.AuthViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
