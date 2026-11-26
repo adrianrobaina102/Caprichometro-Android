@@ -1,4 +1,4 @@
-package com.example.caprichometro.ui.theme
+package com.example.caprichometro.infrastructure.ui.theme
 
 import android.app.Activity
 import android.os.Build
