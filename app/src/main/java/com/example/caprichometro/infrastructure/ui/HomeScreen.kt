@@ -26,9 +26,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +72,7 @@ import com.example.caprichometro.infrastructure.ui.home.LimeAccent
 import com.example.caprichometro.infrastructure.ui.home.TextSecondary
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: CapriceViewModel,
@@ -228,6 +229,12 @@ fun HomeScreen(
     } else {
         state.nearbyFeedItems.isNotEmpty()
     }
+    var isPullRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentTabLoading) {
+        if (!isCurrentTabLoading) {
+            isPullRefreshing = false
+        }
+    }
 
     Scaffold(
         containerColor = FeedBg,
@@ -236,7 +243,7 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -247,75 +254,25 @@ fun HomeScreen(
                             onClick = onOwnAvatarClick,
                             onLongClick = onOwnAvatarLongClick
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.nav_home),
-                            color = Color.White,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            text = if (activeOwnCaprice != null && ownPollRemainingMillis > 0L) {
-                                stringResource(R.string.home_own_active_badge)
-                            } else {
-                                stringResource(
-                                    if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
-                                        R.string.home_subtitle_friends
-                                    } else {
-                                        R.string.home_subtitle_general
-                                    }
-                                )
-                            },
-                            color = if (activeOwnCaprice != null && ownPollRemainingMillis > 0L) LimeAccent else TextSecondary,
-                            fontSize = 13.sp
-                        )
+                    } else {
+                        Spacer(modifier = Modifier.size(46.dp))
                     }
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                nowMillis = System.currentTimeMillis()
-                                if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
-                                    viewModel.loadFriendsFeed(isManualRefresh = true)
-                                } else if (hasCoarseLocationPermission(context)) {
-                                    viewModel.loadNearbyFeed(isManualRefresh = true)
-                                } else {
-                                    coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                                }
-                            },
-                            enabled = !isCurrentTabLoading,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(CardBg)
-                                .border(1.dp, CardBorder, CircleShape)
-                        ) {
-                            if (isCurrentTabLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = LimeAccent,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Actualizar feed",
-                                    tint = LimeAccent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                        HomeFriendsHeaderButton(
-                            pendingRequestsCount = pendingFriendRequestsCount,
-                            onClick = onNavigateToFriends
-                        )
-                    }
+                    HomeFriendsHeaderButton(
+                        pendingRequestsCount = pendingFriendRequestsCount,
+                        onClick = onNavigateToFriends
+                    )
                 }
 
                 HomeFeedTabBar(
@@ -338,7 +295,20 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = isPullRefreshing,
+            onRefresh = {
+                nowMillis = System.currentTimeMillis()
+                if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                    isPullRefreshing = true
+                    viewModel.loadFriendsFeed(isManualRefresh = true)
+                } else if (hasCoarseLocationPermission(context)) {
+                    isPullRefreshing = true
+                    viewModel.loadNearbyFeed(isManualRefresh = true)
+                } else {
+                    coarseLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)

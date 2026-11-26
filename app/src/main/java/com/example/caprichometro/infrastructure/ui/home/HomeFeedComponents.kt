@@ -503,6 +503,7 @@ private fun FeedPaginationFooter(
     onLoadMore: () -> Unit
 ) {
     val remaining = (totalCount - visibleCount).coerceAtLeast(0)
+    val hasKnownRemaining = remaining > 0
     val nextBatch = remaining.coerceAtMost(CapriceViewModel.FEED_PAGE_SIZE)
 
     Column(
@@ -516,10 +517,10 @@ private fun FeedPaginationFooter(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (hasMore) {
-                pluralStringResource(R.plurals.home_pagination_showing, totalCount, visibleCount, totalCount)
-            } else {
-                pluralStringResource(R.plurals.home_pagination_all_shown, visibleCount, visibleCount)
+            text = when {
+                !hasMore -> pluralStringResource(R.plurals.home_pagination_all_shown, visibleCount, visibleCount)
+                hasKnownRemaining -> pluralStringResource(R.plurals.home_pagination_showing, totalCount, visibleCount, totalCount)
+                else -> stringResource(R.string.home_pagination_showing_loaded, visibleCount)
             },
             color = TextSecondary,
             fontSize = 12.sp,
@@ -539,7 +540,11 @@ private fun FeedPaginationFooter(
                 border = BorderStroke(1.dp, LimeAccent)
             ) {
                 Text(
-                    text = pluralStringResource(R.plurals.home_pagination_load_more, nextBatch, nextBatch),
+                    text = if (hasKnownRemaining) {
+                        pluralStringResource(R.plurals.home_pagination_load_more, nextBatch, nextBatch)
+                    } else {
+                        stringResource(R.string.home_pagination_load_more_generic)
+                    },
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )

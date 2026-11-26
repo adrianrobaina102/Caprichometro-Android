@@ -106,6 +106,7 @@ class CapriceViewModel(
         @Volatile var visiblePageLimit: Int = FEED_PAGE_SIZE
         @Volatile var revealedCount: Int = 0
         @Volatile var isSourceComplete: Boolean = false
+        @Volatile var hasMoreRemote: Boolean = false
         @Volatile var loadedWithLocationPermission: Boolean = false
         @Volatile var generation: Long = 0L
         var revealJob: Job? = null
@@ -123,6 +124,7 @@ class CapriceViewModel(
             visiblePageLimit = FEED_PAGE_SIZE
             revealedCount = 0
             isSourceComplete = false
+            hasMoreRemote = false
             loadedWithLocationPermission = false
         }
     }
@@ -706,6 +708,9 @@ class CapriceViewModel(
     ) {
         controller.loadedItems = batch.items
         controller.totalAvailableCount = maxOf(batch.totalAvailableCount, batch.items.size)
+        if (!batch.isFromCache) {
+            controller.hasMoreRemote = batch.hasMoreRemote
+        }
         if (batch.isComplete) {
             controller.isSourceComplete = true
         }
@@ -729,10 +734,15 @@ class CapriceViewModel(
         val uid = currentUserId
         if (uid.isBlank()) return
         val knownTotal = maxOf(controller.totalAvailableCount, controller.loadedItems.size)
-        if (knownTotal == 0) return
+        if (knownTotal == 0 && !controller.hasMoreRemote) return
 
-        val nextLimit = (controller.visiblePageLimit + FEED_PAGE_SIZE).coerceAtMost(knownTotal)
-        if (nextLimit <= controller.visiblePageLimit &&
+        val nextLimit = if (controller.hasMoreRemote) {
+            controller.visiblePageLimit + FEED_PAGE_SIZE
+        } else {
+            (controller.visiblePageLimit + FEED_PAGE_SIZE).coerceAtMost(knownTotal)
+        }
+        if (!controller.hasMoreRemote &&
+            nextLimit <= controller.visiblePageLimit &&
             controller.revealedCount >= minOf(controller.visiblePageLimit, controller.loadedItems.size)
         ) {
             return
@@ -809,7 +819,7 @@ class CapriceViewModel(
         val visibleCount = controller.revealedCount.coerceAtMost(cap)
         val total = maxOf(controller.totalAvailableCount, controller.loadedItems.size)
         val stillStepping = visibleCount < cap
-        val hasMore = total > visibleCount && !stillStepping
+        val hasMore = (total > visibleCount || controller.hasMoreRemote) && !stillStepping
         val isBackgroundSyncing = !controller.isSourceComplete || stillStepping
         publishState(
             controller.loadedItems.take(visibleCount),

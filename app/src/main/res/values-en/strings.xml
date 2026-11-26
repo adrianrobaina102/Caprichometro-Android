@@ -299,4 +299,6 @@
     <string name="feed_comment_plan_1">Great plan if you head out now, harder later 😂</string>
     <string name="feed_comment_plan_2">Count me in if there is still room.</string>
     <string name="home_friends_button_cd">Friends and requests</string>
+    <string name="home_pagination_showing_loaded">Showing %1$d polls</string>
+    <string name="home_pagination_load_more_generic">Load more</string>
 </resources>

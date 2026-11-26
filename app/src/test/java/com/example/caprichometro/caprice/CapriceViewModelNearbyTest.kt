@@ -786,4 +786,56 @@ class CapriceViewModelNearbyTest {
         activePollVm.reset()
         testScheduler.runCurrent()
     }
+
+    @Test
+    fun `loadMoreNearbyFeed avanza cursor remoto cuando hasMoreRemote es true`() = runTest(testDispatcher) {
+        val item1 = CapriceFeedItem(
+            caprice = Caprice(id = "c1", userId = "u1", question = "¿Uno?", answer1 = "Sí", answer2 = "No", nearbyCell = "v1_2608_3525"),
+            author = UserProfile(uid = "u1", username = "ana"),
+            approximateDistanceMeters = 500.0
+        )
+        val item2 = CapriceFeedItem(
+            caprice = Caprice(id = "c2", userId = "u2", question = "¿Dos?", answer1 = "Sí", answer2 = "No", nearbyCell = "v1_2608_3525"),
+            author = UserProfile(uid = "u2", username = "leo"),
+            approximateDistanceMeters = 900.0
+        )
+
+        every { locationRepository.hasLocationPermission() } returns true
+        every {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        } returns flowOf(
+            ProgressiveFeedBatch(
+                items = listOf(item1),
+                isFromCache = false,
+                isComplete = true,
+                totalAvailableCount = 1,
+                hasMoreRemote = true
+            )
+        )
+        every {
+            getNearbyCapricesUseCase.observeNextPage("user_1", currentLoadedCount = 1, initialBatchSize = 5, pageSize = 20)
+        } returns flowOf(
+            ProgressiveFeedBatch(
+                items = listOf(item1, item2),
+                isFromCache = false,
+                isComplete = true,
+                totalAvailableCount = 2,
+                hasMoreRemote = false
+            )
+        )
+
+        val vm = createViewModel()
+        vm.selectHomeTab(HomeFeedTab.GENERAL)
+        vm.loadNearbyFeedIfNeeded()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.nearbyFeedItems.map { it.caprice.id }).containsExactly("c1")
+        assertThat(vm.state.value.hasMoreNearbyFeed).isTrue()
+
+        vm.loadMoreNearbyFeed()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.nearbyFeedItems.map { it.caprice.id }).containsExactly("c1", "c2")
+        assertThat(vm.state.value.hasMoreNearbyFeed).isFalse()
+    }
 }

@@ -9,5 +9,6 @@ data class ProgressiveFeedBatch(
     val isFromCache: Boolean,
     val isComplete: Boolean,
     val totalAvailableCount: Int = items.size,
-    val hasViewerLocation: Boolean = false
+    val hasViewerLocation: Boolean = false,
+    val hasMoreRemote: Boolean = false
 )

@@ -8,6 +8,7 @@ import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.CursorPagedNearbyCapriceRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.NearbyCapriceBatch
 import com.example.caprichometro.domain.repository.NearbyCapriceRepository
@@ -302,5 +303,79 @@ class GetNearbyCapricesUseCaseTest {
         assertThat(result.items.map { it.caprice.id }).containsExactly("cap_friend")
         assertThat(result.items.first().author.username).isEqualTo("amigo_publico")
         coVerify(exactly = 0) { userRepo.getUserById("blocked_1") }
+    }
+
+    @Test
+    fun `cursorPagedRepository carga pagina inicial minima y avanza paginas de 20 bajo demanda sin tope fijo`() = runTest {
+        val locationRepo = mockk<DeviceLocationRepository>()
+        val nearbyRepo = mockk<CursorPagedNearbyCapriceRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val friendshipRepo = mockk<FriendshipRepository>()
+
+        val firstPageItem = Caprice(
+            id = "p1_madrid",
+            userId = "a1",
+            question = "¿Primera página?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 20_000L,
+            nearbyCell = madridCell
+        )
+        val secondPageItem = Caprice(
+            id = "p2_valencia",
+            userId = "a2",
+            question = "¿Segunda página?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 15_000L,
+            nearbyCell = valenciaCell
+        )
+
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isBlocked(any(), any()) } returns Result.success(false)
+        coEvery { friendshipRepo.isCachedBlocked(any(), any()) } returns false
+        coEvery { userRepo.getUserById("a1") } returns Result.success(UserProfile(uid = "a1", username = "ana"))
+        coEvery { userRepo.getUserById("a2") } returns Result.success(UserProfile(uid = "a2", username = "carlos"))
+
+        every {
+            nearbyRepo.streamFirstDiscoverableCapricePage(5, 20, true, any())
+        } returns flowOf(
+            NearbyCapriceBatch(
+                caprices = listOf(firstPageItem),
+                isFromCache = false,
+                isComplete = false,
+                nextPageToken = "cursor_1"
+            )
+        )
+        coEvery { nearbyRepo.loadNextDiscoverableCapricePage("cursor_1", 20) } returns Result.success(
+            NearbyCapriceBatch(
+                caprices = listOf(secondPageItem),
+                isFromCache = false,
+                isComplete = true,
+                nextPageToken = null
+            )
+        )
+
+        val useCase = GetNearbyCapricesUseCase(locationRepo, nearbyRepo, userRepo, friendshipRepo)
+        val page1 = useCase.observeProgressiveFeed("me", includeCache = true, initialBatchSize = 5, pageSize = 20)
+            .toList()
+            .last()
+
+        assertThat(page1.isComplete).isTrue()
+        assertThat(page1.hasMoreRemote).isTrue()
+        assertThat(page1.items.map { it.caprice.id }).containsExactly("p1_madrid")
+        coVerify(exactly = 0) { nearbyRepo.loadNextDiscoverableCapricePage(any(), any()) }
+
+        val page2 = useCase.observeNextPage("me", currentLoadedCount = 1, initialBatchSize = 5, pageSize = 20)
+            .toList()
+            .last()
+
+        assertThat(page2.isComplete).isTrue()
+        assertThat(page2.hasMoreRemote).isFalse()
+        assertThat(page2.items.map { it.caprice.id }).containsExactly("p1_madrid", "p2_valencia")
+        assertThat(page2.items.last().author.username).isEqualTo("carlos")
+        coVerify(exactly = 1) { nearbyRepo.loadNextDiscoverableCapricePage("cursor_1", 20) }
     }
 }

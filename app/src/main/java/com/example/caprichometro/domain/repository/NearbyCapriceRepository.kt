@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.flow
 data class NearbyCapriceBatch(
     val caprices: List<Caprice>,
     val isFromCache: Boolean,
-    val isComplete: Boolean
+    val isComplete: Boolean,
+    val nextPageToken: String? = null
 )
 
 interface NearbyCapriceRepository {
@@ -39,4 +40,21 @@ interface PreferredCellsNearbyCapriceRepository {
         includeCache: Boolean = true,
         preferredCells: List<String> = emptyList()
     ): Flow<NearbyCapriceBatch>
+}
+
+/**
+ * Paginación progresiva por cursor Firestore en General: carga inicial mínima y páginas de 20 bajo demanda.
+ */
+interface CursorPagedNearbyCapriceRepository : NearbyCapriceRepository, PreferredCellsNearbyCapriceRepository {
+    fun streamFirstDiscoverableCapricePage(
+        initialBatchSize: Int = 5,
+        pageSize: Int = 20,
+        includeCache: Boolean = true,
+        preferredCells: List<String> = emptyList()
+    ): Flow<NearbyCapriceBatch>
+
+    suspend fun loadNextDiscoverableCapricePage(
+        pageToken: String,
+        pageSize: Int = 20
+    ): Result<NearbyCapriceBatch>
 }

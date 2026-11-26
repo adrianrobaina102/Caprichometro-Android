@@ -299,4 +299,6 @@
     <string name="feed_comment_plan_1">Planazo si vais ya, luego da pereza salir 😂</string>
     <string name="feed_comment_plan_2">Yo me apunto si queda sitio todavía.</string>
     <string name="home_friends_button_cd">Amigos y solicitudes</string>
+    <string name="home_pagination_showing_loaded">Mostrando %1$d caprichos</string>
+    <string name="home_pagination_load_more_generic">Cargar más</string>
 </resources>

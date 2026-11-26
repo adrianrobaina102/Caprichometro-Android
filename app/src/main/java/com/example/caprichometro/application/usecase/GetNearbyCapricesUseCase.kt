@@ -9,6 +9,7 @@ import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UserProfileRepository
 import com.example.caprichometro.domain.model.sortedByNearbyFeedOrder
+import com.example.caprichometro.domain.repository.CursorPagedNearbyCapriceRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.NearbyCapriceRepository
 import com.example.caprichometro.domain.repository.PreferredCellsNearbyCapriceRepository
@@ -47,7 +48,12 @@ class GetNearbyCapricesUseCase(
 
     private data class NearbyPageSnapshot(
         val candidates: List<Candidate>,
-        val resolvedAuthors: ConcurrentHashMap<String, UserProfile>
+        val resolvedAuthors: ConcurrentHashMap<String, UserProfile>,
+        val rawCaprices: List<Caprice> = emptyList(),
+        val location: ApproximateLocation? = null,
+        val serverBlockedIds: Set<String> = emptySet(),
+        val checkedServerBlocks: ConcurrentHashMap<String, Boolean> = ConcurrentHashMap(),
+        val nextPageToken: String? = null
     )
 
     private val cachedSnapshots = ConcurrentHashMap<String, NearbyPageSnapshot>()
@@ -129,7 +135,13 @@ class GetNearbyCapricesUseCase(
         val initialLocation = locationDeferred.await()
         val preferredCells = NearbyCellGrid.nearbyCellIds(initialLocation)
 
-        val discoverableFlow = (nearbyCapriceRepository as? PreferredCellsNearbyCapriceRepository)
+        val cursorRepo = nearbyCapriceRepository as? CursorPagedNearbyCapriceRepository
+        val discoverableFlow = cursorRepo?.streamFirstDiscoverableCapricePage(
+            initialBatchSize = stepSize,
+            pageSize = pageLimit,
+            includeCache = includeCache,
+            preferredCells = preferredCells
+        ) ?: (nearbyCapriceRepository as? PreferredCellsNearbyCapriceRepository)
             ?.streamDiscoverableCaprices(
                 initialBatchSize = stepSize,
                 pageSize = pageLimit,
@@ -163,7 +175,12 @@ class GetNearbyCapricesUseCase(
             )
             cachedSnapshots[currentUserId] = NearbyPageSnapshot(
                 candidates = candidates,
-                resolvedAuthors = resolvedAuthors
+                resolvedAuthors = resolvedAuthors,
+                rawCaprices = rawBatch.caprices,
+                location = location,
+                serverBlockedIds = if (rawBatch.isFromCache) emptySet() else blockedIds,
+                checkedServerBlocks = checkedServerBlocks,
+                nextPageToken = if (rawBatch.isFromCache) null else rawBatch.nextPageToken
             )
 
             val visibleTarget = minOf(pageLimit, candidates.size)
@@ -196,12 +213,19 @@ class GetNearbyCapricesUseCase(
                     resolvedAuthors = resolvedAuthors,
                     useCacheOnlyProfiles = false
                 )
+                val hasRemoteCursor = rawBatch.nextPageToken != null
+                val isFirstPageDone = if (cursorRepo != null) {
+                    rawBatch.isComplete || hasRemoteCursor
+                } else {
+                    rawBatch.isComplete
+                }
                 send(
                     ProgressiveFeedBatch(
                         items = toFeedItems(slice, resolvedAuthors),
                         isFromCache = false,
-                        isComplete = rawBatch.isComplete,
-                        totalAvailableCount = candidates.size
+                        isComplete = isFirstPageDone,
+                        totalAvailableCount = candidates.size,
+                        hasMoreRemote = hasRemoteCursor
                     )
                 )
             }
@@ -209,8 +233,8 @@ class GetNearbyCapricesUseCase(
     }.flowOn(ioDispatcher)
 
     /**
-     * Hidrata bajo demanda la siguiente página de 20 elementos a partir de los candidatos ya
-     * ordenados en memoria, entregando primero 5 ítems rápidos y el resto de 5 en 5.
+     * Hidrata bajo demanda la siguiente página de 20 elementos desde memoria o avanzando el cursor
+     * remoto en Firestore (`CursorPagedNearbyCapriceRepository`) en tramos rápidos de 5 en 5.
      */
     fun observeNextPage(
         currentUserId: String,
@@ -218,41 +242,83 @@ class GetNearbyCapricesUseCase(
         initialBatchSize: Int = INITIAL_FAST_BATCH_SIZE,
         pageSize: Int = PAGE_SIZE
     ): Flow<ProgressiveFeedBatch> = flow {
-        val snapshot = cachedSnapshots[currentUserId]
-        if (snapshot == null || currentLoadedCount >= snapshot.candidates.size) {
-            val currentList = snapshot?.candidates?.let { toFeedItems(it, snapshot.resolvedAuthors) }.orEmpty()
+        val initialSnapshot = cachedSnapshots[currentUserId]
+        if (initialSnapshot == null) {
+            emit(
+                ProgressiveFeedBatch(
+                    items = emptyList(),
+                    isFromCache = false,
+                    isComplete = true,
+                    totalAvailableCount = 0
+                )
+            )
+            return@flow
+        }
+
+        var workingSnapshot = initialSnapshot
+        val cursorRepo = nearbyCapriceRepository as? CursorPagedNearbyCapriceRepository
+        if (currentLoadedCount >= workingSnapshot.candidates.size) {
+            val token = workingSnapshot.nextPageToken
+            val location = workingSnapshot.location
+            if (cursorRepo != null && token != null && location != null) {
+                val remoteBatch = cursorRepo.loadNextDiscoverableCapricePage(token, pageSize).getOrThrow()
+                val existingIds = workingSnapshot.rawCaprices.map { it.id }.toHashSet()
+                val mergedRaw = workingSnapshot.rawCaprices + remoteBatch.caprices.filter { existingIds.add(it.id) }
+                val mergedRawCandidates = buildSortedCandidates(
+                    currentUserId = currentUserId,
+                    location = location,
+                    rawCaprices = mergedRaw,
+                    blockedIds = workingSnapshot.serverBlockedIds
+                )
+                val mergedCandidates = filterBidirectionalBlocks(
+                    currentUserId = currentUserId,
+                    candidates = mergedRawCandidates,
+                    useCacheOnly = false,
+                    memoizedServerBlocks = workingSnapshot.checkedServerBlocks
+                )
+                workingSnapshot = workingSnapshot.copy(
+                    candidates = mergedCandidates,
+                    rawCaprices = mergedRaw,
+                    nextPageToken = remoteBatch.nextPageToken
+                )
+                cachedSnapshots[currentUserId] = workingSnapshot
+            }
+        }
+
+        if (currentLoadedCount >= workingSnapshot.candidates.size) {
+            val currentList = toFeedItems(workingSnapshot.candidates, workingSnapshot.resolvedAuthors)
             emit(
                 ProgressiveFeedBatch(
                     items = currentList,
                     isFromCache = false,
                     isComplete = true,
-                    totalAvailableCount = currentList.size
+                    totalAvailableCount = currentList.size,
+                    hasMoreRemote = workingSnapshot.nextPageToken != null
                 )
             )
             return@flow
         }
 
         val stepSize = initialBatchSize.coerceAtLeast(1)
-        val pageEnd = (currentLoadedCount + pageSize.coerceAtLeast(1)).coerceAtMost(snapshot.candidates.size)
-        var prevCursor = currentLoadedCount
+        val pageEnd = (currentLoadedCount + pageSize.coerceAtLeast(1)).coerceAtMost(workingSnapshot.candidates.size)
         var cursor = (currentLoadedCount + stepSize).coerceAtMost(pageEnd)
         while (true) {
             resolveAuthorProfiles(
-                candidates = snapshot.candidates.subList(prevCursor, cursor),
-                resolvedAuthors = snapshot.resolvedAuthors,
+                candidates = workingSnapshot.candidates.subList(0, cursor),
+                resolvedAuthors = workingSnapshot.resolvedAuthors,
                 useCacheOnlyProfiles = false
             )
             val isLast = cursor >= pageEnd
             emit(
                 ProgressiveFeedBatch(
-                    items = toFeedItems(snapshot.candidates.subList(0, cursor), snapshot.resolvedAuthors),
+                    items = toFeedItems(workingSnapshot.candidates.subList(0, cursor), workingSnapshot.resolvedAuthors),
                     isFromCache = false,
                     isComplete = isLast,
-                    totalAvailableCount = snapshot.candidates.size
+                    totalAvailableCount = workingSnapshot.candidates.size,
+                    hasMoreRemote = isLast && workingSnapshot.nextPageToken != null
                 )
             )
             if (isLast) break
-            prevCursor = cursor
             cursor = (cursor + stepSize).coerceAtMost(pageEnd)
         }
     }.flowOn(ioDispatcher)
