@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,9 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,8 +51,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.CapriceFeedItem
+import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
+import com.example.caprichometro.infrastructure.ui.components.UserAvatar
 import com.example.caprichometro.infrastructure.ui.home.CardBg
 import com.example.caprichometro.infrastructure.ui.home.CardBorder
 import com.example.caprichometro.infrastructure.ui.home.FeedActionState
@@ -69,7 +76,9 @@ fun HomeScreen(
     onNavigateToFriends: () -> Unit = {},
     onNavigateToUserProfile: (String) -> Unit = {},
     onOpenNonFriendProfile: (UserProfile) -> Unit = {},
-    deferLocationAutoPrompt: Boolean = false
+    deferLocationAutoPrompt: Boolean = false,
+    ownUserProfile: UserProfile? = null,
+    onOwnAvatarClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -77,6 +86,29 @@ fun HomeScreen(
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
     var isLocationBannerDismissed by remember { mutableStateOf(false) }
     var isLocationPermanentlyDenied by remember { mutableStateOf(false) }
+
+    val activeOwnCaprice = remember(state.latestCaprices, nowMillis) {
+        state.latestCaprices.firstOrNull { !PollTiming.isPollExpired(it.timestamp, nowMillis) }
+    }
+    var ownPollRemainingMillis by remember(activeOwnCaprice?.id, activeOwnCaprice?.timestamp) {
+        mutableLongStateOf(activeOwnCaprice?.let { PollTiming.remainingMillis(it.timestamp) } ?: 0L)
+    }
+    LaunchedEffect(activeOwnCaprice?.id, activeOwnCaprice?.timestamp) {
+        val active = activeOwnCaprice
+        if (active == null) {
+            ownPollRemainingMillis = 0L
+            return@LaunchedEffect
+        }
+        while (true) {
+            val remaining = PollTiming.remainingMillis(active.timestamp)
+            ownPollRemainingMillis = remaining
+            if (remaining <= 0L) {
+                nowMillis = System.currentTimeMillis()
+                break
+            }
+            delay(1_000L)
+        }
+    }
 
     val openAppSettings = {
         val intent = Intent(
@@ -203,6 +235,14 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    if (ownUserProfile != null) {
+                        OwnHomeAvatarButton(
+                            userProfile = ownUserProfile,
+                            remainingMillis = ownPollRemainingMillis,
+                            onClick = onOwnAvatarClick
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.nav_home),
@@ -211,14 +251,18 @@ fun HomeScreen(
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = stringResource(
-                                if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
-                                    R.string.home_subtitle_friends
-                                } else {
-                                    R.string.home_subtitle_general
-                                }
-                            ),
-                            color = TextSecondary,
+                            text = if (activeOwnCaprice != null && ownPollRemainingMillis > 0L) {
+                                stringResource(R.string.home_own_active_badge)
+                            } else {
+                                stringResource(
+                                    if (state.selectedHomeTab == HomeFeedTab.FRIENDS) {
+                                        R.string.home_subtitle_friends
+                                    } else {
+                                        R.string.home_subtitle_general
+                                    }
+                                )
+                            },
+                            color = if (activeOwnCaprice != null && ownPollRemainingMillis > 0L) LimeAccent else TextSecondary,
                             fontSize = 13.sp
                         )
                     }
@@ -493,4 +537,56 @@ private fun hasCoarseLocationPermission(context: Context): Boolean {
         context,
         Manifest.permission.ACCESS_COARSE_LOCATION
     ) == PackageManager.PERMISSION_GRANTED
+}
+
+@Composable
+internal fun OwnHomeAvatarButton(
+    userProfile: UserProfile,
+    remainingMillis: Long,
+    onClick: () -> Unit
+) {
+    val isActive = remainingMillis > 0L
+    val progress = (remainingMillis.toFloat() / PollTiming.POLL_DURATION_MILLIS.toFloat()).coerceIn(0f, 1f)
+    val cdText = stringResource(
+        if (isActive) R.string.home_own_avatar_active_cd else R.string.home_own_avatar_profile_cd
+    )
+
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = cdText },
+        contentAlignment = Alignment.Center
+    ) {
+        if (isActive) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 2.5.dp.toPx()
+                drawCircle(
+                    color = CardBorder,
+                    style = Stroke(width = strokeWidth)
+                )
+                drawArc(
+                    color = LimeAccent,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(1.dp, CardBorder, CircleShape)
+            )
+        }
+        UserAvatar(
+            photoUrl = userProfile.photoUrl,
+            username = userProfile.username,
+            size = 38.dp,
+            backgroundColor = LimeAccent,
+            fontSize = 15.sp
+        )
+    }
 }

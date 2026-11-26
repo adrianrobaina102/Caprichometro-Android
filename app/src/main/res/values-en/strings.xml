@@ -283,4 +283,19 @@
     <string name="home_unknown_error">Unknown error</string>
     <string name="home_general_empty_title">Nothing in General yet</string>
     <string name="home_general_empty_body">When other users post polls with General enabled, they will show up here sorted by distance.</string>
+    <string name="home_own_avatar_active_cd">Your active caprice is live, open poll</string>
+    <string name="home_own_avatar_profile_cd">Open your profile</string>
+    <string name="home_own_active_badge">Your poll is live</string>
+    <string name="feed_comments_preview_count">%1$d sample comments</string>
+    <string name="feed_comments_sheet_title">Comments</string>
+    <string name="feed_comments_preview_badge">Visual preview · Comments are neither sent nor saved</string>
+    <string name="feed_comments_input_placeholder">Write a preview comment…</string>
+    <string name="feed_comments_send_cd">Add comment preview</string>
+    <string name="feed_comment_sample_now">Now</string>
+    <string name="feed_comment_sample_1m">1m</string>
+    <string name="feed_comment_sample_2m">2m</string>
+    <string name="feed_comment_compra_1">If you have been thinking about it all week, treat yourself 👀</string>
+    <string name="feed_comment_compra_2">I would wait a couple of days in case the price drops.</string>
+    <string name="feed_comment_plan_1">Great plan if you head out now, harder later 😂</string>
+    <string name="feed_comment_plan_2">Count me in if there is still room.</string>
 </resources>

@@ -1,8 +1,10 @@
 package com.example.caprichometro
 
 import android.content.Context
+import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -17,6 +19,7 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.infrastructure.ui.ActivePollScreen
 import com.example.caprichometro.infrastructure.ui.CapriceScreen
+import com.example.caprichometro.infrastructure.ui.OwnHomeAvatarButton
 import com.example.caprichometro.infrastructure.ui.ResultScreen
 import com.example.caprichometro.infrastructure.ui.home.FeedItemsList
 import org.junit.Assert.assertEquals
@@ -301,5 +304,80 @@ class CapriceUiSmokeTest {
             capriceRepo.savedCaprices.first().finalDecision == 2
         }
         composeTestRule.onNodeWithText("B · Esperar").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun feedItemsList_opensSampleCommentsPreviewSheet() {
+        val now = System.currentTimeMillis()
+        val items = listOf(
+            CapriceFeedItem(
+                caprice = Caprice(
+                    id = "c_comments",
+                    userId = "u1",
+                    type = "Compra",
+                    question = "¿Me pillo las zapatillas nuevas?",
+                    answer1 = "Sí",
+                    answer2 = "No",
+                    timestamp = now - 10_000L
+                ),
+                author = UserProfile(uid = "u1", username = "marta")
+            )
+        )
+
+        composeTestRule.setContent {
+            FeedItemsList(
+                items = items,
+                totalCount = 1,
+                hasMore = false,
+                isBackgroundSyncing = false,
+                onLoadMore = {},
+                nowMillis = now,
+                onSelectFeedItem = {},
+                onNavigateToUserProfile = {},
+                onOpenNonFriendProfile = {},
+                onImageClick = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.feed_comments_preview_count, 2))
+            .performScrollTo()
+            .performClick()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.feed_comments_sheet_title)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.feed_comments_preview_badge)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(targetContext.getString(R.string.feed_comments_input_placeholder))
+            .performTextInput("Totalmente sí")
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.feed_comments_send_cd))
+            .performClick()
+        composeTestRule.onNodeWithText("Totalmente sí").assertIsDisplayed()
+    }
+
+    @Test
+    fun ownHomeAvatarButton_rendersActiveAndProfileStates() {
+        var clickedActive = false
+        var clickedProfile = false
+
+        composeTestRule.setContent {
+            Column {
+                OwnHomeAvatarButton(
+                    userProfile = UserProfile(uid = "u1", username = "adri"),
+                    remainingMillis = 120_000L,
+                    onClick = { clickedActive = true }
+                )
+                OwnHomeAvatarButton(
+                    userProfile = UserProfile(uid = "u1", username = "adri"),
+                    remainingMillis = 0L,
+                    onClick = { clickedProfile = true }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.home_own_avatar_active_cd))
+            .performClick()
+        composeTestRule.onNodeWithContentDescription(targetContext.getString(R.string.home_own_avatar_profile_cd))
+            .performClick()
+        composeTestRule.runOnIdle {
+            assertTrue(clickedActive)
+            assertTrue(clickedProfile)
+        }
     }
 }

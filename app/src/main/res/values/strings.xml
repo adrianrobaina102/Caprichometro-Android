@@ -283,4 +283,19 @@
     <string name="home_unknown_error">Error desconocido</string>
     <string name="home_general_empty_title">Nada en General todavía</string>
     <string name="home_general_empty_body">Cuando otros usuarios publiquen dudas con General activado, aparecerán aquí ordenadas por cercanía.</string>
+    <string name="home_own_avatar_active_cd">Tu capricho activo en curso, abrir encuesta</string>
+    <string name="home_own_avatar_profile_cd">Abrir tu perfil</string>
+    <string name="home_own_active_badge">Tu duda en vivo</string>
+    <string name="feed_comments_preview_count">%1$d comentarios de muestra</string>
+    <string name="feed_comments_sheet_title">Comentarios</string>
+    <string name="feed_comments_preview_badge">Vista previa visual · No se envían ni guardan comentarios</string>
+    <string name="feed_comments_input_placeholder">Escribe un comentario de prueba…</string>
+    <string name="feed_comments_send_cd">Añadir vista previa de comentario</string>
+    <string name="feed_comment_sample_now">Ahora</string>
+    <string name="feed_comment_sample_1m">1m</string>
+    <string name="feed_comment_sample_2m">2m</string>
+    <string name="feed_comment_compra_1">Si lo llevas pensando toda la semana, date el capricho 👀</string>
+    <string name="feed_comment_compra_2">Esperaría un par de días por si baja de precio.</string>
+    <string name="feed_comment_plan_1">Planazo si vais ya, luego da pereza salir 😂</string>
+    <string name="feed_comment_plan_2">Yo me apunto si queda sitio todavía.</string>
 </resources>

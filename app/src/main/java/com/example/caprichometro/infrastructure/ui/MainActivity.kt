@@ -49,6 +49,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.example.caprichometro.R
 import com.example.caprichometro.application.usecase.GetNotificationCapriceUseCase
 import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
@@ -211,6 +214,22 @@ fun CapriceApp(
     }
     val isOnline by connectivityMonitor.isOnline.collectAsState()
     var wasOffline by remember { mutableStateOf(!isOnline) }
+    DisposableEffect(context, authState.isAuthSuccessful) {
+        val lifecycleOwner = context as? LifecycleOwner
+        if (lifecycleOwner == null) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME && authState.isAuthSuccessful) {
+                    if (connectivityMonitor.refresh()) {
+                        activePollViewModel.retryPendingVoteIfAny()
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+    }
     var isNotificationPromptPending by remember {
         mutableStateOf(
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -247,6 +266,7 @@ fun CapriceApp(
     var viewingProfileUserId by rememberSaveable { mutableStateOf("") }
     var previousScreenBeforeProfile by rememberSaveable { mutableStateOf("home") }
     var previousScreenBeforeAddFriend by rememberSaveable { mutableStateOf("profile") }
+    var previousScreenBeforeActive by rememberSaveable { mutableStateOf("create") }
     var selectedFeedItem by remember { mutableStateOf(sessionNavViewModel.selectedFeedItem) }
     var selectedProfileCaprice by remember { mutableStateOf(sessionNavViewModel.selectedProfileCaprice) }
     var selectedPublicAuthor by remember { mutableStateOf(sessionNavViewModel.selectedPublicAuthor) }
@@ -276,16 +296,18 @@ fun CapriceApp(
             }
             "create" -> currentScreen = "home"
             "active" -> {
-                if (selectedProfileCaprice != null) {
-                    selectedProfileCaprice = null
-                    currentScreen = "profile"
-                } else {
-                    currentScreen = "create"
+                selectedProfileCaprice = null
+                currentScreen = when (previousScreenBeforeActive) {
+                    "home" -> "home"
+                    "profile" -> "profile"
+                    else -> "create"
                 }
             }
             "result" -> {
                 val capriceToShow = selectedProfileCaprice ?: capriceState.latestCaprices.firstOrNull()
-                val wasFromProfile = selectedProfileCaprice != null && selectedFeedItem?.caprice?.id != capriceToShow?.id
+                val wasFromProfile = previousScreenBeforeActive == "profile" &&
+                    selectedProfileCaprice != null &&
+                    selectedFeedItem?.caprice?.id != capriceToShow?.id
                 selectedProfileCaprice = null
                 selectedFeedItem = null
                 currentScreen = if (wasFromProfile) "profile" else "home"
@@ -533,6 +555,7 @@ fun CapriceApp(
             viewingProfileUserId = ""
             previousScreenBeforeProfile = "home"
             previousScreenBeforeAddFriend = "profile"
+            previousScreenBeforeActive = "create"
             currentScreen = "home"
         }
     }
@@ -597,6 +620,20 @@ fun CapriceApp(
                                     },
                                     onOpenNonFriendProfile = { author ->
                                         selectedPublicAuthor = author
+                                    },
+                                    ownUserProfile = ownUserProfile,
+                                    onOwnAvatarClick = {
+                                        val activeOwnCaprice = capriceState.latestCaprices.firstOrNull {
+                                            !PollTiming.isPollExpired(it.timestamp)
+                                        }
+                                        if (activeOwnCaprice != null) {
+                                            selectedFeedItem = null
+                                            selectedProfileCaprice = activeOwnCaprice
+                                            previousScreenBeforeActive = "home"
+                                            currentScreen = "active"
+                                        } else {
+                                            openProfile(currentUserId, "home")
+                                        }
                                     }
                                 )
                             }
@@ -639,6 +676,7 @@ fun CapriceApp(
                                     friends = friendshipState.friends,
                                     onNavigateToActivePoll = {
                                         selectedProfileCaprice = null
+                                        previousScreenBeforeActive = "create"
                                         currentScreen = "active"
                                     }
                                 )
@@ -662,11 +700,11 @@ fun CapriceApp(
                                     viewModel = activePollViewModel,
                                     currentUserId = currentUserId,
                                     onNavigateBack = {
-                                        if (selectedProfileCaprice != null) {
-                                            selectedProfileCaprice = null
-                                            currentScreen = "profile"
-                                        } else {
-                                            currentScreen = "create"
+                                        selectedProfileCaprice = null
+                                        currentScreen = when (previousScreenBeforeActive) {
+                                            "home" -> "home"
+                                            "profile" -> "profile"
+                                            else -> "create"
                                         }
                                     },
                                     onTimerFinished = { currentScreen = "result" },
@@ -714,7 +752,9 @@ fun CapriceApp(
                                         }
                                     },
                                     onGoHome = {
-                                        val wasFromProfile = selectedProfileCaprice != null && selectedFeedItem?.caprice?.id != capriceToShow?.id
+                                        val wasFromProfile = previousScreenBeforeActive == "profile" &&
+                                            selectedProfileCaprice != null &&
+                                            selectedFeedItem?.caprice?.id != capriceToShow?.id
                                         selectedProfileCaprice = null
                                         selectedFeedItem = null
                                         currentScreen = if (wasFromProfile) "profile" else "home"
@@ -763,6 +803,7 @@ fun CapriceApp(
                                     },
                                     onSelectCaprice = { caprice ->
                                         selectedProfileCaprice = caprice
+                                        previousScreenBeforeActive = "profile"
                                         val isExpired = PollTiming.isPollExpired(caprice.timestamp)
                                         currentScreen = if (isExpired) "result" else "active"
                                     },
@@ -791,6 +832,7 @@ fun CapriceApp(
                                         authViewModel.clearSessionState()
                                         viewingProfileUserId = ""
                                         previousScreenBeforeProfile = "home"
+                                        previousScreenBeforeActive = "create"
                                         selectedFeedItem = null
                                         selectedProfileCaprice = null
                                         selectedPublicAuthor = null

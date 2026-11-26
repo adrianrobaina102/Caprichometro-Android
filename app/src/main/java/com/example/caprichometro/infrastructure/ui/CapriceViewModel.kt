@@ -303,7 +303,7 @@ class CapriceViewModel(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            latestCaprices = listOf(savedCaprice),
+                            latestCaprices = listOf(savedCaprice) + it.latestCaprices.filterNot { existing -> existing.id == savedCaprice.id },
                             isNearbyDiscoveryEnabled = false,
                             isPreparingNearbyLocation = false,
                             preparedNearbyCell = null,
