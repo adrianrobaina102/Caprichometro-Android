@@ -60,7 +60,7 @@ private val PastelAvatarColors = listOf(
     Color(0xFFC5A8F0)
 )
 
-private fun avatarColorFor(username: String): Color {
+internal fun friendAvatarColorFor(username: String): Color {
     if (username.isBlank()) return PastelAvatarColors[0]
     val index = abs(username.lowercase().hashCode()) % PastelAvatarColors.size
     return PastelAvatarColors[index]
@@ -319,7 +319,7 @@ fun AddFriendScreen(
                         photoUrl = user.photoUrl,
                         username = user.username,
                         size = 44.dp,
-                        backgroundColor = avatarColorFor(user.username),
+                        backgroundColor = friendAvatarColorFor(user.username),
                         fontSize = 16.sp
                     )
 
@@ -814,180 +814,5 @@ fun AddFriendScreen(
                 Toast.makeText(context, "Enlace directo copiado al portapapeles", Toast.LENGTH_SHORT).show()
             }
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun InviteFriendBottomSheet(
-    username: String?,
-    photoUrl: String = "",
-    onDismiss: () -> Unit,
-    onOpenOwnProfile: () -> Unit = {},
-    onShareInvite: () -> Unit,
-    onCopyDirectLink: () -> Unit
-) {
-    val cleanUsername = username?.removePrefix("@")?.trim().orEmpty()
-    val displayUsername = if (cleanUsername.isNotEmpty()) "@$cleanUsername" else "Tu círculo"
-    val directUri = if (cleanUsername.isNotEmpty()) {
-        InviteDeepLink.buildWebUrl(cleanUsername)
-    } else {
-        "https://adrianrobaina102.github.io/Caprichometro-Android/invite"
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF141416),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF3A3A3C)) }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Tarjeta visual estilo Pase VIP
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1C1E18), RoundedCornerShape(22.dp))
-                    .border(1.dp, LimeGreen.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Surface(
-                    color = LimeGreen.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(50)
-                ) {
-                    Text(
-                        text = "PASE DE CÍRCULO PRIVADO",
-                        color = LimeGreen,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                UserAvatar(
-                    photoUrl = photoUrl,
-                    username = cleanUsername.ifEmpty { "C" },
-                    size = 44.dp,
-                    backgroundColor = avatarColorFor(cleanUsername.ifEmpty { "capricho" }),
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable { onOpenOwnProfile() }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = displayUsername,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Al abrir tu enlace, entrarán directo a agregarte sin tener que buscarte a mano.",
-                    color = SubtleGray,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Píldora del enlace profundo clicable para copiar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF11120E))
-                        .clickable { onCopyDirectLink() }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = directUri,
-                        color = LimeGreen,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = AppIcons.ContentCopy,
-                        contentDescription = "Copiar enlace",
-                        tint = SubtleGray,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Botón principal: Compartir invitación nativa
-            Button(
-                onClick = onShareInvite,
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = LimeGreen,
-                    contentColor = Color.Black
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "Compartir invitación",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Botón secundario: Copiar enlace directo
-            OutlinedButton(
-                onClick = onCopyDirectLink,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF333336)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Icon(
-                    imageVector = AppIcons.ContentCopy,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Copiar enlace directo",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
-            }
-        }
     }
 }
