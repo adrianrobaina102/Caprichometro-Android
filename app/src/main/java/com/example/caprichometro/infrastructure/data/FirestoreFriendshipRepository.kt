@@ -1,8 +1,8 @@
 package com.example.caprichometro.infrastructure.data
 
-import com.example.caprichometro.domain.friendship.Friendship
-import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.Friendship
+import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.UsernameRules
 import com.google.firebase.firestore.DocumentReference

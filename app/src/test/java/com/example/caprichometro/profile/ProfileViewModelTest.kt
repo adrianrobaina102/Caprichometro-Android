@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.profile
+package com.example.caprichometro.profile
 
 import com.example.caprichometro.application.usecase.GetCapricesUseCase
 import com.example.caprichometro.application.usecase.auth.DeleteAccountUseCase
@@ -12,7 +12,7 @@ import com.example.caprichometro.application.usecase.friendship.BlockUserUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler

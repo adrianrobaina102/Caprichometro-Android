@@ -1,10 +1,10 @@
 package com.example.caprichometro.infrastructure.data
 
 import android.util.Log
-import com.example.caprichometro.domain.model.BatchCapriceRepository
+import com.example.caprichometro.domain.repository.BatchCapriceRepository
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceCacheControl
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException

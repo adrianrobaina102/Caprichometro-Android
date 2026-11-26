@@ -1,6 +1,6 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.friendship.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipRepository
 
 class RemoveFriendUseCase(
     private val friendshipRepository: FriendshipRepository

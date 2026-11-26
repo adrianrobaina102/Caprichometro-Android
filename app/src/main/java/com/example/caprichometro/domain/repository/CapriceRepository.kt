@@ -1,4 +1,6 @@
-package com.example.caprichometro.domain.model
+package com.example.caprichometro.domain.repository
+
+import com.example.caprichometro.domain.model.Caprice
 
 interface CapriceRepository {
     suspend fun save(caprice: Caprice): Result<String>

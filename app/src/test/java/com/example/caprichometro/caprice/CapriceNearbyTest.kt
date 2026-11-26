@@ -1,9 +1,9 @@
 package com.example.caprichometro.caprice
 
 import com.example.caprichometro.application.usecase.voting.CastVoteUseCase
-import com.example.caprichometro.domain.friendship.Friendship
-import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.Friendship
+import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.VoteRepository

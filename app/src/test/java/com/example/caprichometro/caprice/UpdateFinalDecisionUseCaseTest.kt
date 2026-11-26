@@ -2,7 +2,7 @@ package com.example.caprichometro.caprice
 
 import com.example.caprichometro.application.usecase.UpdateFinalDecisionUseCase
 import com.example.caprichometro.domain.model.Caprice
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.example.caprichometro.infrastructure.notification.PollNotificationScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify

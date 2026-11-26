@@ -13,7 +13,7 @@ import com.example.caprichometro.domain.model.IncomingFriendRequest
 import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.UsernameRules
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async

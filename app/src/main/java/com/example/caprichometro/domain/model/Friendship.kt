@@ -1,4 +1,4 @@
-package com.example.caprichometro.domain.friendship
+package com.example.caprichometro.domain.model
 
 import java.util.Date
 

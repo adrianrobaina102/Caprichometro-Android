@@ -2,8 +2,8 @@ package com.example.caprichometro
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.caprichometro.domain.friendship.Friendship
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.Friendship
+import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.model.Vote

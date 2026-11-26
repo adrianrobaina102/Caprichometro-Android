@@ -4,7 +4,7 @@ import android.content.Context
 import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.UsernameRules
 import kotlinx.coroutines.CancellationException
 import java.util.Date

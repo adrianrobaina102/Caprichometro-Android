@@ -18,7 +18,7 @@ import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceMediaRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.google.firebase.auth.FirebaseAuth

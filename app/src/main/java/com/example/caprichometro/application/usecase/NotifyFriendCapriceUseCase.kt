@@ -3,7 +3,7 @@ package com.example.caprichometro.application.usecase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRepository
 import kotlinx.coroutines.CancellationException

@@ -1,7 +1,7 @@
 package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.domain.model.Caprice
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.example.caprichometro.domain.model.PollTiming
 
 class UpdateFinalDecisionUseCase(

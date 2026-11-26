@@ -4,7 +4,7 @@ import com.example.caprichometro.application.usecase.friendship.GetAcceptedFrien
 import com.example.caprichometro.domain.model.CapriceFeedItem
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first

@@ -1,4 +1,4 @@
-﻿package com.example.caprichometro.infrastructure.ui.profile
+package com.example.caprichometro.infrastructure.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,7 +18,7 @@ import com.example.caprichometro.domain.model.CapriceCacheControl
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceMediaRepository
 import com.example.caprichometro.domain.repository.VoteRepository
 import kotlinx.coroutines.Dispatchers

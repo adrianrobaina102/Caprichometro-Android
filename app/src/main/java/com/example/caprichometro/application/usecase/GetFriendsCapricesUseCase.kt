@@ -1,17 +1,17 @@
 package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
-import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.ApproximateLocation
-import com.example.caprichometro.domain.model.BatchCapriceRepository
+import com.example.caprichometro.domain.repository.BatchCapriceRepository
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.CapriceFeedItem
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.ProgressiveFeedBatch
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.sortFriendsFeedItems
 import com.example.caprichometro.domain.model.sortedByFriendsFeedOrder
 import com.example.caprichometro.domain.repository.DeviceLocationRepository

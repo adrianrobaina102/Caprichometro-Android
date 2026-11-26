@@ -6,12 +6,12 @@ import com.example.caprichometro.application.usecase.auth.InvalidUsernameExcepti
 import com.example.caprichometro.application.usecase.auth.RegisterUseCase
 import com.example.caprichometro.application.usecase.auth.SignInWithGoogleUseCase
 import com.example.caprichometro.application.usecase.auth.UsernameTakenException
-import com.example.caprichometro.domain.friendship.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipRepository
 import com.example.caprichometro.domain.repository.AuthRepository
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

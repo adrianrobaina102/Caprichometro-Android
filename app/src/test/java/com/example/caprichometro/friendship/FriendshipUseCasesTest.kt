@@ -9,12 +9,12 @@ import com.example.caprichometro.application.usecase.friendship.RespondToFriendR
 import com.example.caprichometro.application.usecase.friendship.SearchUserByUsernameUseCase
 import com.example.caprichometro.application.usecase.friendship.SendFriendRequestUseCase
 import com.example.caprichometro.application.usecase.friendship.UnblockUserUseCase
-import com.example.caprichometro.domain.friendship.Friendship
-import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.Friendship
+import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.InviteDeepLink
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

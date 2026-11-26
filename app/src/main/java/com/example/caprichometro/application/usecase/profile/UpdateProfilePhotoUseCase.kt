@@ -1,6 +1,6 @@
 package com.example.caprichometro.application.usecase.profile
 
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 
 /**
  * Actualiza o elimina la foto de perfil del usuario (URL o Data URI WebP comprimido).

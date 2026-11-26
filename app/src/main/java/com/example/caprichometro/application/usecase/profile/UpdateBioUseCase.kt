@@ -1,6 +1,6 @@
 package com.example.caprichometro.application.usecase.profile
 
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 
 class UpdateBioUseCase(
     private val userProfileRepository: UserProfileRepository

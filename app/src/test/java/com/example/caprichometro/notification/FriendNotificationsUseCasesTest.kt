@@ -5,9 +5,9 @@ import com.example.caprichometro.application.usecase.NotifyFriendCapriceUseCase
 import com.example.caprichometro.application.usecase.ObserveFriendCapricesUseCase
 import com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase
 import com.example.caprichometro.domain.model.Caprice
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository
 import com.example.caprichometro.domain.repository.CapriceNotificationHistoryRepository
 import com.example.caprichometro.domain.repository.CapriceObservationRepository

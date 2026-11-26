@@ -1,4 +1,6 @@
-package com.example.caprichometro.domain.model
+package com.example.caprichometro.domain.repository
+
+import com.example.caprichometro.domain.model.UserProfile
 
 interface UserProfileRepository {
     suspend fun isUsernameAvailable(username: String): Result<Boolean>

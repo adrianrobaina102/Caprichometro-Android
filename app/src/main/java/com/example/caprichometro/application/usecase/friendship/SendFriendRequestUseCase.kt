@@ -1,8 +1,8 @@
 package com.example.caprichometro.application.usecase.friendship
 
-import com.example.caprichometro.domain.friendship.Friendship
-import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.model.Friendship
+import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.model.FriendshipStatus
 
 class SendFriendRequestUseCase (
     private val friendshipRepository: FriendshipRepository

@@ -2,7 +2,7 @@ package com.example.caprichometro.profile
 
 import com.example.caprichometro.application.usecase.profile.UpdateProfilePhotoUseCase
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

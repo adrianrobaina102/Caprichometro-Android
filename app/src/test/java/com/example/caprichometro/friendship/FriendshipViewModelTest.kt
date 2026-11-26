@@ -11,7 +11,7 @@ import com.example.caprichometro.application.usecase.friendship.SendFriendReques
 import com.example.caprichometro.domain.model.IncomingFriendRequest
 import com.example.caprichometro.domain.model.ProfileCacheControl
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.infrastructure.ui.friendship.FriendshipViewModel
 import java.util.Date
 import io.mockk.coEvery

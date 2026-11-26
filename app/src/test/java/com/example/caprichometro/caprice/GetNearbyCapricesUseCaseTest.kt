@@ -1,13 +1,13 @@
 package com.example.caprichometro.caprice
 
 import com.example.caprichometro.application.usecase.GetNearbyCapricesUseCase
-import com.example.caprichometro.domain.friendship.FriendshipRepository
+import com.example.caprichometro.domain.repository.FriendshipRepository
 import com.example.caprichometro.domain.model.ApproximateLocation
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.DeviceLocationException
 import com.example.caprichometro.domain.model.NearbyCellGrid
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.repository.CursorPagedNearbyCapriceRepository
 import com.example.caprichometro.domain.repository.DeviceLocationRepository
 import com.example.caprichometro.domain.repository.NearbyCapriceBatch

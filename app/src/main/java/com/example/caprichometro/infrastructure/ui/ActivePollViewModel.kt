@@ -11,7 +11,7 @@ import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollState
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.VerdictResult
 import com.example.caprichometro.domain.model.Vote
 import com.example.caprichometro.domain.repository.CapriceDetailsRepository

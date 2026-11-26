@@ -1,7 +1,7 @@
 package com.example.caprichometro.application.usecase.voting
 
-import com.example.caprichometro.domain.friendship.FriendshipRepository
-import com.example.caprichometro.domain.friendship.FriendshipStatus
+import com.example.caprichometro.domain.repository.FriendshipRepository
+import com.example.caprichometro.domain.model.FriendshipStatus
 import com.example.caprichometro.domain.model.Caprice
 import com.example.caprichometro.domain.model.PollTiming
 import com.example.caprichometro.domain.model.Vote

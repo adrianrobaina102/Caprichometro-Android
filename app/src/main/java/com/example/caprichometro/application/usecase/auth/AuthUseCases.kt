@@ -3,7 +3,7 @@ package com.example.caprichometro.application.usecase.auth
 import com.example.caprichometro.domain.repository.AuthRepository
 import com.example.caprichometro.domain.model.User
 import com.example.caprichometro.domain.model.UserProfile
-import com.example.caprichometro.domain.model.UserProfileRepository
+import com.example.caprichometro.domain.repository.UserProfileRepository
 import com.example.caprichometro.domain.model.UsernameRules
 
 class InvalidUsernameException(message: String = "El nombre de usuario no es válido (3-20 letras, números o guiones bajos).") : Exception(message)

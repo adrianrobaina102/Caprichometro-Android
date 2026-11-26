@@ -1,4 +1,7 @@
-package com.example.caprichometro.domain.friendship
+package com.example.caprichometro.domain.repository
+
+import com.example.caprichometro.domain.model.Friendship
+import com.example.caprichometro.domain.model.FriendshipStatus
 
 import com.example.caprichometro.domain.model.UserProfile
 import kotlinx.coroutines.flow.Flow

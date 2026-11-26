@@ -1,7 +1,7 @@
 package com.example.caprichometro.application.usecase
 
 import com.example.caprichometro.domain.model.Caprice
-import com.example.caprichometro.domain.model.CapriceRepository
+import com.example.caprichometro.domain.repository.CapriceRepository
 
 class SaveCapriceUseCase (private val repository: CapriceRepository) {
     suspend fun execute(caprice: Caprice): Result<String>
