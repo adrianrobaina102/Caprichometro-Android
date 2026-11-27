@@ -235,4 +235,22 @@ class AuthViewModelTest {
         assertThat(viewModel.state.value.isSubmitting).isFalse()
         assertThat(viewModel.state.value.errorMessage).isEqualTo("Reautenticacion requerida")
     }
+
+    @Test
+    fun `modificar un campo de texto limpia errorMessage previo tras un fallo`() = runTest {
+        coEvery { signInUseCase.execute("adrian@gmail.com", "123456") } returns Result.failure(IllegalArgumentException("Error de red"))
+        viewModel.updateEmail("adrian@gmail.com")
+        viewModel.updatePassword("123456")
+
+        viewModel.signIn()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("Error de red")
+
+        // Reenviar sin cambiar email no borra el error, pero editar el email sí lo limpia
+        viewModel.updateEmail("adrian@gmail.com")
+        assertThat(viewModel.state.value.errorMessage).isEqualTo("Error de red")
+
+        viewModel.updateEmail("otro@gmail.com")
+        assertThat(viewModel.state.value.errorMessage).isNull()
+    }
 }

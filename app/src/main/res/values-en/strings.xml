@@ -301,4 +301,19 @@
     <string name="home_friends_button_cd">Friends and requests</string>
     <string name="home_pagination_showing_loaded">Showing %1$d polls</string>
     <string name="home_pagination_load_more_generic">Load more</string>
+    <string name="action_save">Save</string>
+    <string name="auth_birthday_input_hint">MM/DD/YYYY</string>
+    <string name="auth_logo_cd">Caprichómetro Logo</string>
+    <string name="auth_username_icon_cd">Username</string>
+    <string name="auth_birthday_icon_cd">Date of birth</string>
+    <string name="auth_email_icon_cd">Email</string>
+    <string name="auth_password_icon_cd">Password</string>
+    <string name="auth_show_password_cd">Show password</string>
+    <string name="auth_hide_password_cd">Hide password</string>
+    <string name="auth_google_logo_cd">Google Logo</string>
+    <string name="profile_edit_bio_action">Edit bio</string>
+    <string name="profile_bio_label">Bio</string>
+    <string name="profile_bio_placeholder">Write something about yourself…</string>
+    <string name="profile_friend_removed_toast">Friend removed</string>
+    <string name="profile_user_blocked_toast">User blocked</string>
 </resources>

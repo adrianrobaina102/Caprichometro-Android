@@ -301,4 +301,19 @@
     <string name="home_friends_button_cd">Amigos y solicitudes</string>
     <string name="home_pagination_showing_loaded">Mostrando %1$d caprichos</string>
     <string name="home_pagination_load_more_generic">Cargar más</string>
+    <string name="action_save">Guardar</string>
+    <string name="auth_birthday_input_hint">DD/MM/AAAA</string>
+    <string name="auth_logo_cd">Logo Caprichómetro</string>
+    <string name="auth_username_icon_cd">Usuario</string>
+    <string name="auth_birthday_icon_cd">Fecha</string>
+    <string name="auth_email_icon_cd">Correo</string>
+    <string name="auth_password_icon_cd">Contraseña</string>
+    <string name="auth_show_password_cd">Mostrar contraseña</string>
+    <string name="auth_hide_password_cd">Ocultar contraseña</string>
+    <string name="auth_google_logo_cd">Logo Google</string>
+    <string name="profile_edit_bio_action">Editar biografía</string>
+    <string name="profile_bio_label">Biografía</string>
+    <string name="profile_bio_placeholder">Escribe algo sobre ti…</string>
+    <string name="profile_friend_removed_toast">Amigo eliminado</string>
+    <string name="profile_user_blocked_toast">Usuario bloqueado</string>
 </resources>

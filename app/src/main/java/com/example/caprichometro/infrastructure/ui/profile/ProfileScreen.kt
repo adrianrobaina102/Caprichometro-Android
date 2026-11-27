@@ -257,6 +257,7 @@ fun ProfileScreen(
     }
 
     if (showRemoveFriendDialog) {
+        val friendRemovedToast = stringResource(R.string.profile_friend_removed_toast)
         AlertDialog(
             onDismissRequest = { showRemoveFriendDialog = false },
             title = { Text(stringResource(R.string.profile_remove_friend_title), color = Color.White) },
@@ -271,7 +272,7 @@ fun ProfileScreen(
                     onClick = {
                         showRemoveFriendDialog = false
                         viewModel.removeFriend(currentUserId, targetUserId) {
-                            Toast.makeText(context, "Amigo eliminado", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, friendRemovedToast, Toast.LENGTH_SHORT).show()
                             onBack()
                         }
                     }
@@ -289,6 +290,7 @@ fun ProfileScreen(
     }
 
     if (showBlockFriendDialog) {
+        val userBlockedToast = stringResource(R.string.profile_user_blocked_toast)
         AlertDialog(
             onDismissRequest = { showBlockFriendDialog = false },
             title = { Text(stringResource(R.string.profile_block_user_title), color = Color.White) },
@@ -304,7 +306,7 @@ fun ProfileScreen(
                         showBlockFriendDialog = false
                         viewModel.blockUser(currentUserId, targetUserId) {
                             onUserBlocked(targetUserId)
-                            Toast.makeText(context, "Usuario bloqueado", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, userBlockedToast, Toast.LENGTH_SHORT).show()
                             onBack()
                         }
                     }
@@ -421,7 +423,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
-                        Text("Editar biografía", color = Color.White, fontSize = 15.sp)
+                        Text(stringResource(R.string.profile_edit_bio_action), color = Color.White, fontSize = 15.sp)
                     }
                 }
             }
@@ -439,15 +441,15 @@ fun ProfileScreen(
                     showEditBioDialog = false
                 }
             },
-            title = { Text("Editar perfil", color = Color.White, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.profile_settings_edit_profile), color = Color.White, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = tempBio,
                         onValueChange = { tempBio = it },
                         enabled = !state.isSavingBio,
-                        label = { Text("Biografía", color = SubtleGray) },
-                        placeholder = { Text("Escribe algo sobre ti...", color = SubtleGray.copy(alpha = 0.5f)) },
+                        label = { Text(stringResource(R.string.profile_bio_label), color = SubtleGray) },
+                        placeholder = { Text(stringResource(R.string.profile_bio_placeholder), color = SubtleGray.copy(alpha = 0.5f)) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
@@ -483,7 +485,7 @@ fun ProfileScreen(
                             modifier = Modifier.size(16.dp)
                         )
                     } else {
-                        Text("Guardar", color = LimeGreen, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.action_save), color = LimeGreen, fontWeight = FontWeight.Bold)
                     }
                 }
             },
@@ -495,7 +497,7 @@ fun ProfileScreen(
                         showEditBioDialog = false
                     }
                 ) {
-                    Text("Cancelar", color = if (state.isSavingBio) SubtleGray else Color.White)
+                    Text(stringResource(R.string.action_cancel), color = if (state.isSavingBio) SubtleGray else Color.White)
                 }
             },
             containerColor = SheetBackground

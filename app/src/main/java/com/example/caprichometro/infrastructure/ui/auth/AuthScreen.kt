@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -83,6 +85,18 @@ fun AuthScreen(
     val birthday = birthdayEpochDay?.let { LocalDate.ofEpochDay(it) }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    val submitAuth: () -> Unit = {
+        viewModel.updateEmail(email)
+        viewModel.updatePassword(password)
+        if (isLoginMode) {
+            viewModel.signIn()
+        } else {
+            viewModel.updateName(username)
+            birthday?.let { viewModel.updateBirthday(it) }
+            viewModel.register()
+        }
+    }
+
     LaunchedEffect(state.isAuthSuccessful) {
         if (state.isAuthSuccessful) {
             password = ""
@@ -93,7 +107,6 @@ fun AuthScreen(
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            viewModel.clearError()
         }
     }
 
@@ -103,6 +116,7 @@ fun AuthScreen(
             onDismiss = { showDatePicker = false },
             onConfirm = { pickedDate ->
                 birthdayEpochDay = pickedDate.toEpochDay()
+                viewModel.clearError()
                 showDatePicker = false
             }
         )
@@ -112,6 +126,8 @@ fun AuthScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
+            .navigationBarsPadding()
+            .imePadding()
             .verticalScroll(scrollState)
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -120,7 +136,7 @@ fun AuthScreen(
 
         Icon(
             painter = painterResource(id = R.drawable.ic_caprichometro_logo),
-            contentDescription = "Logo Caprichómetro",
+            contentDescription = stringResource(R.string.auth_logo_cd),
             tint = Color.Unspecified,
             modifier = Modifier.size(90.dp)
         )
@@ -150,13 +166,19 @@ fun AuthScreen(
                 text = stringResource(R.string.auth_tab_login),
                 isSelected = isLoginMode,
                 modifier = Modifier.weight(1f)
-            ) { isLoginMode = true }
+            ) {
+                isLoginMode = true
+                viewModel.clearError()
+            }
 
             AuthTab(
                 text = stringResource(R.string.auth_tab_register),
                 isSelected = !isLoginMode,
                 modifier = Modifier.weight(1f)
-            ) { isLoginMode = false }
+            ) {
+                isLoginMode = false
+                viewModel.clearError()
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -164,10 +186,14 @@ fun AuthScreen(
         if (!isLoginMode) {
             OutlinedTextField(
                 value = username,
-                onValueChange = { username = it },
+                onValueChange = {
+                    username = it
+                    viewModel.updateName(it)
+                },
                 placeholder = { Text(stringResource(R.string.auth_username_placeholder), color = Color.Gray) },
-                leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Usuario", tint = Color.Gray) },
+                leadingIcon = { Icon(Icons.Default.Person, contentDescription = stringResource(R.string.auth_username_icon_cd), tint = Color.Gray) },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 shape = RoundedCornerShape(12.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DarkBackground,
@@ -195,7 +221,7 @@ fun AuthScreen(
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.DateRange,
-                            contentDescription = "Fecha",
+                            contentDescription = stringResource(R.string.auth_birthday_icon_cd),
                             tint = if (birthday != null) LimeGreen else Color.Gray
                         )
                     },
@@ -218,10 +244,17 @@ fun AuthScreen(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                viewModel.updateEmail(it)
+            },
             placeholder = { Text(stringResource(R.string.auth_email_placeholder), color = Color.Gray) },
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Correo", tint = Color.Gray) },
+            leadingIcon = { Icon(Icons.Default.Person, contentDescription = stringResource(R.string.auth_email_icon_cd), tint = Color.Gray) },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = DarkBackground,
@@ -238,18 +271,35 @@ fun AuthScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = {
+                password = it
+                viewModel.updatePassword(it)
+            },
             placeholder = { Text(stringResource(R.string.auth_password_placeholder), color = Color.Gray) },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Contraseña", tint = Color.Gray) },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = stringResource(R.string.auth_password_icon_cd), tint = Color.Gray) },
             trailingIcon = {
                 val icon = if (isPasswordVisible) AppIcons.Visibility else AppIcons.VisibilityOff
                 IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                    Icon(icon, contentDescription = "Ver contraseña", tint = Color.Gray)
+                    Icon(
+                        icon,
+                        contentDescription = stringResource(
+                            if (isPasswordVisible) R.string.auth_hide_password_cd else R.string.auth_show_password_cd
+                        ),
+                        tint = Color.Gray
+                    )
                 }
             },
             singleLine = true,
             visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (!state.isSubmitting) submitAuth()
+                }
+            ),
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = DarkBackground,
@@ -262,21 +312,26 @@ fun AuthScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        state.errorMessage?.let { errorMsg ->
+            Spacer(modifier = Modifier.height(14.dp))
+            Surface(
+                color = Color(0xFF2B1618),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.55f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = errorMsg,
+                    color = Color(0xFFFF8A8A),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        } ?: Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = {
-                viewModel.updateEmail(email)
-                viewModel.updatePassword(password)
-
-                if (isLoginMode) {
-                    viewModel.signIn()
-                } else {
-                    viewModel.updateName(username)
-                    birthday?.let { viewModel.updateBirthday(it) }
-                    viewModel.register()
-                }
-            },
+            onClick = submitAuth,
             enabled = !state.isSubmitting,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
@@ -315,7 +370,10 @@ fun AuthScreen(
                 text = stringResource(if (isLoginMode) R.string.auth_tab_register else R.string.auth_tab_login),
                 color = LimeGreen,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { isLoginMode = !isLoginMode }
+                modifier = Modifier.clickable {
+                    isLoginMode = !isLoginMode
+                    viewModel.clearError()
+                }
             )
         }
 
@@ -346,7 +404,7 @@ fun AuthScreen(
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_google),
-                contentDescription = "Logo Google",
+                contentDescription = stringResource(R.string.auth_google_logo_cd),
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -510,7 +568,11 @@ private fun BirthdayPickerDialog(
                 },
                 headline = {
                     val headlineText = selectedLocalDate?.let(::formatHeadlineDate)
-                        ?: if (datePickerState.displayMode == DisplayMode.Input) "DD/MM/AAAA" else stringResource(R.string.auth_birthday_headline_empty)
+                        ?: if (datePickerState.displayMode == DisplayMode.Input) {
+                            stringResource(R.string.auth_birthday_input_hint)
+                        } else {
+                            stringResource(R.string.auth_birthday_headline_empty)
+                        }
                     Text(
                         text = headlineText,
                         color = if (selectedLocalDate != null) Color.White else Color(0xFFB5B5BA),

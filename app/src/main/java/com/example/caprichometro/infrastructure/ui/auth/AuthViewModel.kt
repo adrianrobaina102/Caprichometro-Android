@@ -46,11 +46,31 @@ class AuthViewModel(
     )
     val state: StateFlow<AuthState> = _state.asStateFlow()
 
-    fun updateEmail(email: String) { _state.update { it.copy(email = email) } }
-    fun updatePassword(password: String) { _state.update { it.copy(password = password) } }
-    fun updateName(name: String) { _state.update { it.copy(name = name) } }
+    fun updateEmail(email: String) {
+        _state.update {
+            if (it.email != email) it.copy(email = email, errorMessage = null) else it
+        }
+    }
+
+    fun updatePassword(password: String) {
+        _state.update {
+            if (it.password != password) it.copy(password = password, errorMessage = null) else it
+        }
+    }
+
+    fun updateName(name: String) {
+        _state.update {
+            if (it.name != name) it.copy(name = name, errorMessage = null) else it
+        }
+    }
+
     fun clearError() { _state.update { it.copy(errorMessage = null) } }
-    fun updateBirthday(date: LocalDate) { _state.update { it.copy(birthday = date) } }
+
+    fun updateBirthday(date: LocalDate) {
+        _state.update {
+            if (it.birthday != date) it.copy(birthday = date, errorMessage = null) else it
+        }
+    }
 
     private fun isValidEmail(email: String): Boolean {
         val trimmed = email.trim()
