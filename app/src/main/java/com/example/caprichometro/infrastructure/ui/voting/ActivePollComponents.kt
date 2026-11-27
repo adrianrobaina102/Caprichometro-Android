@@ -198,7 +198,7 @@ internal fun PollOptionCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "Seleccionado",
+                        contentDescription = stringResource(R.string.poll_selected_cd),
                         tint = Color.Black,
                         modifier = Modifier.size(16.dp)
                     )

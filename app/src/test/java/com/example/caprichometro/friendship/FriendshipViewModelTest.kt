@@ -338,4 +338,25 @@ class FriendshipViewModelTest {
 
         assertThat(viewModel.state.value.directRequestSentUids).contains(ana.uid)
     }
+
+    @Test
+    fun `sendRequest desde busqueda registra target uid en directRequestSentUids`() = runTest {
+        coEvery { userProfileRepository.getUserById(me.uid) } returns Result.success(me)
+        every { getIncomingRequestsUseCase.execute(me.uid) } returns MutableStateFlow(emptyList())
+        every { getAcceptedFriendsUseCase.execute(me.uid) } returns MutableStateFlow(emptyList())
+        coEvery { searchUserUseCase.execute("ana") } returns Result.success(ana)
+        coEvery { sendFriendRequestUseCase.execute(me.uid, ana.uid) } returns Result.success(Unit)
+
+        viewModel.listenToIncomingRequests(me.uid)
+        viewModel.updateSearchQuery("ana")
+        viewModel.searchUser()
+        testDispatcher.scheduler.runCurrent()
+
+        viewModel.sendRequest(me.uid)
+        testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.state.value.requestSentSuccess).isTrue()
+        assertThat(viewModel.state.value.directRequestSentUids).contains(ana.uid)
+        viewModel.stopListening()
+    }
 }

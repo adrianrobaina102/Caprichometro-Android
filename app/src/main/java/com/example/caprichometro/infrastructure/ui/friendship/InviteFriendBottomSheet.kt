@@ -59,7 +59,8 @@ internal fun InviteFriendBottomSheet(
     onCopyDirectLink: () -> Unit
 ) {
     val cleanUsername = username?.removePrefix("@")?.trim().orEmpty()
-    val displayUsername = if (cleanUsername.isNotEmpty()) "@$cleanUsername" else "Tu círculo"
+    val fallbackCircle = stringResource(R.string.friends_invite_fallback_circle)
+    val displayUsername = if (cleanUsername.isNotEmpty()) "@$cleanUsername" else fallbackCircle
     val directUri = if (cleanUsername.isNotEmpty()) {
         InviteDeepLink.buildWebUrl(cleanUsername)
     } else {
@@ -92,7 +93,7 @@ internal fun InviteFriendBottomSheet(
                     shape = RoundedCornerShape(50)
                 ) {
                     Text(
-                        text = "PASE DE CÍRCULO PRIVADO",
+                        text = stringResource(R.string.friends_invite_vip_badge),
                         color = LimeGreen,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -126,7 +127,7 @@ internal fun InviteFriendBottomSheet(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Al abrir tu enlace, entrarán directo a agregarte sin tener que buscarte a mano.",
+                    text = stringResource(R.string.friends_invite_vip_desc),
                     color = FriendSubtleGray,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
@@ -157,7 +158,7 @@ internal fun InviteFriendBottomSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         imageVector = AppIcons.ContentCopy,
-                        contentDescription = "Copiar enlace",
+                        contentDescription = stringResource(R.string.friends_invite_copy_cd),
                         tint = FriendSubtleGray,
                         modifier = Modifier.size(16.dp)
                     )
@@ -186,7 +187,7 @@ internal fun InviteFriendBottomSheet(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Compartir invitación",
+                    text = stringResource(R.string.friends_invite_share_cta),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
@@ -214,7 +215,7 @@ internal fun InviteFriendBottomSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Copiar enlace directo",
+                    text = stringResource(R.string.friends_invite_copy_cta),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )

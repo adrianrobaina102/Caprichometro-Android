@@ -367,6 +367,7 @@ class FriendshipViewModel(
                         it.copy(
                             isSendingRequest = false,
                             requestSentSuccess = true,
+                            directRequestSentUids = it.directRequestSentUids + targetUser.uid,
                             userFound = null,
                             searchQuery = ""
                         )

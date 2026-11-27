@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.example.caprichometro.domain.model.CapricePrice
@@ -81,7 +82,7 @@ fun ActivePollScreen(
         caprice != null && currentUserId.isNotBlank() -> caprice.userId != currentUserId
         else -> !authorUsername.isNullOrBlank()
     }
-    val questionText = caprice?.question ?: "Cargando duda desde Firebase..."
+    val questionText = caprice?.question ?: stringResource(R.string.poll_loading_question)
 
     var isImageExpanded by remember { mutableStateOf(false) }
     val imageModel = com.example.caprichometro.infrastructure.util.rememberImageModel(
@@ -213,7 +214,7 @@ fun ActivePollScreen(
                 IconButton(onClick = onNavigateBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = Color.White
                     )
                 }
@@ -257,6 +258,15 @@ fun ActivePollScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             val isPublicNearby = !caprice?.nearbyCell.isNullOrBlank()
+            val rawType = caprice?.type.orEmpty()
+            val localizedType = when {
+                rawType.contains("compra", ignoreCase = true) -> stringResource(R.string.type_compra)
+                rawType.contains("plan", ignoreCase = true) -> stringResource(R.string.type_plan)
+                rawType.contains("ropa", ignoreCase = true) -> stringResource(R.string.category_ropa)
+                rawType.isNotBlank() -> rawType
+                else -> stringResource(R.string.poll_fallback_type)
+            }
+            val localizedTypeUpper = localizedType.uppercase(Locale.getDefault())
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
@@ -272,10 +282,10 @@ fun ActivePollScreen(
             ) {
                 Text(
                     text = when {
-                        isFriendPoll && cleanAuthor != null -> "@$cleanAuthor · ${(caprice?.type ?: "DUDA").uppercase()}"
-                        isFriendPoll -> (caprice?.type ?: "DUDA").uppercase()
-                        isPublicNearby -> "GENERAL · ${(caprice?.type ?: "DUDA").uppercase()}"
-                        else -> "SOLO TUS AMIGOS"
+                        isFriendPoll && cleanAuthor != null -> "@$cleanAuthor · $localizedTypeUpper"
+                        isFriendPoll -> localizedTypeUpper
+                        isPublicNearby -> stringResource(R.string.poll_audience_general_type, localizedTypeUpper)
+                        else -> stringResource(R.string.poll_audience_friends_only)
                     },
                     color = TextGray,
                     fontSize = 10.sp,
@@ -319,18 +329,18 @@ fun ActivePollScreen(
             )
             Text(
                 text = when {
-                    isPollExpired -> "Votación cerrada · Resultados finales"
-                    currentPollState is PollState.Voted -> "Tu voto está guardado."
+                    isPollExpired -> stringResource(R.string.poll_status_closed_final)
+                    currentPollState is PollState.Voted -> stringResource(R.string.poll_status_vote_saved)
                     currentPollState is PollState.Author -> if (isPublicNearby) {
-                        "La comunidad está votando."
+                        stringResource(R.string.poll_status_community_voting)
                     } else {
-                        "Tus amigos están votando."
+                        stringResource(R.string.poll_status_friends_voting)
                     }
-                    isFriendPoll -> "Elige una opción."
+                    isFriendPoll -> stringResource(R.string.poll_status_pick_option)
                     else -> if (isPublicNearby) {
-                        "para que la comunidad opine"
+                        stringResource(R.string.poll_subtitle_community_opine)
                     } else {
-                        "para que tus amigos opinen"
+                        stringResource(R.string.poll_subtitle_friends_opine)
                     }
                 },
                 color = if (isPollExpired || currentPollState is PollState.Voted) LimeGreen else TextGray,
@@ -348,7 +358,10 @@ fun ActivePollScreen(
             if (closeTimeFormatted != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (isPollExpired) "Cerró a las $closeTimeFormatted" else "Cierra a las $closeTimeFormatted",
+                    text = stringResource(
+                        if (isPollExpired) R.string.poll_closed_at else R.string.poll_closes_at,
+                        closeTimeFormatted
+                    ),
                     color = TextGray.copy(alpha = 0.85f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
@@ -358,8 +371,8 @@ fun ActivePollScreen(
             // Banner explicativo y visual del veredicto si la votación ya cerró
             if (isPollExpired) {
                 val verdict = (currentPollState as? PollState.Expired)?.verdictResult
-                val headline = verdict?.headline ?: "¡Votación cerrada!"
-                val subtitle = verdict?.subtitle ?: "Consulta el veredicto final a continuación."
+                val headline = verdict?.headline ?: stringResource(R.string.poll_expired_headline_fallback)
+                val subtitle = verdict?.subtitle ?: stringResource(R.string.poll_expired_subtitle_fallback)
 
                 Spacer(modifier = Modifier.height(18.dp))
                 Card(
@@ -398,7 +411,7 @@ fun ActivePollScreen(
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text("Ver pantalla de veredicto 🏆", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.poll_view_verdict_cta), fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -429,7 +442,7 @@ fun ActivePollScreen(
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = caprice?.type ?: "Duda",
+                            text = localizedType,
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -444,7 +457,7 @@ fun ActivePollScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Ampliar foto",
+                            contentDescription = stringResource(R.string.poll_enlarge_photo_cd),
                             tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
@@ -643,9 +656,11 @@ fun ActivePollScreen(
 
             Text(
                 text = when {
-                    totalVotesCount == 0 -> if (isPublicNearby) "Todavía no hay votos" else "Todavía no hay votos de amigos"
-                    totalVotesCount == 1 -> if (isPublicNearby) "1 persona ha opinado" else "1 amigo ha opinado"
-                    else -> if (isPublicNearby) "$totalVotesCount personas han opinado" else "$totalVotesCount amigos han opinado"
+                    totalVotesCount == 0 -> stringResource(
+                        if (isPublicNearby) R.string.poll_votes_empty_public else R.string.poll_votes_empty_friends
+                    )
+                    isPublicNearby -> pluralStringResource(R.plurals.result_votes_public, totalVotesCount, totalVotesCount)
+                    else -> pluralStringResource(R.plurals.result_votes_friends, totalVotesCount, totalVotesCount)
                 },
                 color = Color.White,
                 fontSize = 15.sp,
@@ -654,13 +669,11 @@ fun ActivePollScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = when {
-                    isPollExpired -> "Votación finalizada. Resultados actualizados vía Firestore."
-                    currentPollState is PollState.Active -> if (isPublicNearby) {
-                        "Vota para ver los porcentajes actuales."
-                    } else {
-                        "Vota para ver los porcentajes de tus amigos."
-                    }
-                    else -> "Los votos se actualizan en vivo vía Firestore."
+                    isPollExpired -> stringResource(R.string.poll_votes_hint_closed)
+                    currentPollState is PollState.Active -> stringResource(
+                        if (isPublicNearby) R.string.poll_votes_hint_active_public else R.string.poll_votes_hint_active_friends
+                    )
+                    else -> stringResource(R.string.poll_votes_hint_live)
                 },
                 color = TextGray,
                 fontSize = 12.sp

@@ -107,9 +107,10 @@ fun AddFriendScreen(
         }
     }
 
+    val requestSentToast = stringResource(R.string.friends_request_sent_toast)
     LaunchedEffect(state.requestSentSuccess) {
         if (state.requestSentSuccess) {
-            Toast.makeText(context, "¡Solicitud de amistad enviada!", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, requestSentToast, Toast.LENGTH_LONG).show()
             viewModel.clearRequestSentSuccess()
         }
     }
@@ -136,7 +137,7 @@ fun AddFriendScreen(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    contentDescription = "Volver",
+                    contentDescription = stringResource(R.string.action_back),
                     tint = Color.White,
                     modifier = Modifier.size(28.dp)
                 )
@@ -156,7 +157,7 @@ fun AddFriendScreen(
 
         // Encabezado principal
         Text(
-            text = "Mejor con los tuyos.",
+            text = stringResource(R.string.friends_hero_title),
             color = Color.White,
             fontSize = 30.sp,
             fontWeight = FontWeight.Bold,
@@ -166,7 +167,7 @@ fun AddFriendScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Solo los amigos que aceptas ven tus dudas.",
+            text = stringResource(R.string.friends_hero_subtitle),
             color = SubtleGray,
             fontSize = 14.sp
         )
@@ -179,7 +180,7 @@ fun AddFriendScreen(
             onValueChange = { viewModel.updateSearchQuery(it) },
             placeholder = {
                 Text(
-                    text = "Buscar @usuario o pegar invitación",
+                    text = stringResource(R.string.friends_search_placeholder),
                     color = SubtleGray,
                     fontSize = 15.sp
                 )
@@ -187,7 +188,7 @@ fun AddFriendScreen(
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "Buscar",
+                    contentDescription = stringResource(R.string.friends_search_action),
                     tint = SubtleGray
                 )
             },
@@ -206,7 +207,7 @@ fun AddFriendScreen(
                         }
                     ) {
                         Text(
-                            text = "Buscar",
+                            text = stringResource(R.string.friends_search_action),
                             color = LimeGreen,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp
@@ -281,6 +282,10 @@ fun AddFriendScreen(
         state.userFound?.let { user ->
             val isSelf = user.uid == actualUserId
             val isAlreadyFriend = state.friends.any { it.uid == user.uid }
+            val hasAlreadySentRequest = user.uid in state.directRequestSentUids
+            val unavailableToast = stringResource(R.string.friends_search_unavailable_toast)
+            val tapAddToast = stringResource(R.string.friends_search_tap_add_toast, user.username)
+            val alreadySentToast = stringResource(R.string.friends_request_sent_toast)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -304,12 +309,17 @@ fun AddFriendScreen(
                                 isAlreadyFriend -> onViewProfile(user.uid)
                                 state.isFriendRequestBlocked -> Toast.makeText(
                                     context,
-                                    "Este usuario no está disponible para solicitudes.",
+                                    unavailableToast,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                hasAlreadySentRequest -> Toast.makeText(
+                                    context,
+                                    alreadySentToast,
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 else -> Toast.makeText(
                                     context,
-                                    "Pulsa «Añadir» para enviar solicitud y ver el perfil de @${user.username}",
+                                    tapAddToast,
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -342,7 +352,7 @@ fun AddFriendScreen(
                 when {
                     isSelf -> {
                         Text(
-                            text = "Tú",
+                            text = stringResource(R.string.friends_label_you),
                             color = SubtleGray,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
@@ -350,7 +360,7 @@ fun AddFriendScreen(
                     }
                     state.isFriendRequestBlocked -> {
                         Text(
-                            text = "No disponible",
+                            text = stringResource(R.string.friends_label_unavailable),
                             color = Color(0xFFFF5252),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
@@ -359,16 +369,24 @@ fun AddFriendScreen(
                     isAlreadyFriend -> {
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "Ya sois amigos",
+                            contentDescription = stringResource(R.string.friends_already_friends_cd),
                             tint = SubtleGray,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     state.incomingRequests.any { it.sender.uid == user.uid } -> {
                         Text(
-                            text = "Te envió solicitud",
+                            text = stringResource(R.string.friends_sent_you_request),
                             color = LimeGreen,
                             fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    hasAlreadySentRequest -> {
+                        Text(
+                            text = stringResource(R.string.friends_request_sent_badge),
+                            color = LimeGreen,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -392,7 +410,7 @@ fun AddFriendScreen(
                                 )
                             } else {
                                 Text(
-                                    text = "Añadir",
+                                    text = stringResource(R.string.friends_add_button),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
@@ -412,7 +430,7 @@ fun AddFriendScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "SOLICITUDES",
+                text = stringResource(R.string.friends_section_requests),
                 color = SubtleGray,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -440,7 +458,7 @@ fun AddFriendScreen(
         if (state.incomingRequests.isEmpty()) {
             item(key = "empty_requests") {
                 Text(
-                    text = "No tienes solicitudes pendientes",
+                    text = stringResource(R.string.friends_requests_empty),
                     color = SubtleGray,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(vertical = 8.dp)
@@ -451,6 +469,7 @@ fun AddFriendScreen(
                 items = state.incomingRequests,
                 key = { request -> "req_${request.friendshipId}" }
             ) { request ->
+                val tapAcceptToast = stringResource(R.string.friends_search_tap_accept_toast, request.sender.username)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -471,7 +490,7 @@ fun AddFriendScreen(
                             .clickable {
                                 Toast.makeText(
                                     context,
-                                    "Acepta la solicitud de @${request.sender.username} para ver su perfil",
+                                    tapAcceptToast,
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -493,7 +512,7 @@ fun AddFriendScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "@${request.sender.username} · Quiere ser tu amigo",
+                                text = stringResource(R.string.friends_request_subtitle, request.sender.username),
                                 color = SubtleGray,
                                 fontSize = 13.sp
                             )
@@ -517,7 +536,7 @@ fun AddFriendScreen(
                             modifier = Modifier.height(38.dp)
                         ) {
                             Text(
-                                text = "Aceptar",
+                                text = stringResource(R.string.friends_accept_button),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
@@ -530,7 +549,7 @@ fun AddFriendScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Rechazar",
+                                contentDescription = stringResource(R.string.friends_decline_cd),
                                 tint = SubtleGray,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -548,7 +567,7 @@ fun AddFriendScreen(
 
                 // SECCIÓN: MIS AMIGOS · N
                 Text(
-                    text = "MIS AMIGOS · ${state.friends.size}",
+                    text = stringResource(R.string.friends_section_my_friends, state.friends.size),
                     color = SubtleGray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -562,7 +581,7 @@ fun AddFriendScreen(
         if (state.friends.isEmpty()) {
             item(key = "empty_friends") {
                 Text(
-                    text = "Aún no tienes amigos agregados",
+                    text = stringResource(R.string.friends_empty_list),
                     color = SubtleGray,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(vertical = 12.dp)
@@ -627,7 +646,7 @@ fun AddFriendScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = "Opciones de amistad",
+                                contentDescription = stringResource(R.string.friends_options_cd),
                                 tint = SubtleGray,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -639,21 +658,21 @@ fun AddFriendScreen(
                             modifier = Modifier.background(Color(0xFF242424))
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Ver perfil", color = Color.White) },
+                                text = { Text(stringResource(R.string.friends_menu_view_profile), color = Color.White) },
                                 onClick = {
                                     menuExpanded = false
                                     onViewProfile(friend.uid)
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Eliminar amigo", color = Color.White) },
+                                text = { Text(stringResource(R.string.profile_remove_friend_action), color = Color.White) },
                                 onClick = {
                                     menuExpanded = false
                                     friendToRemove = friend
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Bloquear", color = Color(0xFFFF5252)) },
+                                text = { Text(stringResource(R.string.action_block), color = Color(0xFFFF5252)) },
                                 onClick = {
                                     menuExpanded = false
                                     friendToBlock = friend
@@ -729,10 +748,10 @@ fun AddFriendScreen(
     friendToRemove?.let { target ->
         AlertDialog(
             onDismissRequest = { friendToRemove = null },
-            title = { Text("Eliminar amigo", color = Color.White) },
+            title = { Text(stringResource(R.string.profile_remove_friend_action), color = Color.White) },
             text = {
                 Text(
-                    "¿Seguro que quieres eliminar a @${target.username} de tus amigos?",
+                    stringResource(R.string.friends_remove_dialog_body, target.username),
                     color = SubtleGray
                 )
             },
@@ -743,12 +762,12 @@ fun AddFriendScreen(
                         friendToRemove = null
                     }
                 ) {
-                    Text("Eliminar", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_delete), color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { friendToRemove = null }) {
-                    Text("Cancelar", color = Color.White)
+                    Text(stringResource(R.string.action_cancel), color = Color.White)
                 }
             },
             containerColor = Color(0xFF1E1E20)
@@ -758,10 +777,10 @@ fun AddFriendScreen(
     friendToBlock?.let { target ->
         AlertDialog(
             onDismissRequest = { friendToBlock = null },
-            title = { Text("Bloquear usuario", color = Color.White) },
+            title = { Text(stringResource(R.string.friends_block_dialog_title), color = Color.White) },
             text = {
                 Text(
-                    "¿Seguro que quieres bloquear a @${target.username}? Ya no podréis veros ni enviarse solicitudes.",
+                    stringResource(R.string.friends_block_dialog_body, target.username),
                     color = SubtleGray
                 )
             },
@@ -775,12 +794,12 @@ fun AddFriendScreen(
                         friendToBlock = null
                     }
                 ) {
-                    Text("Bloquear", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_block), color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { friendToBlock = null }) {
-                    Text("Cancelar", color = Color.White)
+                    Text(stringResource(R.string.action_cancel), color = Color.White)
                 }
             },
             containerColor = Color(0xFF1E1E20)
@@ -790,6 +809,9 @@ fun AddFriendScreen(
     if (showInviteSheet) {
         val usernameToShare = state.currentUsername?.takeIf { it.isNotBlank() }
         val inviteChooserTitle = stringResource(R.string.friends_invite_button)
+        val inviteSubject = stringResource(R.string.friends_invite_subject)
+        val inviteClipboardLabel = stringResource(R.string.friends_invite_clipboard_label)
+        val inviteCopiedToast = stringResource(R.string.friends_invite_copied_toast)
         InviteFriendBottomSheet(
             username = usernameToShare,
             photoUrl = state.currentUserProfile?.photoUrl.orEmpty(),
@@ -802,7 +824,7 @@ fun AddFriendScreen(
                 val shareText = InviteDeepLink.buildShareMessage(usernameToShare)
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "Invitación a Caprichómetro")
+                    putExtra(Intent.EXTRA_SUBJECT, inviteSubject)
                     putExtra(Intent.EXTRA_TEXT, shareText)
                 }
                 context.startActivity(Intent.createChooser(shareIntent, inviteChooserTitle))
@@ -814,8 +836,8 @@ fun AddFriendScreen(
                     InviteDeepLink.buildShareMessage(null)
                 }
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                clipboard?.setPrimaryClip(ClipData.newPlainText("Enlace Caprichómetro", linkToCopy))
-                Toast.makeText(context, "Enlace directo copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                clipboard?.setPrimaryClip(ClipData.newPlainText(inviteClipboardLabel, linkToCopy))
+                Toast.makeText(context, inviteCopiedToast, Toast.LENGTH_SHORT).show()
             }
         )
     }
