@@ -335,6 +335,7 @@ class HomeFeedViewModel(
                 perFriendLimit = 100,
                 totalLimit = FRIENDS_FETCH_LIMIT,
                 includeCache = !isManualRefresh,
+                pageSize = preservedPageLimit,
                 preloadedFriends = if (isManualRefresh) null else (preloadedFriends ?: sessionFriends)
             ).catch { e ->
                 if (e is CancellationException) throw e

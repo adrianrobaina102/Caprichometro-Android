@@ -1018,4 +1018,60 @@ class CapriceViewModelNearbyTest {
         vm.updateSessionFriends(emptyList())
         assertThat(vm.state.value.feedItems).isEmpty()
     }
+
+    @Test
+    fun `loadFriendsFeed con preserveVisiblePage pasa pageSize ampliado al GetFriendsCapricesUseCase real`() = runTest(testDispatcher) {
+        val friendA = UserProfile(uid = "friend_a", username = "alfa")
+        val friendCaprices = (1..45).map { idx ->
+            Caprice(
+                id = "real_$idx",
+                userId = "friend_a",
+                question = "¿Capricho real $idx?",
+                answer1 = "Sí",
+                answer2 = "No",
+                timestamp = 1_000_000L - idx * 1_000L
+            )
+        }
+        val acceptedFriendsUseCase: com.example.caprichometro.application.usecase.friendship.GetAcceptedFriendsUseCase = mockk()
+        val capriceRepo: com.example.caprichometro.domain.repository.CapriceRepository = mockk()
+
+        every { acceptedFriendsUseCase.execute("user_1") } returns flowOf(listOf(friendA))
+        coEvery { capriceRepo.getCaprices("friend_a", any()) } returns Result.success(friendCaprices)
+        every { locationRepository.hasLocationPermission() } returns false
+
+        val realFriendsUseCase = GetFriendsCapricesUseCase(
+            getAcceptedFriendsUseCase = acceptedFriendsUseCase,
+            capriceRepository = capriceRepo,
+            defaultDispatcher = testDispatcher,
+            locationRepository = locationRepository,
+            clockMillis = { currentClock }
+        )
+
+        val vm = HomeFeedViewModel(
+            getCapricesUseCase = getCapricesUseCase,
+            getFriendsCapricesUseCase = realFriendsUseCase,
+            profileCacheControl = profileCacheControl,
+            capriceCacheControl = capriceCacheControl,
+            getNearbyCapricesUseCase = getNearbyCapricesUseCase,
+            locationRepository = locationRepository,
+            clockMillis = { currentClock },
+            currentUserIdProvider = { currentUid },
+            ioDispatcher = testDispatcher
+        )
+
+        vm.updateSessionFriends(listOf(friendA))
+        vm.loadFriendsFeed()
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(20)
+
+        vm.loadMoreFriendsFeed()
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(40)
+
+        // Sin pasar pageSize = preservedPageLimit, el GetFriendsCapricesUseCase real truncaría a 20
+        vm.loadFriendsFeed(isManualRefresh = true, preserveVisiblePage = true)
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(40)
+        assertThat(vm.state.value.totalFriendsFeedCount).isEqualTo(45)
+    }
 }
