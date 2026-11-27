@@ -519,10 +519,12 @@ class HomeFeedViewModel(
             }.collect { batch ->
                 if (currentUserId != uid) return@collect
                 if (batch.isComplete) {
-                    lastNearbyLoadedUserId = uid
-                    lastNearbyLoadedAtMillis = clockMillis()
+                    if (!batch.isFromCache) {
+                        lastNearbyLoadedUserId = uid
+                        lastNearbyLoadedAtMillis = clockMillis()
+                        refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
+                    }
                     _state.update { it.copy(isLocationPermissionGranted = true) }
-                    refreshFriendsDistancesIfNeeded(onlyIfMissingDistanceOnLoadedItems = true)
                 }
                 val totalKnown = maxOf(batch.totalAvailableCount, batch.items.size)
                 val visibleTarget = minOf(nearbyController.visiblePageLimit, batch.items.size)
@@ -601,7 +603,7 @@ class HomeFeedViewModel(
     ) {
         controller.loadedItems = batch.items
         controller.totalAvailableCount = maxOf(batch.totalAvailableCount, batch.items.size)
-        if (!batch.isFromCache) {
+        if (!batch.isFromCache || batch.isComplete) {
             controller.hasMoreRemote = batch.hasMoreRemote
         }
         if (batch.isComplete) {

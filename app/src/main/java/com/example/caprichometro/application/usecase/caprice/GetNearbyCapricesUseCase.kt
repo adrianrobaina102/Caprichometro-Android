@@ -185,7 +185,20 @@ class GetNearbyCapricesUseCase(
 
             val visibleTarget = minOf(pageLimit, candidates.size)
             if (rawBatch.isFromCache) {
-                if (candidates.isEmpty()) return@collect
+                if (candidates.isEmpty()) {
+                    if (rawBatch.isComplete) {
+                        send(
+                            ProgressiveFeedBatch(
+                                items = emptyList(),
+                                isFromCache = true,
+                                isComplete = true,
+                                totalAvailableCount = 0,
+                                hasMoreRemote = false
+                            )
+                        )
+                    }
+                    return@collect
+                }
                 var prevCursor = 0
                 var cursor = minOf(stepSize, visibleTarget)
                 while (true) {
@@ -194,15 +207,18 @@ class GetNearbyCapricesUseCase(
                         resolvedAuthors = resolvedAuthors,
                         useCacheOnlyProfiles = true
                     )
+                    val reachedPageEnd = cursor >= visibleTarget
+                    val isFinalCacheFallback = rawBatch.isComplete && reachedPageEnd
                     send(
                         ProgressiveFeedBatch(
                             items = toFeedItems(candidates.subList(0, cursor), resolvedAuthors),
                             isFromCache = true,
-                            isComplete = false,
-                            totalAvailableCount = candidates.size
+                            isComplete = isFinalCacheFallback,
+                            totalAvailableCount = candidates.size,
+                            hasMoreRemote = isFinalCacheFallback && (rawBatch.nextPageToken != null)
                         )
                     )
-                    if (cursor >= visibleTarget) break
+                    if (reachedPageEnd) break
                     prevCursor = cursor
                     cursor = minOf(cursor + stepSize, visibleTarget)
                 }

@@ -42,7 +42,8 @@ class CreateCapriceViewModel(
     private val locationRepository: DeviceLocationRepository? = null,
     private val currentUserIdProvider: () -> String = { FirebaseAuth.getInstance().currentUser?.uid ?: "" },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val userProfileRepository: UserProfileRepository? = null
+    private val userProfileRepository: UserProfileRepository? = null,
+    private val clockMillis: () -> Long = { System.currentTimeMillis() }
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CreateCapriceState())
@@ -144,7 +145,12 @@ class CreateCapriceViewModel(
                 finalImageUrl = uploadResult.getOrThrow()
             }
 
-            val capriceToSave = capriceBuilder.setImageUrl(finalImageUrl).build()
+            // Estampar la hora real de publicación tras resolver ubicación y subir imagen
+            // para no consumir parte de la ventana de 5 minutos antes de guardar.
+            val capriceToSave = capriceBuilder
+                .setImageUrl(finalImageUrl)
+                .setTimestamp(clockMillis())
+                .build()
             val result = saveCapriceUseCase.execute(capriceToSave)
             result.fold(
                 onSuccess = { docId ->

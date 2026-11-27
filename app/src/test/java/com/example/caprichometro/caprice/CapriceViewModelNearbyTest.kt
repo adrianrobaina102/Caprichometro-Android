@@ -840,4 +840,81 @@ class CapriceViewModelNearbyTest {
         assertThat(vm.state.value.nearbyFeedItems.map { it.caprice.id }).containsExactly("c1", "c2")
         assertThat(vm.state.value.hasMoreNearbyFeed).isFalse()
     }
+
+    @Test
+    fun `cache fallback completo limpia isNearbyBackgroundSyncing sin fijar TTL de servidor`() = runTest(testDispatcher) {
+        val item = CapriceFeedItem(
+            caprice = Caprice(id = "c_cache", userId = "u1", question = "¿Caché?", answer1 = "Sí", answer2 = "No", nearbyCell = "v1_2608_3525"),
+            author = UserProfile(uid = "u1", username = "ana"),
+            approximateDistanceMeters = 400.0
+        )
+        every { locationRepository.hasLocationPermission() } returns true
+        every {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        } returns flowOf(
+            ProgressiveFeedBatch(
+                items = listOf(item),
+                isFromCache = true,
+                isComplete = true,
+                totalAvailableCount = 1,
+                hasMoreRemote = false
+            )
+        )
+
+        val vm = createViewModel()
+        vm.selectHomeTab(HomeFeedTab.GENERAL)
+        vm.loadNearbyFeedIfNeeded()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.nearbyFeedItems.map { it.caprice.id }).containsExactly("c_cache")
+        assertThat(vm.state.value.isNearbyFeedLoading).isFalse()
+        assertThat(vm.state.value.isNearbyBackgroundSyncing).isFalse()
+
+        // Como el fallback vino solo de caché, un nuevo loadNearbyFeedIfNeeded no queda bloqueado 60s
+        vm.loadNearbyFeedIfNeeded()
+        advanceUntilIdle()
+        verify(exactly = 2) {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        }
+    }
+
+    @Test
+    fun `saveCaprice estampa timestamp nuevo tras ubicacion y subida de imagen`() = runTest(testDispatcher) {
+        val uploadUseCase: UploadCapriceImageUseCase = mockk()
+        val capturedCaprices = mutableListOf<Caprice>()
+        currentClock = 500_000L
+
+        every { locationRepository.hasLocationPermission() } returns true
+        coEvery { locationRepository.currentApproximateLocation() } coAnswers {
+            currentClock += 1_500L
+            Result.success(com.example.caprichometro.domain.model.ApproximateLocation(40.4168, -3.7038))
+        }
+        coEvery { uploadUseCase.execute(any(), any()) } coAnswers {
+            currentClock += 8_000L
+            Result.success("https://example.com/img.webp")
+        }
+        coEvery { saveCapriceUseCase.execute(capture(capturedCaprices)) } returns Result.success("doc_saved")
+
+        val createVm = CreateCapriceViewModel(
+            saveCapriceUseCase = saveCapriceUseCase,
+            uploadCapriceImageUseCase = uploadUseCase,
+            locationRepository = locationRepository,
+            currentUserIdProvider = { currentUid },
+            ioDispatcher = testDispatcher,
+            clockMillis = { currentClock }
+        )
+
+        val result = createVm.saveCaprice(
+            type = "compra",
+            questionText = "¿Lo compro?",
+            answer1 = "Sí",
+            answer2 = "No",
+            imageBytes = byteArrayOf(1, 2, 3)
+        )
+        advanceUntilIdle()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(capturedCaprices).hasSize(1)
+        assertThat(capturedCaprices.single().timestamp).isEqualTo(509_500L)
+    }
 }

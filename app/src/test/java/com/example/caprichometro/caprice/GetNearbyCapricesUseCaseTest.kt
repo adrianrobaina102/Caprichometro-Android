@@ -378,4 +378,79 @@ class GetNearbyCapricesUseCaseTest {
         assertThat(page2.items.last().author.username).isEqualTo("carlos")
         coVerify(exactly = 1) { nearbyRepo.loadNextDiscoverableCapricePage("cursor_1", 20) }
     }
+
+    @Test
+    fun `cache fallback con isComplete true marca batch final como completo y evita sync colgado`() = runTest {
+        val locationRepo = mockk<DeviceLocationRepository>()
+        val nearbyRepo = mockk<CursorPagedNearbyCapriceRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val friendshipRepo = mockk<FriendshipRepository>()
+
+        val cachedItem = Caprice(
+            id = "cached_1",
+            userId = "a1",
+            question = "¿Desde caché?",
+            answer1 = "Sí",
+            answer2 = "No",
+            timestamp = 20_000L,
+            nearbyCell = madridCell
+        )
+
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+        coEvery { friendshipRepo.isCachedBlocked(any(), any()) } returns false
+        coEvery { userRepo.getCachedUserById("a1") } returns UserProfile(uid = "a1", username = "ana")
+
+        every {
+            nearbyRepo.streamFirstDiscoverableCapricePage(5, 20, true, any())
+        } returns flowOf(
+            NearbyCapriceBatch(
+                caprices = listOf(cachedItem),
+                isFromCache = true,
+                isComplete = true,
+                nextPageToken = null
+            )
+        )
+
+        val useCase = GetNearbyCapricesUseCase(locationRepo, nearbyRepo, userRepo, friendshipRepo)
+        val batches = useCase.observeProgressiveFeed("me", includeCache = true, initialBatchSize = 5, pageSize = 20).toList()
+
+        assertThat(batches).hasSize(1)
+        assertThat(batches.single().isFromCache).isTrue()
+        assertThat(batches.single().isComplete).isTrue()
+        assertThat(batches.single().hasMoreRemote).isFalse()
+        assertThat(batches.single().items.map { it.caprice.id }).containsExactly("cached_1")
+    }
+
+    @Test
+    fun `cache fallback vacio con isComplete true emite batch vacio completo`() = runTest {
+        val locationRepo = mockk<DeviceLocationRepository>()
+        val nearbyRepo = mockk<CursorPagedNearbyCapriceRepository>()
+        val userRepo = mockk<UserProfileRepository>()
+        val friendshipRepo = mockk<FriendshipRepository>()
+
+        coEvery { locationRepo.currentApproximateLocation() } returns Result.success(viewerLocation)
+        coEvery { friendshipRepo.getCachedBlockedUserIds("me") } returns emptyList()
+        coEvery { friendshipRepo.getBlockedUserIds("me") } returns Result.success(emptyList())
+
+        every {
+            nearbyRepo.streamFirstDiscoverableCapricePage(5, 20, true, any())
+        } returns flowOf(
+            NearbyCapriceBatch(
+                caprices = emptyList(),
+                isFromCache = true,
+                isComplete = true,
+                nextPageToken = null
+            )
+        )
+
+        val useCase = GetNearbyCapricesUseCase(locationRepo, nearbyRepo, userRepo, friendshipRepo)
+        val batches = useCase.observeProgressiveFeed("me", includeCache = true, initialBatchSize = 5, pageSize = 20).toList()
+
+        assertThat(batches).hasSize(1)
+        assertThat(batches.single().isFromCache).isTrue()
+        assertThat(batches.single().isComplete).isTrue()
+        assertThat(batches.single().items).isEmpty()
+    }
 }
