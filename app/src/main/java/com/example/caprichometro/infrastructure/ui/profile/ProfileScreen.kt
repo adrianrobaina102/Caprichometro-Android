@@ -105,6 +105,7 @@ fun ProfileScreen(
     onNavigateToFriends: () -> Unit = {},
     onSelectCaprice: (Caprice) -> Unit = {},
     onBack: () -> Unit = {},
+    onUserBlocked: (String) -> Unit = {},
     onSignedOut: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
@@ -302,6 +303,7 @@ fun ProfileScreen(
                     onClick = {
                         showBlockFriendDialog = false
                         viewModel.blockUser(currentUserId, targetUserId) {
+                            onUserBlocked(targetUserId)
                             Toast.makeText(context, "Usuario bloqueado", Toast.LENGTH_SHORT).show()
                             onBack()
                         }

@@ -467,7 +467,7 @@ class FriendshipViewModel(
         }
     }
 
-    fun blockUser(currentUserId: String, blockedUserId: String) {
+    fun blockUser(currentUserId: String, blockedUserId: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             _state.update { it.copy(errorMessage = null) }
             val result = blockUserUseCase.execute(currentUserId, blockedUserId)
@@ -482,6 +482,7 @@ class FriendshipViewModel(
                             isFriendRequestBlocked = if (matchesSearchedUser) true else state.isFriendRequestBlocked
                         )
                     }
+                    onSuccess()
                 },
                 onFailure = { error ->
                     _state.update { it.copy(errorMessage = error.message ?: "No se pudo bloquear al usuario.") }

@@ -79,7 +79,8 @@ fun AddFriendScreen(
     currentUserId: String,
     onBack: () -> Unit,
     onOpenOwnProfile: () -> Unit = onBack,
-    onViewProfile: (userId: String) -> Unit = {}
+    onViewProfile: (userId: String) -> Unit = {},
+    onUserBlocked: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -767,7 +768,10 @@ fun AddFriendScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.blockUser(actualUserId, target.uid)
+                        val blockedUid = target.uid
+                        viewModel.blockUser(actualUserId, blockedUid) {
+                            onUserBlocked(blockedUid)
+                        }
                         friendToBlock = null
                     }
                 ) {

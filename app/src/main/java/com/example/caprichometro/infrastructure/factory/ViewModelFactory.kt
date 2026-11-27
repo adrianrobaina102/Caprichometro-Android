@@ -180,6 +180,9 @@ class ViewModelFactory(context: Context? = null) : ViewModelProvider.Factory {
         userProfileRepository.invalidateAll()
         capriceRepository.invalidateAll()
         capriceMediaRepository.clearCache()
+        nearbyCapriceRepository.clearCache()
+        friendshipRepository.clearCache()
+        (locationRepository as? AndroidLocationRepository)?.clearCache()
         ImageModelHelper.clearCache()
     }
 

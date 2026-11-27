@@ -537,6 +537,9 @@ fun CapriceApp(
                                     },
                                     onViewProfile = { friendUserId ->
                                         openProfile(friendUserId, AppRoute.AddFriend)
+                                    },
+                                    onUserBlocked = { blockedUserId ->
+                                        homeFeedViewModel.onUserBlocked(blockedUserId)
                                     }
                                 )
                             }
@@ -566,6 +569,9 @@ fun CapriceApp(
                                         } else {
                                             currentRoute = AppRoute.Home
                                         }
+                                    },
+                                    onUserBlocked = { blockedUserId ->
+                                        homeFeedViewModel.onUserBlocked(blockedUserId)
                                     },
                                     onSignedOut = {
                                         NotificationManagerCompat.from(context).cancelAll()

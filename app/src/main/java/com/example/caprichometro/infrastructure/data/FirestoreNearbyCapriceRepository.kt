@@ -43,6 +43,10 @@ class FirestoreNearbyCapriceRepository(
 
     private val pageStates = ConcurrentHashMap<String, PageState>()
 
+    fun clearCache() {
+        pageStates.clear()
+    }
+
     override suspend fun getDiscoverableCaprices(): Result<List<Caprice>> = withContext(ioDispatcher) {
         try {
             val finalBatch = streamDiscoverableCaprices(

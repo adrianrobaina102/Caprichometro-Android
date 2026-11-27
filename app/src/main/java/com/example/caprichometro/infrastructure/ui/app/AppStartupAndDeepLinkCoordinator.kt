@@ -31,6 +31,8 @@ import com.example.caprichometro.infrastructure.ui.home.HomeFeedViewModel
 import com.example.caprichometro.infrastructure.ui.profile.ProfileViewModel
 import com.example.caprichometro.infrastructure.ui.voting.ActivePollViewModel
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -118,8 +120,17 @@ internal fun AppSessionBootstrapEffect(
             return@LaunchedEffect
         }
         if (isAuthSuccessful && currentUserId.isNotBlank()) {
-            val isNewSessionBootstrap = sessionNavViewModel.bootstrappedUserId != currentUserId
+            val previousBootstrappedUserId = sessionNavViewModel.bootstrappedUserId
+            val isNewSessionBootstrap = previousBootstrappedUserId != currentUserId
             if (isNewSessionBootstrap) {
+                if (!previousBootstrappedUserId.isNullOrBlank()) {
+                    NotificationManagerCompat.from(context).cancelAll()
+                    onClearSessionCaches()
+                    friendshipViewModel.stopListening()
+                    activePollViewModel.reset()
+                    homeFeedViewModel.reset()
+                    createCapriceViewModel.reset()
+                }
                 sessionNavViewModel.bootstrappedUserId = currentUserId
                 profileViewModel.reset()
             }
@@ -141,7 +152,7 @@ internal fun AppSessionBootstrapEffect(
 
             // 2. Diferimos escuchas secundarias, notificaciones y perfil hasta que el feed inicial haya respondido
             launch {
-                withTimeoutOrNull(4_000L) {
+                withTimeoutOrNull(1_500L) {
                     homeFeedViewModel.state.first { it.hasLoadedFeed || it.feedError != null }
                 }
                 Log.d(
@@ -178,6 +189,7 @@ internal fun AppSessionBootstrapEffect(
 
                 // Única escucha en vivo por amigo (caprichos nuevos + decisiones finales en 1 listener)
                 launch {
+                    var debouncedRefreshJob: Job? = null
                     observeFriendCapricesUseCase.observeAllUpdates(currentUserId, foregroundStart)
                         .catch { e ->
                             Log.w("AppSessionBootstrap", "Error observando novedades de amigos: ${e.message}")
@@ -212,12 +224,20 @@ internal fun AppSessionBootstrapEffect(
                                     caprice = item.caprice
                                 )
                             }
-                            // Recargamos el feed social invalidando caché para reflejar el nuevo capricho o decisión final
-                            homeFeedViewModel.loadFriendsFeed(isManualRefresh = true)
+                            // Coalescemos ráfagas simultáneas sin reiniciar la carga en cada evento ni perder paginación
+                            debouncedRefreshJob?.cancel()
+                            debouncedRefreshJob = launch {
+                                delay(400L)
+                                homeFeedViewModel.loadFriendsFeed(
+                                    isManualRefresh = true,
+                                    preserveVisiblePage = true
+                                )
+                            }
                         }
                 }
             }
         } else {
+            NotificationManagerCompat.from(context).cancelAll()
             sessionNavViewModel.reset()
             onClearSessionCaches()
             profileViewModel.reset()

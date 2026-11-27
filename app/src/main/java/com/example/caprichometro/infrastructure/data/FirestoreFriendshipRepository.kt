@@ -58,6 +58,11 @@ class FirestoreFriendshipRepository(
         blockPairCache.remove(pairCacheKey(userA, userB))
     }
 
+    fun clearCache() {
+        blockedIdsCache.clear()
+        blockPairCache.clear()
+    }
+
     private fun blockReference(blockerId: String, blockedUserId: String): DocumentReference {
         return db.collection("userBlocks")
             .document(blockerId)

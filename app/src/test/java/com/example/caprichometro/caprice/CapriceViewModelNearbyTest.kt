@@ -69,6 +69,7 @@ class CapriceViewModelNearbyTest {
         currentClock = 1_000_000L
         currentUid = "user_1"
         every { profileCacheControl.invalidateAll() } just runs
+        every { profileCacheControl.invalidateUser(any()) } just runs
         every { capriceCacheControl.invalidateAll() } just runs
     }
 
@@ -916,5 +917,105 @@ class CapriceViewModelNearbyTest {
         assertThat(result.isSuccess).isTrue()
         assertThat(capturedCaprices).hasSize(1)
         assertThat(capturedCaprices.single().timestamp).isEqualTo(509_500L)
+    }
+
+    @Test
+    fun `loadFriendsFeed con preserveVisiblePage mantiene paginacion y onUserBlocked purga ambos feeds al instante`() = runTest(testDispatcher) {
+        val friendA = UserProfile(uid = "friend_a", username = "alfa")
+        val friendB = UserProfile(uid = "friend_b", username = "beta")
+        val strangerC = UserProfile(uid = "stranger_c", username = "gamma")
+
+        val friendItems = (1..25).map { idx ->
+            val author = if (idx % 2 == 0) friendB else friendA
+            CapriceFeedItem(
+                caprice = Caprice(id = "f_$idx", userId = author.uid, question = "¿Pregunta $idx?", answer1 = "Sí", answer2 = "No"),
+                author = author
+            )
+        }
+        val nearbyItems = listOf(
+            CapriceFeedItem(
+                caprice = Caprice(id = "n_b", userId = friendB.uid, question = "¿General B?", answer1 = "Sí", answer2 = "No"),
+                author = friendB,
+                approximateDistanceMeters = 300.0
+            ),
+            CapriceFeedItem(
+                caprice = Caprice(id = "n_c", userId = strangerC.uid, question = "¿General C?", answer1 = "Sí", answer2 = "No"),
+                author = strangerC,
+                approximateDistanceMeters = 600.0
+            )
+        )
+
+        val getFriendsCapricesUseCase: GetFriendsCapricesUseCase = mockk()
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed(
+                currentUserId = "user_1",
+                initialBatchSize = 5,
+                perFriendLimit = 100,
+                totalLimit = 200,
+                includeCache = true,
+                pageSize = any(),
+                preloadedFriends = any()
+            )
+        } returns flowOf(
+            ProgressiveFeedBatch(items = friendItems, isFromCache = false, isComplete = true, totalAvailableCount = 25)
+        )
+        every {
+            getFriendsCapricesUseCase.observeProgressiveFeed(
+                currentUserId = "user_1",
+                initialBatchSize = 5,
+                perFriendLimit = 100,
+                totalLimit = 200,
+                includeCache = false,
+                pageSize = any(),
+                preloadedFriends = null
+            )
+        } returns flowOf(
+            ProgressiveFeedBatch(items = friendItems, isFromCache = false, isComplete = true, totalAvailableCount = 25)
+        )
+        every { locationRepository.hasLocationPermission() } returns true
+        every {
+            getNearbyCapricesUseCase.observeProgressiveFeed("user_1", includeCache = true, initialBatchSize = 5, pageSize = 20)
+        } returns flowOf(
+            ProgressiveFeedBatch(items = nearbyItems, isFromCache = false, isComplete = true, totalAvailableCount = 2)
+        )
+
+        val vm = HomeFeedViewModel(
+            getCapricesUseCase = getCapricesUseCase,
+            getFriendsCapricesUseCase = getFriendsCapricesUseCase,
+            profileCacheControl = profileCacheControl,
+            capriceCacheControl = capriceCacheControl,
+            getNearbyCapricesUseCase = getNearbyCapricesUseCase,
+            locationRepository = locationRepository,
+            clockMillis = { currentClock },
+            currentUserIdProvider = { currentUid },
+            ioDispatcher = testDispatcher
+        )
+
+        vm.updateSessionFriends(listOf(friendA, friendB))
+        vm.loadFriendsFeed()
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(20)
+
+        vm.loadMoreFriendsFeed()
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(25)
+
+        // Recarga silenciosa por evento en vivo preserva la ventana expandida de 25 items
+        vm.loadFriendsFeed(isManualRefresh = true, preserveVisiblePage = true)
+        advanceUntilIdle()
+        assertThat(vm.state.value.feedItems).hasSize(25)
+
+        // Cargar General y bloquear a friend_b purga instantáneamente sus items en Amigos y General
+        vm.loadNearbyFeedIfNeeded()
+        advanceUntilIdle()
+        assertThat(vm.state.value.nearbyFeedItems.map { it.caprice.id }).containsExactly("n_b", "n_c")
+
+        vm.onUserBlocked("friend_b")
+        assertThat(vm.state.value.feedItems.none { it.caprice.userId == "friend_b" }).isTrue()
+        assertThat(vm.state.value.nearbyFeedItems.map { it.caprice.id }).containsExactly("n_c")
+
+        // Eliminar a friend_a mediante updateSessionFriends también poda el feed de Amigos al instante
+        vm.updateSessionFriends(emptyList())
+        assertThat(vm.state.value.feedItems).isEmpty()
     }
 }

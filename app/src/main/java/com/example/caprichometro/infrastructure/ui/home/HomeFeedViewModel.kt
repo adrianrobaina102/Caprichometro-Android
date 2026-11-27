@@ -141,7 +141,46 @@ class HomeFeedViewModel(
         get() = currentUserIdProvider()
 
     fun updateSessionFriends(friends: List<UserProfile>?) {
+        val previous = sessionFriends
         sessionFriends = friends
+        if (previous != null && friends != null) {
+            val activeIds = friends.mapTo(HashSet()) { it.uid }
+            val uid = currentUserId
+            val removedIds = previous.asSequence()
+                .map { it.uid }
+                .filter { it.isNotBlank() && it != uid && it !in activeIds }
+                .toSet()
+            if (removedIds.isNotEmpty()) {
+                pruneAuthorsFromController(friendsController, removedIds, ::publishFriendsState)
+            }
+        }
+    }
+
+    fun onUserBlocked(blockedUserId: String) {
+        if (blockedUserId.isBlank()) return
+        sessionFriends = sessionFriends?.filterNot { it.uid == blockedUserId }
+        val excluded = setOf(blockedUserId)
+        pruneAuthorsFromController(friendsController, excluded, ::publishFriendsState)
+        pruneAuthorsFromController(nearbyController, excluded, ::publishNearbyState)
+        profileCacheControl?.invalidateUser(blockedUserId)
+        capriceCacheControl?.invalidateAll()
+    }
+
+    private fun pruneAuthorsFromController(
+        controller: PagedFeedController,
+        excludedAuthorIds: Set<String>,
+        publishState: (List<CapriceFeedItem>, Int, Boolean, Boolean) -> Unit
+    ) {
+        if (excludedAuthorIds.isEmpty()) return
+        val currentItems = controller.loadedItems
+        val filtered = currentItems.filterNot { it.caprice.userId in excludedAuthorIds }
+        val removedCount = currentItems.size - filtered.size
+        if (removedCount <= 0) return
+        controller.loadedItems = filtered
+        controller.totalAvailableCount = maxOf(filtered.size, controller.totalAvailableCount - removedCount)
+        val cap = minOf(controller.visiblePageLimit, filtered.size)
+        controller.revealedCount = controller.revealedCount.coerceAtMost(cap)
+        publishControllerSnapshot(controller, publishState)
     }
 
     fun onCapriceCreated(savedCaprice: Caprice) {
@@ -249,12 +288,19 @@ class HomeFeedViewModel(
 
     fun loadFriendsFeed(
         isManualRefresh: Boolean = false,
-        preloadedFriends: List<UserProfile>? = null
+        preloadedFriends: List<UserProfile>? = null,
+        preserveVisiblePage: Boolean = false
     ) {
         val uid = currentUserId
         val useCase = getFriendsCapricesUseCase ?: return
         if (uid.isBlank()) return
 
+        val preservedPageLimit = if (preserveVisiblePage) {
+            friendsController.visiblePageLimit.coerceAtLeast(FEED_PAGE_SIZE)
+        } else {
+            FEED_PAGE_SIZE
+        }
+        val keepExistingVisible = preserveVisiblePage && _state.value.feedItems.isNotEmpty()
         feedLoadJob?.cancel()
         distanceRefreshJob?.cancel()
         friendsController.revealJob?.cancel()
@@ -262,16 +308,16 @@ class HomeFeedViewModel(
         if (isManualRefresh) {
             friendsController.reset()
         } else {
-            friendsController.visiblePageLimit = FEED_PAGE_SIZE
             friendsController.isSourceComplete = false
         }
+        friendsController.visiblePageLimit = preservedPageLimit
         val startedWithPermission = _state.value.isLocationPermissionGranted
         friendsController.loadedWithLocationPermission = startedWithPermission
         // Marcamos la carga síncronamente para evitar carreras al arrancar entre MainActivity y HomeScreen
         _state.update {
             it.copy(
-                isFeedLoading = true,
-                isFriendsBackgroundSyncing = false,
+                isFeedLoading = !keepExistingVisible,
+                isFriendsBackgroundSyncing = keepExistingVisible,
                 feedError = null
             )
         }

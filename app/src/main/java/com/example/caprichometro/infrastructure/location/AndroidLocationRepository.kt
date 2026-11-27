@@ -51,6 +51,10 @@ class AndroidLocationRepository(
     @Volatile
     private var memoryCachedLocation: MemoryCachedLocation? = null
 
+    fun clearCache() {
+        memoryCachedLocation = null
+    }
+
     override fun hasLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             appContext,
