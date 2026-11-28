@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 
 private val SheetLimeAccent = Color(0xFFB8E636)
 
@@ -94,7 +95,7 @@ internal fun GeneralAuthorProfileSheet(
             if (!isSelfOrFriend && !requestError.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = requestError,
+                    text = localizedUiMessage(requestError),
                     color = Color(0xFFFF6B6B),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center

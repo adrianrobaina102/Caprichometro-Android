@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -66,6 +67,7 @@ import coil.compose.AsyncImage
 import com.example.caprichometro.R
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 import com.example.caprichometro.infrastructure.util.ImageCompressor
 import com.example.caprichometro.infrastructure.util.ImageModelHelper
 import com.example.caprichometro.domain.model.Caprice
@@ -164,6 +166,7 @@ fun ProfileScreen(
         }
     }
 
+    val resources = LocalResources.current
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -173,10 +176,18 @@ fun ProfileScreen(
                 tempCameraUri = uri
                 cameraLauncher.launch(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.camera_error_start, e.message.orEmpty()),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } else {
-            Toast.makeText(context, "Se necesita permiso de cámara para hacer fotos", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                resources.getString(R.string.camera_permission_needed),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -191,7 +202,11 @@ fun ProfileScreen(
                 tempCameraUri = uri
                 cameraLauncher.launch(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.camera_error_start, e.message.orEmpty()),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } else {
             cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
@@ -212,15 +227,17 @@ fun ProfileScreen(
         }
     }
 
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let {
+    val translatedError = state.errorMessage?.let { localizedUiMessage(it) }
+    LaunchedEffect(translatedError) {
+        translatedError?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.clearError()
         }
     }
 
-    LaunchedEffect(state.photoErrorMessage) {
-        state.photoErrorMessage?.let {
+    val translatedPhotoError = state.photoErrorMessage?.let { localizedUiMessage(it) }
+    LaunchedEffect(translatedPhotoError) {
+        translatedPhotoError?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.clearPhotoError()
         }
@@ -337,7 +354,7 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "Editar perfil",
+                    text = stringResource(R.string.profile_settings_edit_profile),
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -361,7 +378,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = LimeGreen)
-                        Text("Elegir foto de la galería", color = Color.White, fontSize = 15.sp)
+                        Text(stringResource(R.string.create_photo_gallery), color = Color.White, fontSize = 15.sp)
                     }
                 }
 
@@ -380,16 +397,17 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(Icons.Default.Person, contentDescription = null, tint = LimeGreen)
-                        Text("Hacer foto con la cámara", color = Color.White, fontSize = 15.sp)
+                        Text(stringResource(R.string.create_photo_take), color = Color.White, fontSize = 15.sp)
                     }
                 }
 
                 if (state.profile?.photoUrl?.isNotBlank() == true) {
+                    val avatarRemovedToast = stringResource(R.string.profile_avatar_removed_toast)
                     Surface(
                         onClick = {
                             showAvatarOptionsSheet = false
                             viewModel.updateProfilePhoto(currentUserId, "") {
-                                Toast.makeText(context, "Foto de perfil eliminada", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, avatarRemovedToast, Toast.LENGTH_SHORT).show()
                             }
                         },
                         color = CardSurface,
@@ -402,7 +420,7 @@ fun ProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Icon(AppIcons.DeleteForever, contentDescription = null, tint = BadgeRed)
-                            Text("Quitar foto de perfil", color = BadgeRed, fontSize = 15.sp)
+                            Text(stringResource(R.string.profile_avatar_remove), color = BadgeRed, fontSize = 15.sp)
                         }
                     }
                 }
@@ -462,7 +480,7 @@ fun ProfileScreen(
                     )
                     state.bioErrorMessage?.let { bioError ->
                         Text(
-                            text = bioError,
+                            text = localizedUiMessage(bioError),
                             color = BadgeRed,
                             fontSize = 12.sp
                         )
@@ -759,7 +777,11 @@ fun ProfileScreen(
                     } else if (!state.profile?.photoUrl.isNullOrBlank()) {
                         isProfilePhotoExpanded = true
                     } else {
-                        Toast.makeText(context, "@$rawUsername aún no tiene foto de perfil", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            resources.getString(R.string.profile_avatar_missing_toast, rawUsername),
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             )

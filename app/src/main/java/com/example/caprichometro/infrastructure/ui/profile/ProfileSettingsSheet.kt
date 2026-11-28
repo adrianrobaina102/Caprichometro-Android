@@ -57,6 +57,7 @@ internal fun ProfileSettingsModalSheet(
     onRequestDeleteAccount: () -> Unit
 ) {
     val context = LocalContext.current
+    val notificationsUnavailableMsg = stringResource(R.string.profile_notifications_unavailable)
     var activeSubSheet by remember { mutableStateOf(SettingsSubSheet.MAIN) }
     var selectedLanguage by remember { mutableStateOf(AppLocaleManager.getSelectedLanguage(context)) }
 
@@ -124,7 +125,11 @@ internal fun ProfileSettingsModalSheet(
                             try {
                                 context.startActivity(intent)
                             } catch (_: Exception) {
-                                Toast.makeText(context, "Ajustes de notificaciones no disponibles", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    notificationsUnavailableMsg,
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                     )
@@ -219,7 +224,7 @@ internal fun ProfileSettingsModalSheet(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Privacidad y bloqueos",
+                        text = stringResource(R.string.profile_privacy_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -227,7 +232,7 @@ internal fun ProfileSettingsModalSheet(
                 }
 
                 Text(
-                    text = "USUARIOS BLOQUEADOS · ${blockedUsers.size}",
+                    text = stringResource(R.string.profile_privacy_blocked_section, blockedUsers.size),
                     color = SubtleGray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -245,7 +250,7 @@ internal fun ProfileSettingsModalSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No tienes ningún usuario bloqueado.",
+                            text = stringResource(R.string.profile_privacy_blocked_empty),
                             color = SubtleGray,
                             fontSize = 13.sp
                         )
@@ -261,6 +266,10 @@ internal fun ProfileSettingsModalSheet(
                             key = { idx -> blockedUsers[idx].uid }
                         ) { idx ->
                             val blockedUser = blockedUsers[idx]
+                            val blockedHintToast = stringResource(
+                                R.string.profile_privacy_blocked_hint,
+                                blockedUser.username
+                            )
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -279,7 +288,7 @@ internal fun ProfileSettingsModalSheet(
                                         .clickable {
                                             Toast.makeText(
                                                 context,
-                                                "@${blockedUser.username} está bloqueado. Pulsa «Desbloquear» si quieres volver a interactuar.",
+                                                blockedHintToast,
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         }
@@ -318,7 +327,7 @@ internal fun ProfileSettingsModalSheet(
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(if (isUnblocking) "..." else "Desbloquear", fontSize = 12.sp)
+                                    Text(if (isUnblocking) "..." else stringResource(R.string.profile_privacy_unblock_action), fontSize = 12.sp)
                                 }
                             }
                         }
@@ -348,7 +357,7 @@ internal fun ProfileSettingsModalSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Eliminar cuenta permanentemente",
+                        text = stringResource(R.string.profile_delete_account_cta),
                         color = BadgeRed,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp

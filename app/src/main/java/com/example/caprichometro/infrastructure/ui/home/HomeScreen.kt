@@ -61,6 +61,7 @@ import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.infrastructure.ui.components.AppIcons
 import com.example.caprichometro.infrastructure.ui.components.FullScreenImageViewer
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 import com.example.caprichometro.infrastructure.ui.home.CardBg
 import com.example.caprichometro.infrastructure.ui.home.CardBorder
 import com.example.caprichometro.infrastructure.ui.home.FeedActionState
@@ -324,8 +325,9 @@ fun HomeScreen(
 
                     state.feedError != null && state.feedItems.isEmpty() -> {
                         FeedErrorState(
-                            title = "No se pudo cargar el feed",
-                            message = state.feedError ?: "Error desconocido",
+                            title = stringResource(R.string.home_error_title),
+                            message = state.feedError?.let { localizedUiMessage(it) }
+                                ?: stringResource(R.string.home_unknown_error),
                             onRetry = {
                                 nowMillis = System.currentTimeMillis()
                                 viewModel.loadFriendsFeed(isManualRefresh = true)
@@ -346,9 +348,9 @@ fun HomeScreen(
 
                     else -> {
                         Column(modifier = Modifier.fillMaxSize()) {
-                            if (state.feedError != null) {
+                            state.feedError?.let { rawFeedError ->
                                 Text(
-                                    text = state.feedError ?: "",
+                                    text = localizedUiMessage(rawFeedError),
                                     color = Color(0xFFFF8A80),
                                     fontSize = 12.sp,
                                     modifier = Modifier
@@ -425,7 +427,8 @@ fun HomeScreen(
                         FeedActionState(
                             emoji = "🧭",
                             title = stringResource(R.string.home_general_gps_title),
-                            message = state.nearbyFeedError ?: stringResource(R.string.home_general_gps_body),
+                            message = state.nearbyFeedError?.let { localizedUiMessage(it) }
+                                ?: stringResource(R.string.home_general_gps_body),
                             primaryLabel = stringResource(R.string.action_retry),
                             onPrimaryClick = {
                                 nowMillis = System.currentTimeMillis()
@@ -441,7 +444,8 @@ fun HomeScreen(
                     state.nearbyFeedError != null && state.nearbyFeedItems.isEmpty() -> {
                         FeedErrorState(
                             title = stringResource(R.string.home_general_error_title),
-                            message = state.nearbyFeedError ?: stringResource(R.string.home_unknown_error),
+                            message = state.nearbyFeedError?.let { localizedUiMessage(it) }
+                                ?: stringResource(R.string.home_unknown_error),
                             onRetry = {
                                 nowMillis = System.currentTimeMillis()
                                 if (hasCoarseLocationPermission(context)) {
@@ -469,9 +473,9 @@ fun HomeScreen(
 
                     else -> {
                         Column(modifier = Modifier.fillMaxSize()) {
-                            if (state.nearbyFeedError != null) {
+                            state.nearbyFeedError?.let { rawNearbyError ->
                                 Text(
-                                    text = state.nearbyFeedError ?: "",
+                                    text = localizedUiMessage(rawNearbyError),
                                     color = Color(0xFFFF8A80),
                                     fontSize = 12.sp,
                                     modifier = Modifier

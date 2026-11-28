@@ -47,6 +47,7 @@ import com.example.caprichometro.infrastructure.ui.components.FullScreenImageVie
 import com.example.caprichometro.infrastructure.ui.components.PollVotersButton
 import com.example.caprichometro.infrastructure.ui.components.PollVotersSheet
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 import androidx.compose.material.icons.filled.Search
 
 private val DarkBackground = Color(0xFF0F0F0F)
@@ -409,7 +410,7 @@ fun ResultScreen(
                     totalVotes = totalVotes,
                     finalDecision = finalDecision,
                     isSaving = isSavingDecision,
-                    errorMessage = vmState?.errorMessage,
+                    errorMessage = vmState?.errorMessage?.let { localizedUiMessage(it) },
                     onClearError = { viewModel?.clearError() },
                     onSelectDecision = { option ->
                         viewModel?.confirmFinalDecision(option) { updated ->

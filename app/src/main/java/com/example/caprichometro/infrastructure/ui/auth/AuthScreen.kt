@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.caprichometro.R
 import com.example.caprichometro.infrastructure.ui.components.AppIcons
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -104,8 +105,9 @@ fun AuthScreen(
         }
     }
 
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let {
+    val translatedError = state.errorMessage?.let { localizedUiMessage(it) }
+    LaunchedEffect(translatedError) {
+        translatedError?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
         }
     }
@@ -312,7 +314,7 @@ fun AuthScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        state.errorMessage?.let { errorMsg ->
+        translatedError?.let { errorMsg ->
             Spacer(modifier = Modifier.height(14.dp))
             Surface(
                 color = Color(0xFF2B1618),

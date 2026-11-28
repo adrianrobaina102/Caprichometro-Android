@@ -49,6 +49,7 @@ import com.example.caprichometro.infrastructure.ui.components.FullScreenImageVie
 import com.example.caprichometro.infrastructure.ui.components.PollVotersButton
 import com.example.caprichometro.infrastructure.ui.components.PollVotersSheet
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 import androidx.compose.material.icons.filled.Search
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -615,7 +616,7 @@ fun ActivePollScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = voteError,
+                            text = localizedUiMessage(voteError),
                             color = Color(0xFFFFB4B4),
                             fontSize = 12.sp,
                             modifier = Modifier.weight(1f)

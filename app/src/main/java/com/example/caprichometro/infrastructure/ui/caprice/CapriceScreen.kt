@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +53,9 @@ import coil.compose.AsyncImage
 import com.example.caprichometro.R
 import com.example.caprichometro.domain.model.UserProfile
 import com.example.caprichometro.domain.validation.DifferentOptionsValidator
+import com.example.caprichometro.infrastructure.ui.components.UiErrorTranslator
 import com.example.caprichometro.infrastructure.ui.components.UserAvatar
+import com.example.caprichometro.infrastructure.ui.components.localizedUiMessage
 import com.example.caprichometro.domain.validation.MaxLengthValidator
 import com.example.caprichometro.domain.validation.MinLengthValidator
 import com.example.caprichometro.domain.validation.NotBlankValidator
@@ -167,6 +170,7 @@ fun CapriceScreen(
     }
 
     // Solicitud de permiso de cámara en tiempo de ejecución
+    val resources = LocalResources.current
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -176,10 +180,18 @@ fun CapriceScreen(
                 tempCameraUri = uri
                 cameraLauncher.launch(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.camera_error_start, e.message.orEmpty()),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } else {
-            Toast.makeText(context, "Se necesita permiso de cámara para hacer fotos", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                resources.getString(R.string.camera_permission_needed),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -195,7 +207,11 @@ fun CapriceScreen(
                 tempCameraUri = uri
                 cameraLauncher.launch(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo iniciar la cámara: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.camera_error_start, e.message.orEmpty()),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } else {
             cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
@@ -251,7 +267,11 @@ fun CapriceScreen(
         if (isSubmitting) return@submit
         val questionResult = questionValidatorChain.validate(questionText)
         if (questionResult is ValidationResult.Error) {
-            Toast.makeText(context, questionResult.message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                UiErrorTranslator.translate(questionResult.message, resources),
+                Toast.LENGTH_SHORT
+            ).show()
         } else {
             val opt1LengthResult = optionLengthValidator.validate(answer1)
             val opt2LengthResult = optionLengthValidator.validate(answer2)
@@ -259,7 +279,11 @@ fun CapriceScreen(
                 ?: (opt2LengthResult as? ValidationResult.Error)
             val optionsResult = optionsLengthError ?: optionsValidator.validate(Pair(answer1, answer2))
             if (optionsResult is ValidationResult.Error) {
-                Toast.makeText(context, optionsResult.message, Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    UiErrorTranslator.translate(optionsResult.message, resources),
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
                 val parsedPrice = parsedPriceResult.getOrNull()
                 if (parsedPriceResult.isFailure) {
@@ -284,7 +308,7 @@ fun CapriceScreen(
                             isSubmitting = false
                             Toast.makeText(
                                 context,
-                                "No se pudo procesar la foto seleccionada. Inténtalo de nuevo o quítala.",
+                                resources.getString(R.string.create_photo_process_error),
                                 Toast.LENGTH_SHORT
                             ).show()
                             return@launch
@@ -377,7 +401,7 @@ fun CapriceScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = errorText,
+                                    text = localizedUiMessage(errorText),
                                     color = Color(0xFFFFB4B4),
                                     fontSize = 11.sp
                                 )
@@ -877,7 +901,7 @@ fun CapriceScreen(
                 capriceState.nearbyCreationError?.let { errorMsg ->
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = errorMsg,
+                        text = localizedUiMessage(errorMsg),
                         color = Color(0xFFFF6B6B),
                         fontSize = 12.sp
                     )
